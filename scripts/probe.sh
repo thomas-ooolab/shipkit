@@ -96,8 +96,52 @@ case "${1:-}" in
     [ -d docs/features ] && echo "FEATURES_INDEX=$( [ -f docs/features/INDEX.md ] && echo present || echo absent )" || echo "FEATURES_INDEX=absent"
     ;;
 
+  resolve)
+    # Config-first resolution for run-pipeline. Requires bootstrap.
+    if [ -f .shipkit/config.yml ]; then
+      echo "SHIPKIT_CONFIG_EXISTS=1"
+      echo "----- .shipkit/config.yml -----"
+      cat .shipkit/config.yml
+      echo "----- end -----"
+      # also surface next spec number from disk (ground truth beats the cached value)
+      last=$(ls "$(grep -E '^\s*dir:' .shipkit/config.yml | head -1 | awk '{print $2}' || echo specs)" 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
+      [ -n "$last" ] && echo "DISK_HIGHEST_SPEC=$last"
+    else
+      echo "SHIPKIT_CONFIG_EXISTS=0"
+      echo "Run /bootstrap first."
+    fi
+    ;;
+
+  state)
+    # Local ground truth for one ticket. Usage: probe.sh state <TICKET>
+    ticket="${2:-}"
+    if [ -z "$ticket" ]; then echo "STATE_ERROR=no-ticket" >&2; exit 2; fi
+    echo "TICKET=$ticket"
+    # spec: match frontmatter `ticket:` first, then a dir name containing the ticket
+    specfile=$(grep -rl "ticket:[[:space:]]*$ticket" specs/*/spec.md 2>/dev/null | head -1)
+    if [ -n "$specfile" ]; then echo "SPEC=$(dirname "$specfile")"; else
+      d=$(ls -d specs/*"$ticket"* 2>/dev/null | head -1); echo "SPEC=${d:-none}"; fi
+    echo "BRANCHES:"
+    bp=$(git branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+    echo "- parent: branch=${bp:-none}"
+    if [ -f .gitmodules ]; then
+      paths=$(git config -f .gitmodules --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
+      while IFS= read -r p; do
+        [ -z "$p" ] && continue
+        b=$(git -C "$p" branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+        if [ -n "$b" ]; then
+          dirty=$(git -C "$p" status --porcelain 2>/dev/null | head -1)
+          ahead=$(git -C "$p" rev-list --count "@{upstream}..$b" 2>/dev/null || echo "?")
+          echo "- $p: branch=$b dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead"
+        else
+          echo "- $p: branch=none"
+        fi
+      done <<<"$paths"
+    fi
+    ;;
+
   *)
-    echo "usage: probe.sh {topology|remote|spec|config|context}" >&2
+    echo "usage: probe.sh {topology|remote|spec|config|context|resolve|state <ticket>}" >&2
     exit 2
     ;;
 esac
