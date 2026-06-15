@@ -9,6 +9,38 @@ once; no `.specify/` scripts or templates to copy into each repo.
 
 ---
 
+## Why shipkit, not speckit?
+
+**The problem.** We adopted speckit for spec-driven development, but it was too heavy for day-to-day
+work:
+
+- **Too many artifacts.** Every feature spawned 5–9 files (`spec.md`, `requirements.md`, `plan.md`,
+  `contracts.md`, `tasks-*.md`, `research.md`, `data-model.md`, checklists…). Most got skimmed once
+  and went stale — more to write and maintain than to read.
+- **Too many commands.** Nine `/speckit.*` steps to drive a single feature through.
+- **Per-repo setup.** Each repo needed `.specify/` scripts + templates copied in and kept in sync.
+- **Not built for our shape.** speckit assumes a single repo; our platform is a **multi-submodule**
+  layout (BE + web FEs + mobile) coordinated from an orchestration root, on **Bitbucket + Jira**, not
+  GitHub.
+
+**What shipkit changes.**
+
+- **One file per feature** — `specs/NNN-slug/spec.md` holds goal · requirements · plan · tasks ·
+  contracts · edge cases. Spec lives in git (diffable, reviewable, traceable), not buried in Jira.
+- **One everyday command** — `/run-pipeline <ticket>` drives the whole flow; the stage skills exist
+  for when you want a single step.
+- **Install once, configure once** — it's a Claude Code plugin; `/bootstrap` writes a single
+  `.shipkit/config.yml` per project. No scripts copied per repo.
+- **Built for our shape** — auto-detects which **submodules** a ticket touches (by grepping the code),
+  fans out one PR per submodule + a parent PR, and bumps submodule refs — all on **Bitbucket**, with
+  state tracked in **Jira** (no GitHub labels/auto-close).
+- **Same SDD discipline, kept** — grounded + agent-verified plans, three-pass review, allowlist-gated
+  PRs. Lighter artifacts, not a lighter process.
+
+(Full side-by-side in [What's different from speckit](#whats-different-from-speckit) below.)
+
+---
+
 ## Install (private Bitbucket)
 
 ```bash
