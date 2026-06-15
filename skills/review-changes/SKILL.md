@@ -1,4 +1,5 @@
 ---
+name: review-changes
 description: Review the current diff in each affected submodule against the spec before opening PRs — checks every REQ-ID is implemented, tasks are done, and flags issues. Run after implementing, before /pr-from-plan.
 argument-hint: "[--ticket <jira-ticket>]"
 ---

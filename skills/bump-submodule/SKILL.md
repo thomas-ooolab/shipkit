@@ -1,4 +1,5 @@
 ---
+name: bump-submodule
 description: After child PRs merge, bump the parent repo's submodule pointer(s) to the merged commit and open (or update) the parent bump PR. Closes the loop — when the bump PR merges, the ticket is done.
 argument-hint: "<path>@<sha> [<path>@<sha> ...] --closes <jira-ticket>"
 ---

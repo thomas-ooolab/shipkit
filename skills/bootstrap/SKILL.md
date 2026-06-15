@@ -1,4 +1,5 @@
 ---
+name: bootstrap
 description: One-time per-project setup for shipkit. Detects submodule topology, remote host/workspace, and spec layout from real files, then proposes .shipkit/config.yml as a diff and writes only on confirmation. Has an audit/--dry-run mode. Defers to existing CLAUDE.md; never touches app code or dependencies.
 argument-hint: "[--dry-run | audit]"
 ---

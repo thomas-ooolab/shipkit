@@ -1,4 +1,5 @@
 ---
+name: plan-deep
 description: Produces a verified, grounded implementation plan inside the ticket's spec.md. Grounds in real submodule code via an Explore agent, drafts tier-scaled Plan/Tasks/Contracts, reasons about source-of-truth consistency (asks only on a genuine conflict), self-reviews and reference-verifies in parallel, then writes the refined plan into spec.md behind a confirm gate. Not for trivial edits.
 argument-hint: "--ticket <jira-ticket> [--auto] [<extra scope notes>]"
 ---

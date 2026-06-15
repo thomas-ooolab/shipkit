@@ -1,4 +1,5 @@
 ---
+name: pr-from-plan
 description: Opens one Bitbucket PR per affected submodule for a ticket, plus the parent-repo PR linking them. Default mode finalizes already-implemented branches (verify changes against the spec's task allowlist → test → push → PR). Opt-in --implement spawns a worktree agent per submodule to implement the spec's tasks first. Never merges. Use after /plan-deep.
 argument-hint: "--ticket <jira-ticket> [--implement] [--target staging|main]"
 ---

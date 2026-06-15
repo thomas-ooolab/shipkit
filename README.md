@@ -52,12 +52,15 @@ contracts · edge cases). Then you implement, review, and open PRs.
 /bump-submodule path@sha --closes AR-123    bump parent refs → parent PR merges → ticket done
 ```
 
-## Commands
+## Skills
 
-| Command | Role |
+Each is a plugin **skill** (`skills/<name>/SKILL.md`) — invoke explicitly with `/name`, or let Claude
+auto-trigger it by description.
+
+| Skill | Role |
 |---|---|
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
-| `/run-pipeline <ticket>` | **Everyday command** — ticket → scope → branches → one lean spec |
+| `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/review-changes` | Review the diff vs spec before PRs |

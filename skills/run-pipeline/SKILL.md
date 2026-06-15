@@ -1,4 +1,5 @@
 ---
+name: run-pipeline
 description: Orchestrates the Ticket → PRs pipeline. Resumable and idempotent — re-derives state from ground truth (spec file, branches, PRs, Jira status) and runs only pending stages. Default stops at the human gate (implement) and never merges; opt-in `auto` continues through review + PRs. Writes .shipkit/pipeline-<ticket>.md. Fans out child PRs per submodule. Not for hotfixes.
 argument-hint: "<jira-ticket> [auto|--auto]"
 ---

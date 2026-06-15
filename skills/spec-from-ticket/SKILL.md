@@ -1,4 +1,5 @@
 ---
+name: spec-from-ticket
 description: Extracts a structured one-file spec from a Jira ticket (or Bitbucket PR). Mines the description, comments, linked tickets, and attachments; auto-discovers affected submodules by grepping the code; resolves each field from a cited source before asking; surfaces only residual or contradictory ambiguities via a single batched question; writes specs/NNN-slug/spec.md. Not for triaging tickets.
 argument-hint: "<jira-ticket | bitbucket-pr-url>"
 ---
