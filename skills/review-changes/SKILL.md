@@ -38,6 +38,11 @@ never merge/close/edit a PR; never transition a ticket. All three review agents 
 ```
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
+## Topology mode (auto)
+Read `TOPOLOGY_MODE`. **`single-repo`** → review the **one** repo's diff (the `feat/<ticket>-…` branch
+vs its base); findings use `submodule: <project>`; no per-submodule loop. **`meta-with-submodules`** →
+the per-submodule flow below.
+
 ## Step 1 — Parse mode & target
 Parse `$ARGUMENTS`:
 - `--pr <url|id>` → **PR mode**; bind the Bitbucket PR. Resolve which submodule repo it belongs to.

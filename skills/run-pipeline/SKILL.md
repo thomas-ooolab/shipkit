@@ -41,11 +41,21 @@ never bump a submodule before its child PR is confirmed merged; no force-push.
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" resolve`
 ```
 
+## Topology mode (auto)
+Read `TOPOLOGY_MODE` from the probe. The pipeline shape adapts automatically:
+- **`meta-with-submodules`** — the flow below as written: parent branch + per-submodule branches,
+  fan-out PRs, then a submodule-ref bump (stage 7).
+- **`single-repo`** — collapse to one repo: **one** feature branch `feat/<ticket>-<slug>` (no parent/
+  child, no suffixes), scope/grounding/review act on the one repo, stage 5 opens **one** PR, and
+  **stages 6–7 (merged/bump) do not apply** — the pipeline finishes at the open PR. Everywhere the
+  steps say "per affected submodule / parent," read it as "the repo."
+
 ## Step 1 — Parse
 Tokenize `$ARGUMENTS`. Exactly one ticket-shaped token (e.g. `AR-123`) → `TICKET`. An `auto` or
 `--auto` token → `AUTO=true` (else `false`). Missing/ambiguous ticket → AskUserQuestion, do not infer.
 If `SHIPKIT_CONFIG_EXISTS=0` in the probe output, stop: "Run `/bootstrap` first." Read config values
-(submodules, suffixes, scope keywords, jira, pr_target) from the injected config block.
+from the injected config block (multi-repo: submodules, suffixes, scope keywords, jira, pr_target;
+single-repo: `branch`/`feature_base`/`pr_target`, `target.stack`, scope keywords, jira).
 
 ## Step 2 — Re-derive state from ground truth
 Run as a model Bash step (resumability depends on this — never trust a prior run's memory):

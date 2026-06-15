@@ -49,7 +49,9 @@ work:
 - **One standard across the company** — the same skills, the same one-file spec shape, and the same
   ticket → spec → plan → review → PR → bump pipeline in **every** repo (ai-roleplay, learningos, …).
   Specs and reviews look the same everywhere, onboarding a project or a teammate is "install the
-  plugin," and an improvement to the workflow ships to every team at once.
+  plugin," and an improvement to the workflow ships to every team at once. It **auto-detects** whether
+  a repo is a plain **single repo** or a **submodule orchestration root** and adapts the flow
+  accordingly — so the same plugin is the standard for *every* repo, not just submodule roots.
 
 (Full side-by-side in [What's different from speckit](#whats-different-from-speckit) below.)
 

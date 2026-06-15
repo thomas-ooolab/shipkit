@@ -43,6 +43,12 @@ mutation of any kind (reads only — never comment, transition, or edit); no cod
 ```
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
+## Topology mode (auto)
+Read `TOPOLOGY_MODE` from the probe. **`single-repo`** → skip the submodule scope-discovery (Step 3):
+there's one target (the repo). Set `services: [<project>]`, omit `scope`, and write tasks **without**
+per-submodule `(name)` tags. Everything else (evidence mining, requirements, tier, Key decisions) is
+identical. **`meta-with-submodules`** → the full flow below.
+
 ## Step 1 — Fetch the ticket
 `$ARGUMENTS` is a Jira key (`AR-123`) or a Bitbucket PR URL.
 - **Jira:** Atlassian MCP `getAccessibleAtlassianResources` → `getJiraIssue` for summary, description,

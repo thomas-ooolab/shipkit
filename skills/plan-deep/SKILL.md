@@ -48,6 +48,10 @@ Parse `$ARGUMENTS`: ticket (e.g. `AR-123`) → `TICKET`; `--auto` token → `AUT
 Step 5 confirm gate only — never suppresses clarification); the rest is extra scope notes.
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
+**Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → ground with **one** Explore agent
+on the repo (not per-submodule), and write tasks **without** `(submodule)` tags / no Fan-out / no Part
+order. **`meta-with-submodules`** → the per-submodule flow below.
+
 Find the spec: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC=specs/NNN-…`.
 If `SPEC=none`, stop: "No spec for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the
 **whole** spec: Goal, Requirements (REQ-IDs), services/scope, edge cases, any existing Key decisions.

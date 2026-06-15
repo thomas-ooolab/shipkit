@@ -35,6 +35,7 @@ detect_stack() {
 case "${1:-}" in
   topology)
     if [ -f .gitmodules ]; then
+      echo "TOPOLOGY_MODE=meta-with-submodules"
       echo "GITMODULES_EXISTS=1"
       # Pair up submodule path + branch from .gitmodules
       paths=$(git config -f .gitmodules --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
@@ -51,6 +52,7 @@ case "${1:-}" in
       done <<<"$paths"
       echo "SUBMODULE_COUNT=$count"
     else
+      echo "TOPOLOGY_MODE=single-repo"
       echo "GITMODULES_EXISTS=0"
       read -r stack manifest <<<"$(detect_stack ".")"
       echo "ROOT_STACK=$stack ROOT_MANIFEST=$manifest"
@@ -103,6 +105,8 @@ case "${1:-}" in
     ;;
 
   resolve)
+    # Topology auto-detect (independent of config, so skills branch correctly even pre-bootstrap).
+    if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
     # Config-first resolution for run-pipeline. Requires bootstrap.
     if [ -f .shipkit/config.yml ]; then
       echo "SHIPKIT_CONFIG_EXISTS=1"
@@ -123,13 +127,25 @@ case "${1:-}" in
     ticket="${2:-}"
     if [ -z "$ticket" ]; then echo "STATE_ERROR=no-ticket" >&2; exit 2; fi
     echo "TICKET=$ticket"
+    if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
     # spec: match frontmatter `ticket:` first, then a dir name containing the ticket
     specfile=$(grep -rl "ticket:[[:space:]]*$ticket" specs/*/spec.md 2>/dev/null | head -1)
     if [ -n "$specfile" ]; then echo "SPEC=$(dirname "$specfile")"; else
       d=$(ls -d specs/*"$ticket"* 2>/dev/null | head -1); echo "SPEC=${d:-none}"; fi
     echo "BRANCHES:"
     bp=$(git branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
-    echo "- parent: branch=${bp:-none}"
+    if [ -f .gitmodules ]; then
+      echo "- parent: branch=${bp:-none}"
+    else
+      # single-repo: the repo itself carries the feature branch + changes
+      if [ -n "$bp" ]; then
+        dirty=$(git status --porcelain 2>/dev/null | head -1)
+        ahead=$(git rev-list --count "@{upstream}..$bp" 2>/dev/null || echo "?")
+        echo "- repo: branch=$bp dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead"
+      else
+        echo "- repo: branch=none"
+      fi
+    fi
     if [ -f .gitmodules ]; then
       paths=$(git config -f .gitmodules --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
       while IFS= read -r p; do

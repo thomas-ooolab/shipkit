@@ -45,6 +45,12 @@ Parse `$ARGUMENTS`: `--ticket <key>` → `TICKET` (missing → AskUserQuestion);
 `IMPLEMENT=true`; `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
 else `staging`). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
+**Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → there's one target: open **one** PR
+from `feat/<ticket>-<slug>` to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
+PR, no fan-out, no Part order, no bump** — Steps 5–6 collapse to that single PR. `--implement` (if
+given) runs one worktree agent on the repo. Everywhere below that says "per affected submodule /
+parent," read it as "the repo." **`meta-with-submodules`** → the full fan-out flow below.
+
 Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/spec-from-ticket` +
 `/plan-deep` first." Read the spec:
 - frontmatter `status` — if not `planned` (or beyond), warn: "Spec status is `<x>`, not `planned` —
