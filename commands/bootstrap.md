@@ -1,84 +1,132 @@
 ---
-description: One-time per-project setup. Detect submodules, Jira/Bitbucket config, and spec layout, then write .shipkit/config.yml. Run once after installing shipkit in a new project.
-argument-hint: ""
+description: One-time per-project setup for shipkit. Detects submodule topology, remote host/workspace, and spec layout from real files, then proposes .shipkit/config.yml as a diff and writes only on confirmation. Has an audit/--dry-run mode. Defers to existing CLAUDE.md; never touches app code or dependencies.
+argument-hint: "[--dry-run | audit]"
 ---
 
 # shipkit · bootstrap
 
-Set up shipkit for **this** project. Writes a single config file, `.shipkit/config.yml`,
-that the other commands read. No `.specify/` scripts, no templates copied into the repo —
-all of that lives in the plugin. This is the only per-project state.
+Set up shipkit for **this** project by writing one file — `.shipkit/config.yml`. Everything else
+(commands, templates) lives in the plugin. This is the only per-project state.
 
-Run this **once** per project (re-run to update detected values).
+> **Never-guess rule.** Detection traces only to files confirmed present in the probe output below
+> (`.gitmodules`, manifests, `specs/`). Never infer a stack or submodule from the repo name or
+> README. If something isn't in the probe output, it isn't detected — ask via AskUserQuestion.
+>
+> **Verify-before-write rule.** Show the proposed `.shipkit/config.yml` and confirm via
+> AskUserQuestion before writing. Never write without explicit confirmation.
+>
+> **Forbidden language.** Don't say "I think / probably / looks like." Say "detected via
+> `.gitmodules`", "confirmed in probe output", or "user confirmed."
 
-> ⚠️ Detected values are best-effort. Always show them to the user and let them correct
-> before writing the file.
+## Bounded scope
+Bootstrap configures shipkit's SDD workflow only. It does **not**: install dependencies, run tests,
+scaffold app code, write `.lsp.json` / format hooks, or rewrite `CLAUDE.md`. It reads `CLAUDE.md`
+for routing context but never overwrites it.
 
-## Step 1 — Detect the project shape
+---
 
-Run these and read the results:
+## Dynamic context (injected at invocation)
 
-```bash
-# Submodules (path + tracking branch)
-[ -f .gitmodules ] && git config -f .gitmodules --get-regexp 'path|branch' || echo "no submodules"
-
-# Remote host + workspace (Bitbucket / GitHub)
-git remote get-url origin
-
-# Existing spec dir + highest spec number
-ls -d specs/ 2>/dev/null && ls specs/ 2>/dev/null | sort | tail -3
+```
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" topology`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" remote`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" spec`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" config`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" context`
 ```
 
-From this infer:
-- **submodules**: list of `{ name, path, branch }`
-- **spec_dir**: `specs/` if present, else propose it
-- **next_spec_number**: highest existing + 1 (or `008` style — keep the project's zero-padding)
-- **remote_host**: `bitbucket` | `github`
-- **workspace**: parsed from the origin URL (e.g. `ooolab-learningos`)
+## Step 1 — Read the topology (no guessing)
 
-## Step 2 — Ask for the bits that can't be detected
+From the probe output, establish:
+- **Submodules** — every `- path=… branch=… stack=…` line. Each becomes one entry. The submodule
+  count is whatever the probe reports (3 for ai-roleplay, more for larger repos like learningos —
+  do **not** assume a fixed set).
+- **Single-repo fallback** — if `GITMODULES_EXISTS=0`, there are no submodules; use `ROOT_STACK`
+  and write a single-target config (the pipeline operates on the one repo).
+- **Remote** — `REMOTE_HOST` + `REMOTE_WORKSPACE` (Bitbucket expected; GitHub/GitLab also fine).
+- **Spec layout** — `SPEC_DIR`, `NEXT_SPEC`, `ZERO_PAD`.
+- **Existing config** — if `SHIPKIT_CONFIG_EXISTS=1`, this is a re-run: diff against the shown
+  contents, don't blindly replace.
 
-Ask the user (offer detected defaults):
-- **Jira base URL** (e.g. `https://ooolab.atlassian.net`) and **project key** (e.g. `AR`)
-- **Branch prefix convention** (default conventional-commit: `feat/ | fix/ | chore/ | …`)
-- **Submodule branch suffix** (default: `-fe`, `-be`, `-voice` mapped per submodule path)
-- Which submodule is **staging-only / not production-ready** (if any, e.g. voice)
+If the probe shows `unknown` for a submodule's stack, ask the user which stack it is — don't guess.
 
-## Step 3 — Write `.shipkit/config.yml`
+## Step 2 — Derive scope-detection signals per stack
+
+shipkit detects which submodules a ticket touches using keywords. Derive the keyword set **from
+each submodule's detected stack**, not from fixed service names:
+
+| Detected stack | Default scope signals |
+|---|---|
+| `nextjs` | ui, page, component, chart, dialog, bff, `src/app/api`, tanstack, middleware, cookie |
+| `node` | endpoint, handler, route, service, queue, worker |
+| `go` | endpoint, `api/api.yml`, migration, schema, gorm, handler, repository, jwt |
+| `python` | pipeline, webrtc, stt, tts, model, worker, fastapi |
+| `rust` / `java` / `ruby` | endpoint, service, handler, migration (adjust per project) |
+
+Map each submodule → its signals. The user can edit these after.
+
+## Step 3 — Infer per-submodule defaults
+- **suffix** — derive from the submodule name's trailing token (`…-be`→`-be`, `…-voice`→`-voice`,
+  `…-fe` or a `nextjs` frontend→`-fe`). If ambiguous, ask.
+- **branch** — the probe's branch, or `main` if unset.
+- **staging_only** — ask the user which submodules (if any) are not production-ready (e.g. a voice
+  service). Default `false`.
+- **Jira** — ask for base URL + project key (can't be detected). Offer a guess only if `CLAUDE.md`
+  states it; otherwise ask.
+
+## Step 4 — Propose `.shipkit/config.yml` (show, don't write yet)
+
+Render the full proposed file and show it. For a re-run (`SHIPKIT_CONFIG_EXISTS=1`), show a unified
+diff vs the existing contents instead.
 
 ```yaml
 # .shipkit/config.yml — generated by shipkit bootstrap
 project: <repo-name>
 remote:
-  host: bitbucket
-  workspace: ooolab-learningos
+  host: <REMOTE_HOST>
+  workspace: <REMOTE_WORKSPACE>
 jira:
-  base_url: https://ooolab.atlassian.net
-  project_key: AR
+  base_url: <asked>          # e.g. https://ooolab.atlassian.net
+  project_key: <asked>       # e.g. AR
+  # Bitbucket has no GitHub-style labels; pipeline state lives in Jira transitions.
+  done_transition: "Done"
 spec:
-  dir: specs
-  next_number: "008"
-  zero_pad: 3
+  dir: <SPEC_DIR>
+  next_number: "<NEXT_SPEC>"
+  zero_pad: <ZERO_PAD>
 branching:
   parent_prefix: "feat/{ticket}-{slug}"
+  pr_target: staging         # child PRs validate on staging before main
   submodules:
-    - { name: ai-roleplay,       path: ai-roleplay,       branch: main, suffix: "-fe",    staging_only: false }
-    - { name: ai-roleplay-be,    path: ai-roleplay-be,    branch: main, suffix: "-be",    staging_only: false }
-    - { name: ai-roleplay-voice, path: ai-roleplay-voice, branch: main, suffix: "-voice", staging_only: true  }
+    - { name: <name>, path: <path>, branch: <branch>, stack: <stack>, suffix: <suffix>, staging_only: <bool> }
+    # …one line per detected submodule (3 for ai-roleplay; N for larger repos)
 scope_detection:
-  fe:    [ "ui", "page", "component", "chart", "dialog", "bff", "src/app/api", "tanstack", "vapi", "middleware", "cookie" ]
-  be:    [ "endpoint", "api/api.yml", "migration", "schema", "gorm", "handler", "repository", "jwt", "workspace scoping" ]
-  voice: [ "pipecat", "elevenlabs", "webrtc", "POST /start", "voice profile", "stt", "tts" ]
+  <name>: [ <signals from Step 2> ]
 ```
 
-## Step 4 — Confirm
+## Step 5 — Audit / dry-run early exit
 
-Report what was written and the detected scope keywords. Tell the user:
+If `$ARGUMENTS` contains `audit` or `--dry-run`: stop after Step 4. Report "Audit complete — no
+files written. Run `/bootstrap` to write." Do not call AskUserQuestion to write.
 
+## Step 6 — Confirm and write
+
+AskUserQuestion: `["Write .shipkit/config.yml?", "Write it", "Let me edit a value first", "Cancel"]`.
+- **Write it** — if a config already exists, first back it up to `.shipkit/config.yml.bak-<ISO-timestamp>`,
+  then write. Create `.shipkit/` if absent.
+- **Edit a value** — ask which field, update the proposal, re-show, re-confirm.
+- **Cancel** — "Cancelled. No file written." Stop.
+
+After writing, verify with `test -f .shipkit/config.yml`; if missing, report the failure and stop.
+
+## Step 7 — Report
 ```
 ✅ shipkit ready for <project>.
-   Config: .shipkit/config.yml
-   Next:   /run-pipeline AR-123
-```
+   Config:     .shipkit/config.yml  (<N> submodules: <names>)
+   Spec dir:   <SPEC_DIR>  (next: <NEXT_SPEC>)
+   Jira:       <project_key> @ <base_url>
+   Backed up:  <bak file or "none">
 
-Tip: commit `.shipkit/config.yml` so the whole team shares one config.
+   Tip: commit .shipkit/config.yml so the whole team shares one config.
+   Next: /run-pipeline <TICKET>
+```
