@@ -1,0 +1,11 @@
+{
+  "name": "shipkit",
+  "owner": { "name": "ooolab" },
+  "plugins": [
+    {
+      "name": "shipkit",
+      "source": "./",
+      "description": "Lightweight SDD — ticket → lean spec → branches → PRs → submodule bump."
+    }
+  ]
+}

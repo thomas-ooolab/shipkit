@@ -48,3 +48,6 @@ Thumbs.db
 *.mov
 *.wmv
 
+
+# shipkit: target-project config should be committed in the project, not here
+.shipkit/
