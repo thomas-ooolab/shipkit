@@ -65,7 +65,7 @@ auto-trigger it by description.
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
-| `/bump-submodule <path>@<sha> --closes <ticket>` | Bump submodule refs after child PRs merge |
+| `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
 
 ## Spec = source of truth in git
 
