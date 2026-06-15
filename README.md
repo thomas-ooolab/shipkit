@@ -61,7 +61,7 @@ contracts · edge cases). Then you implement, review, and open PRs.
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/review-changes` | Review the diff vs spec before PRs |
-| `/pr-from-plan` | Open child PRs per submodule + parent PR, all referencing the ticket |
+| `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Bump submodule refs after child PRs merge |
 
 ## Spec = source of truth in git
