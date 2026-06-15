@@ -46,6 +46,10 @@ work:
   state tracked in **Jira** (no GitHub labels/auto-close).
 - **Same SDD discipline, kept** — grounded + agent-verified plans, three-pass review, allowlist-gated
   PRs. Lighter artifacts, not a lighter process.
+- **One standard across the company** — the same skills, the same one-file spec shape, and the same
+  ticket → spec → plan → review → PR → bump pipeline in **every** repo (ai-roleplay, learningos, …).
+  Specs and reviews look the same everywhere, onboarding a project or a teammate is "install the
+  plugin," and an improvement to the workflow ships to every team at once.
 
 (Full side-by-side in [What's different from speckit](#whats-different-from-speckit) below.)
 
