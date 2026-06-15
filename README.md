@@ -18,7 +18,11 @@ work:
   `contracts.md`, `tasks-*.md`, `research.md`, `data-model.md`, checklists…). Most got skimmed once
   and went stale — more to write and maintain than to read.
 - **Too many commands.** Nine `/speckit.*` steps to drive a single feature through.
-- **Per-repo setup.** Each repo needed `.specify/` scripts + templates copied in and kept in sync.
+- **Manual, per-repo install.** speckit isn't a plugin — every project needed its `.specify/` scripts,
+  templates, and all nine command files copied in by hand and kept in sync. Onboarding a new repo (or
+  a new teammate) meant repeating that setup; a fix to one command had to be re-copied everywhere.
+- **Shallow plans.** speckit's `plan.md` was largely a template fill — it didn't read the real code, so
+  paths and symbols were often guessed and went stale.
 - **Not built for our shape.** speckit assumes a single repo; our platform is a **multi-submodule**
   layout (BE + web FEs + mobile) coordinated from an orchestration root, on **Bitbucket + Jira**, not
   GitHub.
@@ -29,8 +33,14 @@ work:
   contracts · edge cases. Spec lives in git (diffable, reviewable, traceable), not buried in Jira.
 - **One everyday command** — `/run-pipeline <ticket>` drives the whole flow; the stage skills exist
   for when you want a single step.
-- **Install once, configure once** — it's a Claude Code plugin; `/bootstrap` writes a single
-  `.shipkit/config.yml` per project. No scripts copied per repo.
+- **Installs in seconds** — it's a Claude Code plugin: two commands (`/plugin marketplace add` +
+  `/plugin install`) and the whole team has every skill. Updates are one `marketplace update`; fixes
+  ship to everyone at once. No scripts or command files copied per repo — `/bootstrap` then writes a
+  single `.shipkit/config.yml` per project.
+- **Deeper, verified planning** — `/plan-deep` grounds in the **real submodule code** via an Explore
+  agent, then runs parallel reviewer agents that **verify every file path and symbol exists** and
+  catch missed edge cases / cross-submodule ordering *before* the plan is written. speckit's plan was
+  a template fill; shipkit's is grounded and checked.
 - **Built for our shape** — auto-detects which **submodules** a ticket touches (by grepping the code),
   fans out one PR per submodule + a parent PR, and bumps submodule refs — all on **Bitbucket**, with
   state tracked in **Jira** (no GitHub labels/auto-close).
