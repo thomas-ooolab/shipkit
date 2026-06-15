@@ -11,13 +11,19 @@ detect_stack() {
   if [ -f "$dir/package.json" ]; then
     if grep -qE '"(next)"[[:space:]]*:' "$dir/package.json" 2>/dev/null; then
       echo "nextjs package.json"
+    elif grep -qE '"(react|react-native|vue|svelte|@angular/core|vite)"[[:space:]]*:' "$dir/package.json" 2>/dev/null; then
+      echo "react package.json"
     else
       echo "node package.json"
     fi
   elif [ -f "$dir/go.mod" ]; then echo "go go.mod"
+  elif [ -f "$dir/pubspec.yaml" ]; then echo "flutter pubspec.yaml"
   elif [ -f "$dir/pyproject.toml" ]; then echo "python pyproject.toml"
   elif [ -f "$dir/requirements.txt" ]; then echo "python requirements.txt"
   elif [ -f "$dir/setup.py" ]; then echo "python setup.py"
+  elif [ -f "$dir/manage.py" ]; then echo "python manage.py"
+  elif [ -f "$dir/gunicorn.conf.py" ]; then echo "python gunicorn.conf.py"
+  elif [ -f "$dir/composer.json" ]; then echo "php composer.json"
   elif [ -f "$dir/Cargo.toml" ]; then echo "rust Cargo.toml"
   elif [ -f "$dir/pom.xml" ]; then echo "java pom.xml"
   elif [ -f "$dir/build.gradle" ] || [ -f "$dir/build.gradle.kts" ]; then echo "java gradle"

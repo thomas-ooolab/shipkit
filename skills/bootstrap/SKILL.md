@@ -59,10 +59,12 @@ each submodule's detected stack**, not from fixed service names:
 | Detected stack | Default scope signals |
 |---|---|
 | `nextjs` | ui, page, component, chart, dialog, bff, `src/app/api`, tanstack, middleware, cookie |
+| `react` | ui, page, component, view, route, hook, store, state, api client, style, layout |
 | `node` | endpoint, handler, route, service, queue, worker |
 | `go` | endpoint, `api/api.yml`, migration, schema, gorm, handler, repository, jwt |
-| `python` | pipeline, webrtc, stt, tts, model, worker, fastapi |
-| `rust` / `java` / `ruby` | endpoint, service, handler, migration (adjust per project) |
+| `python` | endpoint, handler, model, migration (alembic/django), celery, worker, fastapi, gunicorn, stt/tts/pipeline (voice) |
+| `flutter` | screen, widget, navigation, state, provider/bloc, platform channel, build |
+| `rust` / `java` / `ruby` / `php` | endpoint, service, handler, migration (adjust per project) |
 
 Map each submodule → its signals. The user can edit these after.
 
