@@ -25,6 +25,7 @@ auto-update, export an app password: `export BITBUCKET_TOKEN=<app-password>`.
 ## Day-to-day
 
 ```bash
+/fix-permissions           # ONCE per repo — allow shipkit's read-only probe (see Permissions)
 /bootstrap                 # once per project — writes .shipkit/config.yml
 /run-pipeline AR-123       # every feature — the whole pipeline in one command
 ```
@@ -59,6 +60,7 @@ auto-trigger it by description.
 
 | Skill | Role |
 |---|---|
+| `/fix-permissions` | One-time per-repo — allow the read-only probe so injected context can run |
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
 | `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
@@ -66,6 +68,27 @@ auto-trigger it by description.
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
+
+## Permissions (run `/fix-permissions` first)
+
+shipkit skills load context by auto-running `!`bash …/probe.sh …`` at invocation. Claude Code won't
+run an **injected** shell command unless it's pre-authorized, and injected commands can't show the
+interactive approval prompt — so without the allow-rule, `/bootstrap` fails with *"command requires
+approval"*.
+
+`/fix-permissions` resolves a bundled applier and **prints a terminal command for you to run** — a
+command *you* run is your own action and bypasses the injection/classifier block, whereas a command
+the model runs would hit the same wall. Run it **once** before `/bootstrap`:
+
+```bash
+bash "$(find ~/.claude/plugins -name apply-permissions.sh 2>/dev/null | sort -V | tail -1)" --user
+```
+
+`--user` writes `~/.claude/settings.json` — covers **every** repo at once, and is the scope a
+`/pr-from-plan --implement` **background worktree agent** reads. (`--project` writes the repo's
+`.claude/settings.json` instead; commit it to share with the team.) The key rule is `Bash(bash:*)` —
+the plugin lives at a versioned cache path, so a path-scoped rule would break on every update. The
+applier is idempotent and backs up before writing.
 
 ## Spec = source of truth in git
 
