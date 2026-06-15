@@ -59,7 +59,7 @@ contracts · edge cases). Then you implement, review, and open PRs.
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
 | `/run-pipeline <ticket>` | **Everyday command** — ticket → scope → branches → one lean spec |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
-| `/plan-deep --ticket <ticket>` | Deepen Plan + Tasks (adds per-task targets) for non-trivial work |
+| `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/review-changes` | Review the diff vs spec before PRs |
 | `/pr-from-plan` | Open child PRs per submodule + parent PR, all referencing the ticket |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Bump submodule refs after child PRs merge |
