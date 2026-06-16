@@ -113,6 +113,7 @@ auto-trigger it by description.
 | `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
+| `/design-pipeline <change> [--ticket <t>]` | UI/UX route — orchestrates the Impeccable companion (shape → craft → document) + required anti-pattern detect gate in the frontend submodule; produces a `DESIGN.md`. Requires the Impeccable plugin. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
