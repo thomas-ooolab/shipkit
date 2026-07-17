@@ -110,8 +110,10 @@ interactive + user-confirmed, append the gate result to the spec's `Open questio
 
 ## How it fits the pipeline
 `/design-recon` → implement → **`/design-verify`** (fix → re-run until PASS) → `/review-changes` →
-`/pr-from-plan`. In `/run-pipeline`, a `FAILED` here halts the same way a failed detect gate does — a
-UI ticket with a contract doesn't reach PR review until its build matches, responsive included.
+`/pr-from-plan`. In `/run-pipeline` this is an **opt-in** gate: the pipeline asks once (for UI tickets)
+whether to run recon→verify; if you opt in, a `FAILED` here halts before PRs the same way a review
+blocker does — the build doesn't reach PR review until it matches the contract, responsive included.
+If you decline (or it's a backend ticket / `auto` run), the gate is skipped.
 
 ## Gotchas
 - **Same extractor both halves.** Recon and verify run the *identical* `recon-extract.js` with the same

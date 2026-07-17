@@ -153,6 +153,10 @@ it's absent (they block with a clear message, never fake a pass).
 > and `/review-changes` statically flags desktop-only diffs (hardcoded widths, no `sm:`/`md:` variants)
 > **even on tickets without a contract**.
 
+`/run-pipeline` folds this in as an **opt-in** gate: for a UI ticket it asks once whether to run
+recon→verify (remembered for resumes); if you opt in, recon runs after the spec and verify gates
+before PRs — a `FAILED` halts like a review blocker. Decline it, backend tickets, and `auto` runs skip it.
+
 This is distinct from `/design-pipeline`, which *generates* a design via the Impeccable companion.
 `/design-recon` is for when a design already exists and you must **match** it.
 

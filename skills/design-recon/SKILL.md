@@ -145,8 +145,10 @@ Next: implement, then /design-verify --ticket <ticket>  to diff the build agains
 ## How it fits the pipeline
 For a UI ticket with a mockup: `/spec-from-ticket` → **`/design-recon --ticket <T>`** (writes the
 contract) → implement (the contract is the styling brief) → `/design-verify --ticket <T>` (Half 2,
-gates fidelity) → `/review-changes` → `/pr-from-plan`. `/design-recon` captures a design you must
-**match**; `/design-pipeline` (Impeccable) generates a design from scratch — different routes.
+gates fidelity) → `/review-changes` → `/pr-from-plan`. `/run-pipeline` folds this in as an **opt-in**
+gate — it asks once (for UI tickets) whether to run recon→verify, runs `/design-recon` after the spec
+and `/design-verify` before PRs when you opt in, and skips it otherwise. `/design-recon` captures a
+design you must **match**; `/design-pipeline` (Impeccable) generates a design from scratch — different routes.
 
 ## Gotchas
 - **Computed, not authored.** Always extract via `browser_evaluate`; never reconstruct tokens by
