@@ -81,8 +81,27 @@ In a **single message**, dispatch all three bundled agents (parallel), passing t
 - `Agent(subagent_type: "infra-ops-reviewer")`
 Each returns a JSON array of findings per its rubric. Wait for all three. Same rubric in both modes.
 
+## Step 3.5 — Visual fidelity + responsive (FE changes)
+Runs when the diff touches frontend files. Two parts:
+
+1. **Contract gate (if one exists).** If the ticket's spec dir has a `design-contract.md`, this review
+   does **not** re-measure the UI — it defers to `/design-verify`. Include its last gate line if
+   present, else emit an `advisory` finding:
+   `{pass:"fidelity", finding:"design-contract.md exists but /design-verify not run — run it before PR", severity:"advisory", submodule:"<fe>", file:"specs/NNN/design-contract.md", line:0}`.
+2. **Responsive discipline (always, even with no contract).** FE implementations routinely ship
+   desktop-only. Scan the FE diff for responsive red flags and raise a `blocking` finding per hit:
+   - hardcoded pixel widths/heights on layout elements (`w-[420px]`, `width: 420px`, `min-width` on
+     containers) with **no** responsive variant → likely overflow on mobile.
+   - a multi-column `flex-row`/`grid-cols-N` with **no** `sm:`/`md:` stacking variant.
+   - `overflow-x` hidden to *mask* a layout that should reflow.
+   - fixed font sizes on headings with no responsive step.
+   Finding shape:
+   `{pass:"responsive", finding:"<selector/class> is desktop-only — no sm:/md: variant; will overflow at 375px", severity:"blocking", submodule:"<fe>", file:"<path>", line:N}`.
+   This is diff-static (no browser) — it catches the class of bug even when no contract or dev server
+   exists; `/design-verify` confirms it live when a contract is present.
+
 ## Step 4 — Merge & deduplicate
-Combine drift + pass 1/2/3 findings. Dedup:
+Combine drift + pass 1/2/3 + fidelity/responsive (Step 3.5) findings. Dedup:
 - `line > 0` → dedup by `(submodule, file, line)`, keep higher severity.
 - `line == 0` → dedup by `(submodule, file, finding)` so two distinct whole-file findings both survive.
 Sort blocking first, then advisory. Group output by submodule.

@@ -114,9 +114,47 @@ auto-trigger it by description.
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/design-pipeline <change> [--ticket <t>]` | UI/UX route — orchestrates the Impeccable companion (shape → craft → document) + required anti-pattern detect gate in the frontend submodule; produces a `DESIGN.md`. Requires the Impeccable plugin. |
+| `/design-recon <artifact> [--ticket <t>]` | **Match a mockup** — drives a screenshot / HTML / auth-gated Claude design link in a real browser (Playwright MCP), reads *computed* styles, snaps to the project's Tailwind tokens, and writes `design-contract.md` (all breakpoints + states). Cheaper *and* more accurate than reading the mockup's HTML. |
+| `/design-verify [--ticket <t>] [--url <route>]` | Close the loop — renders the *built* UI at every breakpoint, diffs computed styles against `design-contract.md`, and gates `PASS`/`FAILED` with per-token `expected → actual → fix`. Responsive breakage (overflow, non-stacking) always fails. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
+
+## Design fidelity loop (UI tickets with a mockup)
+
+FE implementations drift from the design — wrong spacing/color, missing hover states, and (chronically)
+**desktop-only layouts that break on mobile**. And reading a mockup's HTML to avoid that is both
+expensive and unreliable (utility classes, CSS variables, and the cascade mean authored CSS ≠ what
+renders). shipkit closes this with a measure-based loop:
+
+```
+/design-recon <mockup> --ticket AR-123     ← Half 1: open the mockup in a real browser (Playwright MCP),
+      │                                       read COMPUTED styles, snap to the project's Tailwind tokens,
+      │                                       write specs/NNN/design-contract.md (all breakpoints + states)
+      ▼
+   implement — the contract IS the styling brief (assemble known classes, not guesses)
+      ▼
+/design-verify --ticket AR-123 --url <route>   ← Half 2: render the BUILT UI at every breakpoint,
+      │                                            diff computed styles vs the contract, gate PASS/FAILED
+      ▼                                            with expected → actual → fix. Responsive breakage fails.
+   fix → re-run until PASS → /review-changes → /pr-from-plan
+```
+
+**Three artifact tiers**, auto-detected: an **HTML file** or **public URL** → exact computed-style
+capture; a **screenshot** → honest vision-estimate (marked `approx`, verified perceptually). Same
+extractor runs both halves, so a diff is a real build gap, not two measurement methods.
+
+**Playwright MCP** drives the browser. Its own headless Chromium handles HTML + public URLs with **no
+extension**. Only an **auth-gated Claude design link** needs the [Playwright Chrome extension](https://chromewebstore.google.com/detail/playwright-extension/mmlmfjhmonkocbjadbfplnigmagldckm)
+so the MCP attaches to *your* Chrome and reuses your logged-in session. The skills degrade cleanly when
+it's absent (they block with a clear message, never fake a pass).
+
+> Responsive is enforced two ways: `/design-verify` fails on live overflow/non-stacking at 375/768/1280,
+> and `/review-changes` statically flags desktop-only diffs (hardcoded widths, no `sm:`/`md:` variants)
+> **even on tickets without a contract**.
+
+This is distinct from `/design-pipeline`, which *generates* a design via the Impeccable companion.
+`/design-recon` is for when a design already exists and you must **match** it.
 
 ## Permissions (run `/fix-permissions` first)
 
