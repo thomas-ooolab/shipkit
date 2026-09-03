@@ -1,6 +1,6 @@
 ---
-name: clarify-loop
-description: "Use when the user wants to resolve a Jira ticket's open PO-clarification questions without manually re-checking the ticket — seeds one Jira comment with the ticket's open business-logic questions, then polls for the PO's reply on a self-paced session loop until every question is resolved. Trigger: /clarify-loop <ticket-id>. Examples: \"clarify-loop AR-450\", \"keep asking the PO until AR-450's open questions are resolved\""
+name: clarify
+description: "Use when the user wants to resolve a Jira ticket's open PO-clarification questions without manually re-checking the ticket — seeds one Jira comment with the ticket's open business-logic questions, then polls for the PO's reply on a self-paced background loop until every question is resolved. Trigger: /clarify <ticket-id>. Examples: \"clarify AR-450\", \"keep asking the PO until AR-450's open questions are resolved\""
 ---
 
 # Clarify Loop
@@ -55,7 +55,7 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 
 ## Step 1 — Resolve inputs
 
-1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress clarify-loop runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
+1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress `/clarify` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
 2. Find the ticket's spec: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID. If none exists, or it has no `## Open questions` section, invoke the `spec-from-ticket` skill on this ticket first (it produces that section) — then continue.
 3. Identify the PO to tag: check the Jira ticket's reporter field via `getJiraIssue`. If it's ambiguous who the actual product owner is (reporter is a bot, or a different person owns clarifications for this project), ask the user once with `AskUserQuestion` and remember the answer for this ticket only (don't persist it globally — POs vary per project).
 
@@ -89,7 +89,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 0. If `pending_comment` is set (a draft from an earlier tick wasn't confirmed yet), skip straight to confirming and posting it per the Hard Rule above — don't relaunch the poller or reclassify anything until it's posted and `pending_comment` is cleared.
 1. **Wait for the PO via the background poller, not a fixed-interval `/loop` wake.** Right after seeding, or after posting any tick reply, launch in the background (`Bash(run_in_background: true)`):
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/clarify-loop/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
+   ${CLAUDE_PLUGIN_ROOT}/skills/clarify/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
    ```
    This sleeps and re-checks Jira itself (default: every 60s, up to a 24h window) instead of paying for a full session wake on every empty check — you're notified once, only when something actually posted. Exit codes:
    - **0** — a new comment landed. Continue to step 2 below.

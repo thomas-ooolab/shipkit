@@ -1,6 +1,6 @@
 ---
-name: bugfix-loop
-description: "Use when a tester/QA posts a Jira comment reporting a bug on an in-flight feature ticket (the comment, not the ticket's own description, is the bug report) and it needs triage — deciding per reported concern whether it's a real defect (fix it), expected behavior (explain why), or a product decision (ask for options) — then tracking the commenter's reply until every concern is actually resolved, not just replied to once. Trigger: /bugfix-loop <ticket-id>. Examples: \"/bugfix-loop AR-460\", \"QA left a bug comment on AR-460, triage it and keep checking until they confirm\""
+name: bugfix
+description: "Use when a tester/QA posts a Jira comment reporting a bug on an in-flight feature ticket (the comment, not the ticket's own description, is the bug report) and it needs triage — deciding per reported concern whether it's a real defect (fix it), expected behavior (explain why), or a product decision (ask for options) — then tracking the commenter's reply until every concern is actually resolved, not just replied to once. Trigger: /bugfix <ticket-id>. Examples: \"/bugfix AR-460\", \"QA left a bug comment on AR-460, triage it and keep checking until they confirm\""
 ---
 
 # Bugfix Loop
@@ -11,8 +11,8 @@ Composes existing pieces — do not reimplement any of them:
 - **REQUIRED:** `superpowers:systematic-debugging` — trace each reported symptom to root cause before classifying it. Never classify from the ticket text alone.
 - **REQUIRED for any code fix:** `superpowers:test-driven-development` — write the regression test first.
 - This project's own bugfix mechanics, if it has one (e.g. a `report-bug` skill's dev flow — branch, fix, test, push, PR) — reuse its conventions, don't invent a parallel one. If none exists, just follow the repo's normal branch/commit/PR workflow.
-- `clarify-loop`'s state-file/`silent_ticks` shape and business-language rule below — same mechanics, applied to bug concerns instead of spec open-questions.
-- **REQUIRED:** `wait-for-jira-comment.sh` (colocated in this folder as a symlink to `clarify-loop`'s copy — one script, one source of truth, don't fork it into a bugfix-specific variant). It's a plain interval poller against the Jira REST API (no Slack bot involved), so it fits this skill exactly as-is: pass the ticket and `last_checked_comment_id`, it blocks until a new comment lands. No `/loop`/`ScheduleWakeup` anywhere in this skill — `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are hard requirements, same as `clarify-loop`.
+- `clarify`'s state-file/`silent_ticks` shape and business-language rule below — same mechanics, applied to bug concerns instead of spec open-questions.
+- **REQUIRED:** `wait-for-jira-comment.sh` (colocated in this folder as a symlink to `clarify`'s copy — one script, one source of truth, don't fork it into a bugfix-specific variant). It's a plain interval poller against the Jira REST API (no Slack bot involved), so it fits this skill exactly as-is: pass the ticket and `last_checked_comment_id`, it blocks until a new comment lands. No `/loop`/`ScheduleWakeup` anywhere in this skill — `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are hard requirements, same as `clarify`.
 
 State lives in `.shipkit/bugfix-<ticket>.md`.
 
@@ -57,7 +57,7 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 
 ## Step 1 — Resolve inputs & investigate
 
-1. Ticket ID from args. If missing, recommend candidates instead of asking blank: check `.shipkit/bugfix-*.md` for existing state files (in-progress bugfix-loop runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly. The ticket is an existing feature ticket already being built — the bug report is a **comment** on it, not the ticket's own description (that's the feature spec, unrelated to what's being triaged here).
+1. Ticket ID from args. If missing, recommend candidates instead of asking blank: check `.shipkit/bugfix-*.md` for existing state files (in-progress `/bugfix` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly. The ticket is an existing feature ticket already being built — the bug report is a **comment** on it, not the ticket's own description (that's the feature spec, unrelated to what's being triaged here).
 2. Find the comment(s) to triage: if the invocation points at a specific comment, use that. Otherwise take the latest tester/QA comment that reports unexpected behavior (skip status updates, unrelated remarks) — if more than one recent comment could qualify, ask the user which one. If it lists multiple distinct problems (e.g. a numbered list), treat each as a separate concern.
 3. The person to reply to is the **author of that comment** — not the ticket's Jira "Reporter" field, which is usually whoever filed the original feature ticket, not the tester who found the bug. If the comment author is ambiguous (shared/bot account), ask the user once and remember for this ticket only.
 4. **Before triaging, check whether this exact bug report already has a response.** The local state file is not the source of truth for "already triaged" — the ticket's comments are. The file can be missing for reasons unrelated to whether a response exists: a fresh clone/worktree, a teammate ran this from another machine, or the response posted but the file write never happened. Fetch the ticket's comments posted *after* the bug-report comment found in step 2 and look for one from you/the bot account that already addresses it (a fixed-and-pushed note, a not-a-defect explanation, or lettered options, in this skill's own comment style — see Steps 2–3).
@@ -102,7 +102,7 @@ A ticket can have concerns in different buckets at once — classify each on its
 0. If `pending_comment` is set (a draft from an earlier tick wasn't confirmed yet), skip straight to confirming and posting it per the Hard Rule above — don't relaunch the poller or reclassify anything until it's posted and `pending_comment` is cleared.
 1. **Wait for the reporter via the background poller, not a fixed-interval `/loop` wake.** Right after seeding, or after posting any tick reply, launch in the background (`Bash(run_in_background: true)`):
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/bugfix-loop/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
+   ${CLAUDE_PLUGIN_ROOT}/skills/bugfix/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
    ```
    This sleeps and re-checks Jira itself (default: every 60s, up to a 24h window) instead of paying for a full session wake on every empty check — you're notified once, only when something actually posted. Exit codes:
    - **0** — a new comment landed. Continue to step 2 below.
@@ -127,7 +127,7 @@ A ticket can have concerns in different buckets at once — classify each on its
 ## Notes
 
 - This is a session loop, not a cron — `wait-for-jira-comment.sh` runs as a child process of this session, so it still dies if the terminal closes.
-- No `/loop` / `ScheduleWakeup` anywhere in this skill — the background poller (reused from `clarify-loop`) is the only polling mechanism, and it requires `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` to be set (Step 4.1's exit 3).
+- No `/loop` / `ScheduleWakeup` anywhere in this skill — the background poller (reused from `clarify`) is the only polling mechanism, and it requires `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` to be set (Step 4.1's exit 3).
 - Ticket status transitions (Done/Closed) and QA sign-off are left to the user — this skill resolves *concerns*, it doesn't drive Jira workflow state.
 - "Not a defect" is a claim, not a fact, until the reporter accepts it. Don't stop polling just because you're confident — wait for their ack or handle a dispute per Step 4.
 - Fixing one concern doesn't end the loop if others are still open — check that one line off and keep polling for the rest.

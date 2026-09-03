@@ -1,9 +1,9 @@
 {
   "_comment": [
-    "Single source of truth for pr-loop's waiter addresses and tunables.",
+    "Single source of truth for pr's waiter addresses and tunables.",
     "wait-for-verdict.sh and verdict-predicate.py were copied verbatim from",
     "/Users/tung/ooolab/review-loop (2026-08-20) — battle-tested against this same",
-    "reviewer bot. Only this config.json differs: it points at pr-loop's own channel",
+    "reviewer bot. Only this config.json differs: it points at pr's own channel",
     "(#ent-internal) instead of review-loop's #ooolab-be. Do not edit the scripts to",
     "change addresses — change them here."
   ],
@@ -13,7 +13,7 @@
       "name": "#ent-internal",
       "id": "C052QGHD337",
       "private": true,
-      "_note": "Same channel pr-loop's seed ping and tick replies already use."
+      "_note": "Same channel pr's seed ping and tick replies already use."
     },
     "bot_reviewer_user_id": "U0B6M74TLBY",
     "bot_reviewer_handle": "OOOLAB AI Agent",

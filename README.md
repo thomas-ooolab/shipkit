@@ -57,16 +57,16 @@ work:
 
 ---
 
-## Install (private Bitbucket)
+## Install
 
 ```bash
 # in Claude Code
-/plugin marketplace add git@bitbucket.org:ooolab-learningos/shipkit.git
+/plugin marketplace add thomas-ooolab/shipkit
 /plugin install shipkit@shipkit
 ```
 
-Auth uses your existing `git` credentials (SSH key / credential helper). For background
-auto-update, export an app password: `export BITBUCKET_TOKEN=<app-password>`.
+Public GitHub repo — no credentials needed to install or auto-update. If you'd rather pin the
+git URL explicitly: `/plugin marketplace add https://github.com/thomas-ooolab/shipkit.git`.
 
 ---
 

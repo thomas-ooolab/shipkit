@@ -18,7 +18,7 @@
 # exit 5  config.json missing or missing required keys — never guesses a channel
 # exit 6  <parent_ts> is a REPLY, not the thread ROOT — Slack does not error on this (it just
 #         returns the single queried message, ok:true), so this is the only signal. Re-run with
-#         the real root ts printed in the error (in pr-loop, the state file's `thread_ts`).
+#         the real root ts printed in the error (in pr, the state file's `thread_ts`).
 #
 # Requires a token in $SLACK_REVIEW_TOKEN.
 #
@@ -111,7 +111,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
       echo "WRONG_TS: ${PARENT_TS} is a REPLY, not the thread root. Slack returned it as a" >&2
       echo "  single message (ok:true) instead of erroring, which looks identical to \"no" >&2
       echo "  replies yet\" — this waiter would have polled forever. Re-run with the real" >&2
-      echo "  thread root: ${real_root} (in pr-loop, this is the state file's \`thread_ts\`," >&2
+      echo "  thread root: ${real_root} (in pr, this is the state file's \`thread_ts\`," >&2
       echo "  never the ts of whatever message you just posted)." >&2
       exit 6
       ;;
