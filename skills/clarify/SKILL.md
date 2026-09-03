@@ -5,10 +5,12 @@ description: "Use when the user wants to resolve a Jira ticket's open PO-clarifi
 
 # Clarify Loop
 
-Automates the "ask PO to clarify business logic, wait, fold the answer back into the spec" cycle for one ticket, so the user doesn't have to manually re-open Jira to check for a reply.
+Automates the "ask PO to clarify business logic, wait, fold the answer back into open-question.md" cycle for one ticket, so the user doesn't have to manually re-open Jira to check for a reply.
 
 Composes three existing pieces — do not reimplement any of them:
-- `spec-from-ticket`'s ambiguity/citation logic, to find and phrase open questions
+- `spec-from-ticket` and `plan-deep`'s undefined-reference/dependency-chain checks, which write
+  `specs/NNN-slug/open-question.md` — this skill only reads and updates that file, it never decides on
+  its own what counts as an open question.
 - Atlassian MCP tools, to read/post Jira comments
 - **not** `/loop`'s `ScheduleWakeup` — this skill polls via `wait-for-jira-comment.sh` (colocated in this folder), a background bash script that sleeps and re-checks Jira itself. A `ScheduleWakeup` wake reloads the whole session's context every tick even when nothing changed; the background script costs one `curl` per interval and only notifies you when there's real news.
 
@@ -56,7 +58,7 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 ## Step 1 — Resolve inputs
 
 1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress `/clarify` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
-2. Find the ticket's spec: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID. If none exists, or it has no `## Open questions` section, invoke the `spec-from-ticket` skill on this ticket first (it produces that section) — then continue.
+2. Find the ticket's spec dir: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID, then look for `open-question.md` alongside it. If the spec doesn't exist, or `open-question.md` doesn't exist, invoke `spec-from-ticket` (and `plan-deep` if a spec already exists but no plan) on this ticket first — those are what produce `open-question.md` — then continue. If the spec exists and `open-question.md` genuinely has nothing in it, there's nothing to clarify; tell the user and stop.
 3. Identify the PO to tag: check the Jira ticket's reporter field via `getJiraIssue`. If it's ambiguous who the actual product owner is (reporter is a bot, or a different person owns clarifications for this project), ask the user once with `AskUserQuestion` and remember the answer for this ticket only (don't persist it globally — POs vary per project).
 
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)
@@ -64,9 +66,9 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 The local state file is not the source of truth for "has this been seeded" — the Jira ticket is. The file can be missing for reasons that have nothing to do with whether a seed comment exists: a fresh clone/worktree, a teammate ran this from another machine, or the comment posted but the file write never happened. Checking only the file's existence causes a duplicate question comment on the ticket.
 
 0. **Before drafting anything**, fetch the ticket's comments (`getJiraIssue` with comments) and look for an existing comment tagging the PO with this ticket's open questions — do this even when `.shipkit/clarify-<ticket>.md` is missing.
-   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/clarify-<ticket>.md` from it: `spec` path, `po_account_id`, `last_checked_comment_id` set to that comment's ID, `pending_comment: null`, `silent_ticks: 0`, and the open-questions checklist — check off any question a later PO reply already answers (fold the answer into the spec, same as Step 3.4 would). Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
+   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/clarify-<ticket>.md` from it: `spec` path, `po_account_id`, `last_checked_comment_id` set to that comment's ID, `pending_comment: null`, `silent_ticks: 0`, and the open-questions checklist — check off any question a later PO reply already answers (fold the answer into `open-question.md`, same as Step 3.4 would). Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
    - **Nothing found** → proceed below, this is a genuine first seed.
-1. Read the spec's `## Open questions` section → list of questions, each already in the lettered-option format `spec-from-ticket` produces.
+1. Read `open-question.md` → list of questions, each already in business-language / lettered-option format (`spec-from-ticket` and `plan-deep` both write to this file).
 2. Translate any that still read technical (they shouldn't, if `spec-from-ticket` wrote them, but re-check) into plain business language per the rule above.
 3. Draft ONE comment tagging the PO with every open question, then confirm it with me per the Hard Rule above. If unconfirmed this turn, write it as `pending_comment` in the state file below and stop — don't launch the background poller yet.
 4. Once approved, post via `addCommentToJiraIssue`. Note the posted comment's ID (or ticket's current latest comment ID if the API doesn't echo it back) as `last_checked_comment_id`, and clear `pending_comment`.
@@ -99,8 +101,8 @@ The local state file is not the source of truth for "has this been seeded" — t
 2. Read the state file.
 3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here.
 4. Reset `silent_ticks` to 0. Match each open question against what the new comment(s) said; every question they touch falls into exactly one bucket:
-   - **Clearly answered** → check it off, fold the resolution into the spec's `## Open questions` section (move to resolved/decisions, keep the answer verbatim so it's traceable).
-   - **Raises a genuinely new business ambiguity** → append it to the open-questions list, phrased business-plain, to be asked as a follow-up (see below).
+   - **Clearly answered** → check it off in both the state file and `open-question.md` (keep the answer verbatim next to the item so it's traceable — don't delete the resolved line, mark it resolved).
+   - **Raises a genuinely new business ambiguity** → append it to `open-question.md` and the state file's checklist, phrased business-plain, to be asked as a follow-up (see below).
    - **Neither** — the PO replied but didn't answer and didn't raise a new business question (vague reply, "let me get back to you", punts the question to a third party or another team) → leave the question open, but add a short bracketed status note after it in the state file, e.g. `(blocked — PO checking with platform team)`, so the next tick has context instead of re-asking cold.
 5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new follow-up question from bucket 2. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
 6. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
@@ -108,7 +110,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 
 ## Step 4 — Continue or stop
 
-- **All open questions checked off** → update the spec (remove the `## Open questions` section or mark it fully resolved), delete `.shipkit/clarify-<ticket>.md`, tell the user it's done. Nothing to relaunch — no background poller, no `ScheduleWakeup`.
+- **All open questions checked off** → mark every item in `open-question.md` resolved (or delete the file — either is fine, nothing else reads it once empty), delete `.shipkit/clarify-<ticket>.md`, tell the user it's done. Nothing to relaunch — no background poller, no `ScheduleWakeup`.
 - **Still open** →
   - If `silent_ticks` just reached 6 (six poller timeouts — roughly a week of silence at the default 24h window) for the first time, say so to the user explicitly — don't just quietly keep polling.
   - Tell the user what changed this tick (resolved N, still waiting on M — list the still-open ones, including any blocked-status notes).
