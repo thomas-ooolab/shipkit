@@ -58,7 +58,8 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 ## Step 1 — Resolve inputs
 
 1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress `/clarify` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
-2. Find the ticket's spec dir: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID, then look for `open-question.md` alongside it. If the spec doesn't exist, or `open-question.md` doesn't exist, invoke `spec-from-ticket` (and `plan-deep` if a spec already exists but no plan) on this ticket first — those are what produce `open-question.md` — then continue. If the spec exists and `open-question.md` genuinely has nothing in it, there's nothing to clarify; tell the user and stop.
+2. Find the ticket's spec dir: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID, then look for `open-question.md` alongside it. If the spec doesn't exist, invoke `spec-from-ticket` first — then continue.
+   **Consolidate before the first send.** If a seed comment hasn't been posted yet (Step 2.0 hasn't found one) and the spec's frontmatter `status` isn't `planned` yet, recommend running `plan-deep` first, even if `open-question.md` already has content from `spec-from-ticket` — `plan-deep`'s dependency-chain gate routinely finds *more* undefined references once it grounds in real code, and a second seed-shaped comment landing on the ticket a day after the first reads as scattered, not thought-through. Ask the user once: `["Run /plan-deep first so every open question goes out in one pass, or seed with what's here now?", "Run /plan-deep first", "Seed now with what's here"]`. If the spec is already `status: planned` (or the user chooses to seed now), proceed — nothing further to consolidate.
 3. Identify the PO to tag: check the Jira ticket's reporter field via `getJiraIssue`. If it's ambiguous who the actual product owner is (reporter is a bot, or a different person owns clarifications for this project), ask the user once with `AskUserQuestion` and remember the answer for this ticket only (don't persist it globally — POs vary per project).
 
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)
@@ -66,7 +67,7 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 The local state file is not the source of truth for "has this been seeded" — the Jira ticket is. The file can be missing for reasons that have nothing to do with whether a seed comment exists: a fresh clone/worktree, a teammate ran this from another machine, or the comment posted but the file write never happened. Checking only the file's existence causes a duplicate question comment on the ticket.
 
 0. **Before drafting anything**, fetch the ticket's comments (`getJiraIssue` with comments) and look for an existing comment tagging the PO with this ticket's open questions — do this even when `.shipkit/clarify-<ticket>.md` is missing.
-   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/clarify-<ticket>.md` from it: `spec` path, `po_account_id`, `last_checked_comment_id` set to that comment's ID, `pending_comment: null`, `silent_ticks: 0`, and the open-questions checklist — check off any question a later PO reply already answers (fold the answer into `open-question.md`, same as Step 3.4 would). Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
+   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/clarify-<ticket>.md` from it: `spec` path, `po_account_id`, `last_checked_comment_id` set to that comment's ID, `pending_comment: null`, `silent_ticks: 0`, `follow_up_rounds` set to the count of genuinely-new questions already asked in replies since the seed (0 if none), and the open-questions checklist — check off any question a later PO reply already answers (fold the answer into `open-question.md`, same as Step 3.4 would). Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
    - **Nothing found** → proceed below, this is a genuine first seed.
 1. Read `open-question.md` → list of questions, each already in business-language / lettered-option format (`spec-from-ticket` and `plan-deep` both write to this file).
 2. Translate any that still read technical (they shouldn't, if `spec-from-ticket` wrote them, but re-check) into plain business language per the rule above.
@@ -79,12 +80,15 @@ The local state file is not the source of truth for "has this been seeded" — t
    po_account_id: <id or "reporter">
    last_checked_comment_id: <id>
    silent_ticks: 0
+   follow_up_rounds: 0
    pending_comment: null
 
    ## Open questions
    - [ ] <question text>
    - [ ] <question text>
    ```
+   `follow_up_rounds` counts ticks where Step 3.4 fired a genuinely-new question (bucket 2) — see the
+   round cap in Step 3.4.
 
 ## Step 3 — Loop body (every time the background poller reports new activity, or right after seeding)
 
@@ -99,18 +103,21 @@ The local state file is not the source of truth for "has this been seeded" — t
    - **3** (`JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` unset) → tell the user directly these are required to poll Jira at all — there's no `/loop` fallback for this path anymore. Stop until they're configured (see the ecc `jira-integration` skill for how to mint a token).
    - **4** — Jira rejected the request (bad auth / wrong ticket key) → tell the user, don't silently keep retrying.
 2. Read the state file.
-3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here.
+3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here. **Also re-read `open-question.md`** and diff it against the state file's checklist — a later `/plan-deep` run (or a manual edit) can append new items after this ticket was already seeded, and those need to reach the PO in this tick's comment too, not sit unasked. Any item in the file not yet in the state file's checklist is new: add it to today's batch the same as a bucket-2 item below (it doesn't count against `follow_up_rounds` — that counter is only for questions *this skill itself* generated in response to a PO reply, not ones `spec-from-ticket`/`plan-deep` already decided were needed).
 4. Reset `silent_ticks` to 0. Match each open question against what the new comment(s) said; every question they touch falls into exactly one bucket:
    - **Clearly answered** → check it off in both the state file and `open-question.md` (keep the answer verbatim next to the item so it's traceable — don't delete the resolved line, mark it resolved).
-   - **Raises a genuinely new business ambiguity** → append it to `open-question.md` and the state file's checklist, phrased business-plain, to be asked as a follow-up (see below).
+   - **Raises a genuinely new business ambiguity** → first check whether it's actually a **sub-detail of an already-open question** (fold it into that item's discussion instead of creating a new one — most PO replies that sound like "one more thing" are refining something already asked, not opening new ground). Only if it's a genuinely distinct gap: append it to `open-question.md` and the state file's checklist, phrased business-plain, subject to the round cap below.
    - **Neither** — the PO replied but didn't answer and didn't raise a new business question (vague reply, "let me get back to you", punts the question to a third party or another team) → leave the question open, but add a short bracketed status note after it in the state file, e.g. `(blocked — PO checking with platform team)`, so the next tick has context instead of re-asking cold.
-5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new follow-up question from bucket 2. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
+
+   **Round cap on new questions — no unbounded branching.** If this tick would add a genuinely-new bucket-2 question, increment `follow_up_rounds` first. If it would now exceed 3: do **not** add the new question this way. Instead, fold it into a single closing summary — everything still open, including this last item, phrased as one consolidated ask — and say so to the user: "hit the follow-up cap (3 rounds) — asking everything outstanding in one final comment instead of opening another round; if the PO's answer raises something further, that's a manual follow-up, not another auto-generated tick." This mirrors `pr`'s `max_rounds` — the point is the same: a chain of one-new-question-per-reply is a design smell, not a feature.
+5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
 6. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
 7. Once approved, post it, update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
 
 ## Step 4 — Continue or stop
 
 - **All open questions checked off** → mark every item in `open-question.md` resolved (or delete the file — either is fine, nothing else reads it once empty), delete `.shipkit/clarify-<ticket>.md`, tell the user it's done. Nothing to relaunch — no background poller, no `ScheduleWakeup`.
+- **Follow-up round cap just hit** (`follow_up_rounds` reached 3 this tick) → this tick's comment was already the consolidated closing ask (Step 3.4). Tell the user plainly: the cap was hit, list every question still open (including the one just folded in), and say that any further new ambiguity from here is a manual follow-up, not another auto-generated round. Still relaunch the poller (below) — the loop keeps polling for answers to what's already been asked, it just stops *generating new questions* on its own.
 - **Still open** →
   - If `silent_ticks` just reached 6 (six poller timeouts — roughly a week of silence at the default 24h window) for the first time, say so to the user explicitly — don't just quietly keep polling.
   - Tell the user what changed this tick (resolved N, still waiting on M — list the still-open ones, including any blocked-status notes).
@@ -121,3 +128,4 @@ The local state file is not the source of truth for "has this been seeded" — t
 - This is a session loop, not a cron — `wait-for-jira-comment.sh` runs as a child process of this session, so it still dies if the terminal closes. Same trade-off as before; only *how* it waits changed, not *whether* it survives closing the terminal.
 - No `/loop` / `ScheduleWakeup` anywhere in this skill — the background poller is the only polling mechanism, and it requires `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` to be set (Step 3.1's exit 3).
 - Don't re-post the full open-question list every tick — only the single per-tick comment described in Step 3.5, and only when the PO said something new.
+- **Consolidation, not a drip feed.** Step 1.2 pushes to run `plan-deep` before the first seed so both sources' questions go out together; Step 3.4's round cap (`follow_up_rounds`, max 3) stops the loop from generating an unbounded chain of one-new-question-per-PO-reply. The goal is one well-thought-out ask, not a slow trickle.
