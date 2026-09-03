@@ -120,7 +120,7 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 5. **No jump-ahead.** If requirement/task **C** depends on capability **B** and B is undefined per
    above, do not spec C as if B exists. Either sequence B as its own prerequisite requirement, or — if
    B's shape is a business decision, not just missing code — leave C blocked on the `open-question.md`
-   item and say so in Requirements (`REQ-NNN — blocked on open question: {B}`). Never assume "B is
+   item and say so in Requirements (`REQ-NNN — blocked on OQ-N: {B}`). Never assume "B is
    probably fine" and spec C on top of it.
 
 | Excuse | Reality |
@@ -168,10 +168,14 @@ rename/reorder sections — `/plan-deep` and `/run-pipeline` read this exact sha
 # Open questions — <ticket>
 <!-- Business-language questions for the PO — no field/table/endpoint names. Written by
      spec-from-ticket / plan-deep when a referenced feature or dependency can't be confirmed in the
-     codebase. Consumed by /clarify (seeds a Jira comment, polls for the PO's reply). -->
-- [ ] {question, plain business language} — blocks: REQ-NNN
+     codebase. Consumed by /clarify (seeds a Jira comment, polls for the PO's reply). Each item gets
+     a stable OQ-N id, assigned in order starting at OQ-1 — never renumbered or reused, even once an
+     item is resolved, so a reference to "OQ-2" in spec.md/a Jira comment/a plan Task stays valid. -->
+- [ ] **OQ-1** — {question, plain business language} — blocks: REQ-NNN
 ```
-Each item must read the way a non-technical PO would understand it (what's being asked, in what
+Cite the id everywhere this question is referenced — Requirements' `blocked on open question` note
+(Step 5 above), Key decisions, Jira comments — so "which question is this" never requires re-reading
+the whole file. Each item must read the way a non-technical PO would understand it (what's being asked, in what
 situation) — same business-language bar as `/clarify`'s own comments, not a code-shaped description of
 the gap.
 

@@ -118,8 +118,10 @@ assumes already exists? Three outcomes only:
   as its own task, sequenced before C, tagged into the same Part order.
 - **B is missing and its shape is a business decision** (which of several ways to build it, or whether
   it should exist at all) → do **not** draft C's task on top of an assumed B. Append the gap to
-  `specs/NNN-slug/open-question.md` (business language, `blocks: T0NN`) and mark C's task
-  `blocked on open question — see open-question.md`. Tell the user in Step 6; recommend `/clarify`.
+  `specs/NNN-slug/open-question.md` as the next `OQ-N` (continue the existing file's numbering — never
+  renumber or reuse an id; start at `OQ-1` if the file doesn't exist yet), business language,
+  `- [ ] **OQ-N** — {question} — blocks: T0NN`, and mark C's task `blocked on OQ-N — see
+  open-question.md`. Tell the user in Step 6; recommend `/clarify`.
 
 Never draft C assuming B "will probably be there" or "is a minor detail to sort out during
 implementation" — an unverified prerequisite is exactly what this gate exists to catch.

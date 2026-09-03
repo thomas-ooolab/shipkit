@@ -84,11 +84,12 @@ The local state file is not the source of truth for "has this been seeded" — t
    pending_comment: null
 
    ## Open questions
-   - [ ] <question text>
-   - [ ] <question text>
+   - [ ] OQ-1 — <question text>
+   - [ ] OQ-2 — <question text>
    ```
-   `follow_up_rounds` counts ticks where Step 3.4 fired a genuinely-new question (bucket 2) — see the
-   round cap in Step 3.4.
+   Ids mirror `open-question.md`'s — same `OQ-N`, same order, so a question is traceable across both
+   files and any Jira comment/spec reference to it. `follow_up_rounds` counts ticks where Step 3.4
+   fired a genuinely-new question (bucket 2) — see the round cap in Step 3.4.
 
 ## Step 3 — Loop body (every time the background poller reports new activity, or right after seeding)
 
@@ -106,7 +107,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here. **Also re-read `open-question.md`** and diff it against the state file's checklist — a later `/plan-deep` run (or a manual edit) can append new items after this ticket was already seeded, and those need to reach the PO in this tick's comment too, not sit unasked. Any item in the file not yet in the state file's checklist is new: add it to today's batch the same as a bucket-2 item below (it doesn't count against `follow_up_rounds` — that counter is only for questions *this skill itself* generated in response to a PO reply, not ones `spec-from-ticket`/`plan-deep` already decided were needed).
 4. Reset `silent_ticks` to 0. Match each open question against what the new comment(s) said; every question they touch falls into exactly one bucket:
    - **Clearly answered** → check it off in both the state file and `open-question.md` (keep the answer verbatim next to the item so it's traceable — don't delete the resolved line, mark it resolved).
-   - **Raises a genuinely new business ambiguity** → first check whether it's actually a **sub-detail of an already-open question** (fold it into that item's discussion instead of creating a new one — most PO replies that sound like "one more thing" are refining something already asked, not opening new ground). Only if it's a genuinely distinct gap: append it to `open-question.md` and the state file's checklist, phrased business-plain, subject to the round cap below.
+   - **Raises a genuinely new business ambiguity** → first check whether it's actually a **sub-detail of an already-open question** (fold it into that item's discussion instead of creating a new one — most PO replies that sound like "one more thing" are refining something already asked, not opening new ground). Only if it's a genuinely distinct gap: append it to `open-question.md` as the next `OQ-N` (continue the file's existing numbering — never renumber or reuse an id) and to the state file's checklist, phrased business-plain, subject to the round cap below.
    - **Neither** — the PO replied but didn't answer and didn't raise a new business question (vague reply, "let me get back to you", punts the question to a third party or another team) → leave the question open, but add a short bracketed status note after it in the state file, e.g. `(blocked — PO checking with platform team)`, so the next tick has context instead of re-asking cold.
 
    **Round cap on new questions — no unbounded branching.** If this tick would add a genuinely-new bucket-2 question, increment `follow_up_rounds` first. If it would now exceed 3: do **not** add the new question this way. Instead, fold it into a single closing summary — everything still open, including this last item, phrased as one consolidated ask — and say so to the user: "hit the follow-up cap (3 rounds) — asking everything outstanding in one final comment instead of opening another round; if the PO's answer raises something further, that's a manual follow-up, not another auto-generated tick." This mirrors `pr`'s `max_rounds` — the point is the same: a chain of one-new-question-per-reply is a design smell, not a feature.
