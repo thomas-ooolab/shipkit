@@ -173,6 +173,12 @@ rename/reorder sections — `/plan-deep` and `/run-pipeline` read this exact sha
      item is resolved, so a reference to "OQ-2" in spec.md/a Jira comment/a plan Task stays valid. -->
 - [ ] **OQ-1** — {question, plain business language} — blocks: REQ-NNN
 ```
+If Step 3's grep found **zero** hits for the referenced concept anywhere in the codebase (not just
+within this AC's scope — genuinely net-new, nothing to verify a reply against), append `[no-precedent]`
+to the item: `- [ ] **OQ-1** — {question} — blocks: REQ-NNN [no-precedent]`. `/clarify` uses this to
+flag that any reply defines the thing from scratch rather than confirming something real, and to hold
+downstream tasks at lower confidence even once the question is answered.
+
 Cite the id everywhere this question is referenced — Requirements' `blocked on open question` note
 (Step 5 above), Key decisions, Jira comments — so "which question is this" never requires re-reading
 the whole file. Each item must read the way a non-technical PO would understand it (what's being asked, in what

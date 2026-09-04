@@ -18,8 +18,8 @@
 # exit 3  JIRA_URL / JIRA_EMAIL / JIRA_API_TOKEN not set — see the ecc `jira-integration` skill for
 #         how to mint a token at https://id.atlassian.com/manage-profile/security/api-tokens. There
 #         is no ScheduleWakeup fallback for this path anymore — these creds are required.
-# exit 4  Jira rejected the request (bad auth / no access / wrong ticket key) — configuration
-#         problem, not a stall.
+# exit 4  Jira rejected the request (bad auth / no access / wrong ticket key), or the response body
+#         came back empty/unparseable 3 times in a row — configuration/network problem, not a stall.
 #
 # Requires JIRA_URL (e.g. https://yourorg.atlassian.net), JIRA_EMAIL, JIRA_API_TOKEN.
 
@@ -38,28 +38,52 @@ if [ -z "${JIRA_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:
 fi
 
 deadline=$(( $(date +%s) + MAX_MINUTES * 60 ))
+body_file=$(mktemp)
+trap 'rm -f "$body_file"' EXIT
+consecutive_bad_bodies=0
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
-  # || true so one transient network failure never kills the wait.
-  raw=$(curl -sS --max-time 20 -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+  # Body goes straight to a file so http_code (from -w, on its own stdout line) never has to be
+  # split back out of a blob that might itself contain trailing newlines or embedded control bytes.
+  http_code=$(curl -sS --max-time 20 -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
     -H "Accept: application/json" \
     "${JIRA_URL}/rest/api/3/issue/${TICKET}/comment?orderBy=created&maxResults=100" \
-    -w '\n%{http_code}' 2>/dev/null) || true
+    -o "$body_file" -w '%{http_code}' 2>&1)
+  curl_exit=$?
 
-  http_code=$(printf '%s' "$raw" | tail -n1)
-  body=$(printf '%s' "$raw" | sed '$d')
+  if [ "$curl_exit" -ne 0 ]; then
+    echo "CURL_FAILED (exit ${curl_exit}, retrying): ${http_code}" >&2
+    sleep "$INTERVAL"
+    continue
+  fi
 
   if [ "$http_code" != "200" ]; then
     echo "JIRA_ERROR: HTTP ${http_code:-?} from ${JIRA_URL}/rest/api/3/issue/${TICKET}/comment" >&2
-    printf '%s\n' "$body" >&2
+    cat "$body_file" >&2
     exit 4
   fi
 
-  result=$(printf '%s' "$body" | AFTER_ID="$AFTER_ID" python3 - <<'PY'
+  if [ ! -s "$body_file" ]; then
+    consecutive_bad_bodies=$((consecutive_bad_bodies + 1))
+    echo "EMPTY_BODY with HTTP 200 (curl exit 0) — attempt ${consecutive_bad_bodies}" >&2
+    if [ "$consecutive_bad_bodies" -ge 3 ]; then
+      echo "EMPTY_BODY repeated ${consecutive_bad_bodies}x — not transient, giving up. Check network/proxy" \
+           "between this host and ${JIRA_URL} in a detached/background context." >&2
+      exit 4
+    fi
+    sleep "$INTERVAL"
+    continue
+  fi
+  # Pass the body as a file argv, not via stdin: `python3 -` reads the PROGRAM from stdin, so a
+  # heredoc there consumes stdin for the script text itself — sys.stdin is already at EOF by the
+  # time the program body would try to read piped JSON from it, causing a deterministic (not
+  # transient) "Expecting value: line 1 column 1 (char 0)" on every single call.
+  result=$(AFTER_ID="$AFTER_ID" python3 - "$body_file" <<'PY'
 import json, os, sys
 after = int(os.environ["AFTER_ID"])
 try:
-    data = json.load(sys.stdin)
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
 except Exception as e:
     print(f"PARSE_ERROR|{e}")
     sys.exit()
@@ -82,7 +106,15 @@ PY
       exit 0
       ;;
     PARSE_ERROR\|*)
-      echo "PARSE_ERROR (transient, retrying): ${result#PARSE_ERROR|}" >&2
+      consecutive_bad_bodies=$((consecutive_bad_bodies + 1))
+      echo "PARSE_ERROR (attempt ${consecutive_bad_bodies}): ${result#PARSE_ERROR|}" >&2
+      if [ "$consecutive_bad_bodies" -ge 3 ]; then
+        echo "PARSE_ERROR repeated ${consecutive_bad_bodies}x — not transient, giving up." >&2
+        exit 4
+      fi
+      ;;
+    *)
+      consecutive_bad_bodies=0
       ;;
   esac
 

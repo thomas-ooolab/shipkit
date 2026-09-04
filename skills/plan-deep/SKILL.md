@@ -121,7 +121,10 @@ assumes already exists? Three outcomes only:
   `specs/NNN-slug/open-question.md` as the next `OQ-N` (continue the existing file's numbering — never
   renumber or reuse an id; start at `OQ-1` if the file doesn't exist yet), business language,
   `- [ ] **OQ-N** — {question} — blocks: T0NN`, and mark C's task `blocked on OQ-N — see
-  open-question.md`. Tell the user in Step 6; recommend `/clarify`.
+  open-question.md`. If the grounding digest found **zero** trace of B anywhere in the codebase (not
+  just missing from this task's path — genuinely net-new), append `[no-precedent]` to the item so
+  `/clarify` knows any reply defines B from scratch rather than confirming something real. Tell the
+  user in Step 6; recommend `/clarify`.
 
 Never draft C assuming B "will probably be there" or "is a minor detail to sort out during
 implementation" — an unverified prerequisite is exactly what this gate exists to catch.
