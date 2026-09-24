@@ -21,7 +21,7 @@ child PRs merge; also runnable manually.
 > to <sha>", "user confirmed via --replace".
 
 ## Bounded scope
-For submodule (multi-repo) projects only. It does **not**: implement code (`/pr-from-plan`), or
+For submodule (multi-repo) projects only. It does **not**: implement code (`/pr`), or
 **merge** anything (opens/updates a PR for review). Single-repo → error out.
 
 ## Write surface (the ONLY things written)
@@ -88,7 +88,7 @@ git push   # (--force-with-lease only if the branch was rebased)
 ```
 
 ## Step 5 — Open or update the parent PR
-- If a parent PR for the ticket already exists (opened by `/pr-from-plan`): the push **updates it** —
+- If a parent PR for the ticket already exists (opened by `/pr`): the push **updates it** —
   refresh its description with the Bumps table.
 - Else open one on the parent repo via the Bitbucket API:
   - **Title:** `<ticket>: bump <paths>`

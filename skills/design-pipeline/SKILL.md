@@ -27,7 +27,7 @@ For a confirmed UI/UX change this is a **required gate**: when Impeccable is abs
 
 ## Bounded scope
 Drives a design-quality pipeline for visual changes. It does **not**: touch backend/business-logic
-code (`/plan-deep` + `/pr-from-plan`), install/vendor Impeccable, or open a PR / post to Bitbucket — it
+code (`/plan-deep` + `/pr`), install/vendor Impeccable, or open a PR / post to Bitbucket — it
 ends at a `DESIGN.md` + detect gate; commit/PR is your next step (or `/run-pipeline`).
 
 ## Write surface (the ONLY things written)
@@ -108,12 +108,12 @@ DESIGN.md:   <path, or "not generated">
 Steps run:   teach / shape / craft / live / document / detect  (each: run or skipped + why)
 Detect gate: PASS (0 findings) | FAILED: <file:line — rule> | INCONCLUSIVE (raw output)
 Impeccable:  <version>
-Next step: review the change, then /pr-from-plan --ticket <ticket> (or /run-pipeline <ticket>).
+Next step: review the change, then /pr <ticket> (or /run-pipeline <ticket>).
 ```
 
 ## How it fits the pipeline
 For a UI/UX ticket, the design route is: `/design-pipeline <change> --ticket <T>` → (Impeccable builds
-in the working tree + passes the detect gate) → `/pr-from-plan --ticket <T>` opens the PR from that
+in the working tree + passes the detect gate) → `/pr <T>` opens the PR from that
 working tree. The design gate must PASS before the PR — a UI/UX change never ships ungated.
 
 ## Error handling

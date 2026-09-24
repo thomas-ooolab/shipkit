@@ -4,7 +4,7 @@
 # shipkit skills load context by auto-running `!bash <plugin>/scripts/probe.sh ...`. That script
 # lives in the plugin install dir (outside your repo), so Claude Code prompts on every skill load —
 # and an INJECTED command can't show that prompt, so /bootstrap hard-fails "command requires approval".
-# Background/worktree agents (used by /pr-from-plan --implement) are non-interactive and auto-DENY
+# Background/worktree agents (used by /pr --implement) are non-interactive and auto-DENY
 # any un-allowlisted Bash, so the pipeline's git/test commands must be allowed too.
 #
 # This writes shipkit's command allow-list to your Claude Code settings, fixing both.
@@ -19,7 +19,7 @@
 # Usage:
 #   bash apply-permissions.sh [--user | --project] [--dir <project-dir>]
 #     --user     (default) write ~/.claude/settings.json — covers EVERY project, and is the scope a
-#                /pr-from-plan background worktree agent reads. Recommended.
+#                /pr background worktree agent reads. Recommended.
 #     --project  write <dir>/.claude/settings.json (commit it to share with the team).
 #     --dir D    project dir for --project mode (default: current directory).
 #
@@ -46,7 +46,7 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq is required (a shipkit depend
 #                 on every update; bash:* matches regardless.
 #  Bash(git:*)    branch create/checkout/push/commit/-C/rebase + read-only status/diff/log/submodule.
 #  Bash(curl:*)   Bitbucket REST API (PRs, diffs, comments).
-#  test runners   per-stack test cascade for /review-changes + /pr-from-plan --implement.
+#  test runners   per-stack test cascade for /review-changes + /pr --implement.
 read -r -d '' ALLOW <<'JSON' || true
 [
   "Bash(bash:*)",

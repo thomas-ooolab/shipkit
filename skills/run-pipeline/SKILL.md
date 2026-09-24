@@ -30,7 +30,7 @@ with no spec, redirect: "Run `/spec-from-ticket <ticket>` first, then `/run-pipe
 2. `.shipkit/pipeline-failure-<ticket>.md` — on a stage failure.
 3. Feature **branches** (parent + affected submodules) — setup only.
 Everything else happens inside a dispatched command (`spec-from-ticket`, `plan-deep`,
-`design-recon`, `review-changes`, `design-verify`, `pr-from-plan`, `bump-submodule`), each with its
+`design-recon`, `review-changes`, `design-verify`, `pr`, `bump-submodule`), each with its
 own write surface.
 **Forbidden side-effects:** never edit app/test/doc code; never merge a PR (stops at the open PR);
 never bump a submodule before its child PR is confirmed merged; no force-push.
@@ -97,7 +97,7 @@ Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|uns
 - [ ] 3 implement     — HUMAN: write code in the submodule branches (orchestrator never edits code)
 - [ ] 4 review        — /review-changes
 - [ ] 4.5 design-verify — /design-verify (opt-in gate; only if Design gate = on)
-- [ ] 5 prs           — /pr-from-plan
+- [ ] 5 prs           — /pr
 - [ ] 6 merged        — EXTERNAL: child PRs merge on Bitbucket (orchestrator never merges)
 - [ ] 7 bump          — /bump-submodule <path>@<sha> --closes <ticket>
 ```
@@ -141,9 +141,12 @@ re-confirm success from ground truth and append the result + timestamp to the st
   the contract (responsive included). Fix and re-run `/run-pipeline <ticket>`." On `PASS` → mark `[x]`
   and continue. When `Design gate = off`, this stage is a no-op.
 
-- **Stage 5 — prs** (review done, PRs missing): dispatch `/pr-from-plan --ticket <ticket> --target <pr_target>`.
-  Success = a Bitbucket PR per affected submodule + parent PR. **Stop here by default** — the
-  pipeline ends at the open reviewed PRs and never merges. Report the PR URLs.
+- **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): dispatch
+  `/pr <ticket> --target <pr_target>`. It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket
+  PR per affected submodule + parent PR), then Phase 2 pings the reviewer and triages their concerns
+  until sign-off. Stage success = the PRs are open; the review loop keeps running on `/pr`'s own
+  background pollers (`.shipkit/pr-<ticket>.md` tracks it). **Stop here by default** — the pipeline
+  never merges. Report the PR URLs and "review loop running".
 - **Stage 6 — merged** *(external gate)*: only re-runs find this; if not all child PRs merged, stop:
   "Waiting on child PRs to merge: <list>. Re-run `/run-pipeline <ticket>` after they merge."
 - **Stage 7 — bump** (all child PRs merged): dispatch

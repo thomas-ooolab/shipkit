@@ -168,7 +168,7 @@ Tasks:   <n> across <submodules>  (Fan-out: yes/no · Part order: …)
 Refs:    P resolved · <list any [UNVERIFIED]>
 Review:  N found (M blocking, K advisory)
 Open Qs: <SPEC>/open-question.md  (K new blocking)   — or "none"
-Next:    /run-pipeline <ticket>   (or implement, then /review-changes → /pr-from-plan)
+Next:    /run-pipeline <ticket>   (or implement, then /review-changes → /pr)
          (run /clarify <ticket> first if Open Qs > 0 — blocked tasks can't be implemented yet)
 ```
 If Atlassian MCP is connected and the user wants it, add one Jira comment: "📋 shipkit plan written
@@ -177,7 +177,7 @@ to `<SPEC>/spec.md` (status: planned)."
 ## Gotchas
 - **Don't assume layout.** Ground via the Explore agent; never assume `src/` or a fixed structure
   (learningos differs from ai-roleplay).
-- **Multi-submodule = fan-out.** A plan touching ≥2 submodules must pin Part order; `/pr-from-plan`
+- **Multi-submodule = fan-out.** A plan touching ≥2 submodules must pin Part order; `/pr`
   reads the per-task targets to open one child PR per submodule.
 - **Breaking cross-service contract.** Surface an expand→migrate→contract sequence as a
   recommendation; keep the atomic change as default — never auto-split.

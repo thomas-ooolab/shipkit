@@ -110,7 +110,7 @@ interactive + user-confirmed, append the gate result to the spec's `Open questio
 
 ## How it fits the pipeline
 `/design-recon` → implement → **`/design-verify`** (fix → re-run until PASS) → `/review-changes` →
-`/pr-from-plan`. In `/run-pipeline` this is an **opt-in** gate: the pipeline asks once (for UI tickets)
+`/pr`. In `/run-pipeline` this is an **opt-in** gate: the pipeline asks once (for UI tickets)
 whether to run recon→verify; if you opt in, a `FAILED` here halts before PRs the same way a review
 blocker does — the build doesn't reach PR review until it matches the contract, responsive included.
 If you decline (or it's a backend ticket / `auto` run), the gate is skipped.

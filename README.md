@@ -94,7 +94,8 @@ contracts · edge cases). Then you implement, review, and open PRs.
       ▼
 /review-changes            check diff vs spec (REQ coverage, discipline)
       ▼
-/pr-from-plan              one child PR per submodule + parent PR, all ref AR-123
+/pr                        one child PR per submodule + parent PR, all ref AR-123
+                           → ping reviewer, triage concerns until sign-off
       ▼
    child PRs merge
       ▼
@@ -117,7 +118,7 @@ auto-trigger it by description.
 | `/design-recon <artifact> [--ticket <t>]` | **Match a mockup** — drives a screenshot / HTML / auth-gated Claude design link in a real browser (Playwright MCP), reads *computed* styles, snaps to the project's Tailwind tokens, and writes `design-contract.md` (all breakpoints + states). Cheaper *and* more accurate than reading the mockup's HTML. |
 | `/design-verify [--ticket <t>] [--url <route>]` | Close the loop — renders the *built* UI at every breakpoint, diffs computed styles against `design-contract.md`, and gates `PASS`/`FAILED` with per-token `expected → actual → fix`. Responsive breakage (overflow, non-stacking) always fails. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
-| `/pr-from-plan --ticket <ticket> [--implement]` | Fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated); opt-in `--implement` writes the code via worktree agents first. Never merges. |
+| `/pr <ticket> [--implement] [--target staging\|main]` | Two phases, in order. **Open:** fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated, reuses already-open PRs); opt-in `--implement` writes the code via worktree agents first. **Review loop:** pings the Slack reviewer and triages every concern (fix / escalate to Jira / explain) until sign-off. Never merges. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
 
 ## Design fidelity loop (UI tickets with a mockup)
@@ -137,7 +138,7 @@ renders). shipkit closes this with a measure-based loop:
 /design-verify --ticket AR-123 --url <route>   ← Half 2: render the BUILT UI at every breakpoint,
       │                                            diff computed styles vs the contract, gate PASS/FAILED
       ▼                                            with expected → actual → fix. Responsive breakage fails.
-   fix → re-run until PASS → /review-changes → /pr-from-plan
+   fix → re-run until PASS → /review-changes → /pr
 ```
 
 **Three artifact tiers**, auto-detected: an **HTML file** or **public URL** → exact computed-style
@@ -176,7 +177,7 @@ bash "$(find ~/.claude/plugins -name apply-permissions.sh 2>/dev/null | sort -V 
 ```
 
 `--user` writes `~/.claude/settings.json` — covers **every** repo at once, and is the scope a
-`/pr-from-plan --implement` **background worktree agent** reads. (`--project` writes the repo's
+`/pr --implement` **background worktree agent** reads. (`--project` writes the repo's
 `.claude/settings.json` instead; commit it to share with the team.) The key rule is `Bash(bash:*)` —
 the plugin lives at a versioned cache path, so a path-scoped rule would break on every update. The
 applier is idempotent and backs up before writing.

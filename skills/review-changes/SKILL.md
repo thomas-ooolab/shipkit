@@ -115,7 +115,7 @@ precede the question): AskUserQuestion `["Post this review to PR <id>?", "Post r
 
 ## Step 5 — Output
 **Local mode:** print the structured findings (grouped by submodule, blocking first), then a summary
-line: `<n> blocking, <m> advisory across <k> submodules — resolve blockers, then /pr-from-plan`.
+line: `<n> blocking, <m> advisory across <k> submodules — resolve blockers, then /pr`.
 Write nothing.
 
 **PR mode:** post a locked review comment on the Bitbucket PR via the API, body starting with the
