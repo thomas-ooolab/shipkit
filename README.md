@@ -97,7 +97,8 @@ contracts · edge cases). Then you implement, review, and open PRs.
 /pr                        one child PR per submodule + parent PR, all ref AR-123
                            → ping reviewer, triage concerns until sign-off
       ▼
-   child PRs merge
+/merge AR-123              merge signed-off, CI-green child PRs → wait on the Bitbucket
+                           pipeline (twg) → report done/error
       ▼
 /bump-submodule path@sha --closes AR-123    bump parent refs → parent PR merges → ticket done
 ```
@@ -120,6 +121,7 @@ auto-trigger it by description.
 | `/design-verify [--ticket <t>] [--url <route>]` | Close the loop — renders the *built* UI at every breakpoint, diffs computed styles against `design-contract.md`, and gates `PASS`/`FAILED` with per-token `expected → actual → fix`. Responsive breakage (overflow, non-stacking) always fails. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr <ticket> [--implement] [--target staging\|main]` | Two phases, in order. **Open:** fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated, reuses already-open PRs); opt-in `--implement` writes the code via worktree agents first. **Review loop:** pings the Slack reviewer and triages every concern (fix / escalate to Jira / explain) until sign-off. Never merges. |
+| `/merge <ticket>` | Merges child PRs already signed off + CI-green (never the parent/bump PR); hard-confirms with you first, then waits on each merge's Bitbucket Pipeline via `twg` and reports done/error per submodule. |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
 
 ## Design fidelity loop (UI tickets with a mockup)
