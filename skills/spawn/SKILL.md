@@ -1,7 +1,7 @@
 ---
 name: spawn
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to an Antigravity CLI terminal (via Orca) so they implement in parallel in parallel, in dependency waves per the plan's Part order. Trigger: /spawn <jira-ticket>. Examples: \"/spawn AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
-argument-hint: "<jira-ticket> [--only <submodule,...>]"
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to an Antigravity CLI terminal (via Orca) so they implement in parallel, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one Antigravity terminal. Trigger: /spawn <jira-ticket | task>. Examples: \"/spawn AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
+argument-hint: "<jira-ticket | task text> [--only <submodule,...>]"
 ---
 
 # shipkit · spawn
@@ -13,14 +13,14 @@ per submodule; adds nothing to the plan itself.
 > **Cite-sources rule.** Every submodule's "already in progress" / "not started" call traces to
 > `probe.sh state` (branch dirty/unpushed), never assumed from a prior run's memory.
 >
-> **Never-guess rule.** If `spec.md` has no `## Tasks` tagged with submodule targets, or fewer than 2
-> submodules remain after filtering, stop — don't invent a parallel split.
+> **Never-guess rule.** In ticket mode, if `spec.md` has no `## Tasks` tagged with submodule targets,
+> stop. Never invent a parallel split — one target runs as one target, not as a fake fan-out.
 >
 > **Forbidden language.** No "I think this pair is independent." Say "no Part order note pins these
 > two — treating as parallel" / "confirmed dirty via probe.sh — skipping."
 
 ## Bounded scope
-Implements code only. Does **not** open PRs (`/pr`), review (`/review-changes`), bump submodule refs
+Implements code only (ticket mode reads the plan; free-form mode takes the task as given). Does **not** open PRs (`/pr`), review (`/review-changes`), bump submodule refs
 (`/bump-submodule`), or write the plan (`/plan-deep`). If `spec.md` doesn't exist yet, stop: "Run
 `/spec-from-ticket <ticket>` then `/plan-deep <ticket>` first."
 
@@ -40,22 +40,31 @@ a submodule's own task allowlist; no force-push unless that submodule's branch w
 ```
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" resolve`
 ```
-If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Single-repo topology → stop: "Only
-one target — implement directly, `/spawn` needs ≥2 submodules to parallelize."
+Pick the mode in Step 1. Neither a single-repo topology nor `SHIPKIT_CONFIG_EXISTS=0` stops the
+run: delegation to Antigravity needs only a path and a brief. `/bootstrap` is required only for
+**ticket mode on `meta-with-submodules`**, where the config's `submodules[]` is the only source of paths.
 
-## Step 1 — Parse
-Tokenize `$ARGUMENTS`: one ticket-shaped token → `TICKET`. `--only <a,b>` → `ONLY[]` (restrict to
-named submodules; each must be in the config's `submodules[].name`, else stop: "`<name>` isn't a
-configured submodule."). Missing/ambiguous ticket → AskUserQuestion, don't infer.
+## Step 1 — Parse + pick mode
+Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
+`submodules[].name`, else stop: "`<name>` isn't a configured submodule.").
+- **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
+  config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
+  flow with the spec's tasks as the brief.
+- **Free-form mode** — args are not ticket-shaped (or no spec/config to read): one target = repo
+  root (`git rev-parse --show-toplevel`), `BRIEF` = the args verbatim + the repo path + "run the
+  repo's tests, commit, push the branch". Skip Steps 2–4 and 6's spec check-off; go to Step 5 with a
+  single-target wave. Empty args → AskUserQuestion (Vietnamese) what to implement.
+- Ticket token but `meta-with-submodules` and `SHIPKIT_CONFIG_EXISTS=0` → stop: "Run `/bootstrap` first."
 
-## Step 2 — Load the plan
+## Step 2 — Load the plan (ticket mode)
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>
 ```
 `SPEC=none` → stop (see Bounded scope). Read `specs/NNN-slug/spec.md` in full. Parse `## Tasks`:
 each `- [ ] T0NN [REQ-NNN] (<submodule>) {desc} — <file path>`. Group by `<submodule>`; drop any
-submodule not in scope or excluded by `ONLY`. Fewer than 2 groups remain → stop (see Dynamic
-context). Read the **Fan-out**/**Part order** note if present (e.g. "BE before FE").
+submodule not in scope or excluded by `ONLY`. Zero groups → stop. **One group is fine** — it's a
+single-target run (no waves to print). Read the **Fan-out**/**Part order** note if present
+(e.g. "BE before FE").
 
 ## Step 3 — Build waves
 - No Part order note → **one wave**: every remaining submodule, fully parallel.
@@ -79,7 +88,7 @@ there, or skip?" (`--only <name>` alone does not imply force.)
 Follow `${CLAUDE_PLUGIN_ROOT}/skills/spawn/antigravity-delegate.md` for every submodule left in the
 wave: find/reuse an idle Antigravity terminal or open one, send all briefs (no waiting between
 submodules — this is the whole point), then collect results. Per submodule, `PATH` = its path,
-`NAME` = its name, and `BRIEF` is composed of:
+`NAME` = its name, and `BRIEF` is composed of (free-form mode: Step 1's `BRIEF` as-is, `NAME` = repo dir name):
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md` first; reuse existing
   patterns, don't invent structure.
 - **Branch:** create `feat/<ticket>-<slug><suffix>` (config `suffix`) from the submodule's tracking
