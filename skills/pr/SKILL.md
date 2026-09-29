@@ -72,7 +72,7 @@ skip straight to Phase 2 Step 3 (its loop body picks up from the state file).
 **Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → there's one target: open **one** PR
 from `feat/<ticket>-<slug>` to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
 PR, no fan-out, no Part order, no bump** — Steps 5–6 collapse to that single PR. `--implement` (if
-given) runs one worktree agent on the repo. Everywhere below that says "per affected submodule /
+given) delegates to one Antigravity terminal on the repo. Everywhere below that says "per affected submodule /
 parent," read it as "the repo." **`meta-with-submodules`** → the full fan-out flow below.
 
 Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/spec-from-ticket` +
@@ -98,9 +98,10 @@ For each affected submodule (from task tags), bind from config + git:
   submodule `already-open`: Steps 3–5 skip it. Do the same for the parent branch (Step 6).
 If every submodule and the parent are `already-open`, skip to Step 7.
 
-## Step 3 — (Optional) implement via worktree agents
-**Only if `IMPLEMENT=true`**, and only for submodules not `already-open`. For each, spawn one
-background, worktree-isolated agent (in parallel) to implement that submodule's tasks. Compose each prompt with:
+## Step 3 — (Optional) implement via Antigravity
+**Only if `IMPLEMENT=true`**, and only for submodules not `already-open`. Delegate each submodule's
+tasks (in parallel) to an Antigravity terminal per `${CLAUDE_PLUGIN_ROOT}/skills/spawn/antigravity-delegate.md`
+(`PATH` = submodule path, `NAME` = submodule name). Compose each `BRIEF` with:
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md`; reuse existing patterns;
   don't invent structure.
 - **Objective + tasks:** the spec's tasks tagged for this submodule, each with its `REQ-NNN`.
@@ -109,9 +110,8 @@ background, worktree-isolated agent (in parallel) to implement that submodule's 
 - **Discipline:** BE → OpenAPI-first (`api/api.yml` → `make gen` → domain → repo → handler); FE →
   BFF proxy + TanStack; Voice → Pipecat, staging-only.
 - **Verify:** run the submodule's test command (Step 4 cascade); commit allowlisted files only
-  (`git add <paths>`, never `-A`); push the feature branch. Emit `✅ implemented <path>` or
-  `❌ <reason>`.
-On any agent failure: write `.shipkit/impl-failure-<ticket>.md` (submodule, error, recovery), stop.
+  (`git add <paths>`, never `-A`); push the feature branch.
+On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (submodule, error, recovery), stop.
 > Default (no `--implement`): the human implemented on the branches; skip to Step 4.
 
 ## Step 4 — Verify changes vs allowlist + test (per submodule not already-open)

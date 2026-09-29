@@ -1,12 +1,12 @@
 ---
 name: spawn
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — dispatches one background, worktree-isolated agent per submodule to implement its allowlisted tasks in parallel, in dependency waves per the plan's Part order. Trigger: /spawn <jira-ticket>. Examples: \"/spawn AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to an Antigravity CLI terminal (via Orca) so they implement in parallel in parallel, in dependency waves per the plan's Part order. Trigger: /spawn <jira-ticket>. Examples: \"/spawn AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
 argument-hint: "<jira-ticket> [--only <submodule,...>]"
 ---
 
 # shipkit · spawn
 
-Fans out a ticket's per-submodule implementation tasks to parallel background agents instead of
+Fans out a ticket's per-submodule implementation tasks to parallel Antigravity (`agy`) terminals in Orca instead of
 working through submodules one at a time. Reads the tasks `/plan-deep` already wrote and grouped
 per submodule; adds nothing to the plan itself.
 
@@ -27,9 +27,10 @@ Implements code only. Does **not** open PRs (`/pr`), review (`/review-changes`),
 ## Write surface (the ONLY things written)
 1. Code in each submodule, restricted to that submodule's task-tagged file paths.
 2. One commit + push per submodule's feature branch (creates the branch if missing).
-3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the dispatched agent confirmed done.
+3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the Antigravity terminal confirmed done (and git verifies).
 4. `.shipkit/spawn-<ticket>.md` — per-submodule wave/status log.
 5. `.shipkit/spawn-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
+6. Orca terminals: reuses an idle Antigravity terminal per submodule, opens one only if none exists.
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
 a submodule's own task allowlist; no force-push unless that submodule's branch was rebased.
 
@@ -74,30 +75,30 @@ To force a re-run anyway, the user must say so explicitly — AskUserQuestion: "
 has {dirty|unpushed} changes on its branch — re-run its agent anyway and let it continue from
 there, or skip?" (`--only <name>` alone does not imply force.)
 
-## Step 5 — Spawn each wave (parallel, one message per wave)
-For every submodule left in the wave, in **one message** (all `Agent` calls together — this is the
-whole point, not one at a time), dispatch a background agent with `isolation: "worktree"` scoped to
-that submodule's path. Compose the prompt with:
+## Step 5 — Delegate each wave (parallel)
+Follow `${CLAUDE_PLUGIN_ROOT}/skills/spawn/antigravity-delegate.md` for every submodule left in the
+wave: find/reuse an idle Antigravity terminal or open one, send all briefs (no waiting between
+submodules — this is the whole point), then collect results. Per submodule, `PATH` = its path,
+`NAME` = its name, and `BRIEF` is composed of:
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md` first; reuse existing
   patterns, don't invent structure.
 - **Branch:** create `feat/<ticket>-<slug><suffix>` (config `suffix`) from the submodule's tracking
   `branch` (config) if missing; else continue on the existing one.
 - **Objective + tasks:** only this submodule's checkbox items from `## Tasks`, each with its
-  `REQ-NNN`.
+  `REQ-NNN`, plus the absolute path of `spec.md`.
 - **Allowlist:** only the file paths those tasks name — never write outside it; if a needed file
   isn't listed, **stop** and report the gap (don't widen the allowlist itself).
 - **Discipline:** BE → OpenAPI-first (`api/api.yml` → `make gen` → domain → repo → handler); FE →
   BFF proxy + TanStack; Voice → Pipecat, staging-only.
 - **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't push red.
-- **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch. Report
-  `✅ implemented <path> (N/M tasks)` or `❌ <reason>`.
-Wait for the whole wave to finish (success or failure on every agent in it) before starting the next
-wave — a later wave may depend on what an earlier one just pushed (e.g. FE reading BE's freshly
+- **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch.
+Wait for the whole wave to finish (success or failure on every terminal in it) before starting the
+next wave — a later wave may depend on what an earlier one just pushed (e.g. FE reading BE's freshly
 generated types).
 
 ## Step 6 — Reconcile + report
-Per agent's `✅`, check off its tasks `[x]` in `spec.md` (only the ones it confirmed — never assume
+Per terminal's `✅`, check off its tasks `[x]` in `spec.md` (only the ones it confirmed — never assume
 the rest of that submodule's tasks are done because one succeeded). Any `❌` → append to
 `.shipkit/spawn-failure-<ticket>.md` (submodule, error, recovery) and keep the other submodules'
 results — one failure doesn't roll back siblings. Write `.shipkit/spawn-<ticket>.md`:
@@ -118,6 +119,8 @@ submodules." (Failed ones need a fix-and-retry `/spawn <ticket> --only <name>` f
   dependency = one wave, everything parallel. Only split waves on a note that's actually there.
 - **Don't reuse a stale wave plan across retries.** A submodule fixed since the last failure may now
   be `dirty=yes` from that fix — re-probe (Step 2/4) every run, never cache wave membership.
+- **Implementation is Antigravity's, not a Claude `Agent` call.** Don't fall back to dispatching a Claude
+  agent when `agy` is missing or busy — report `❌` and stop that submodule.
 - **This is not `/pr --implement`.** That flag lives inside `/pr`'s own PR-opening flow and only
   covers submodules not already PR'd. `/spawn` runs standalone, any time, independent of PR state,
   and hands off to `/pr` afterward instead of opening PRs itself.
