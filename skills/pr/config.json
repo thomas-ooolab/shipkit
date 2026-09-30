@@ -4,16 +4,16 @@
     "wait-for-verdict.sh and verdict-predicate.py were copied verbatim from",
     "/Users/tung/ooolab/review-loop (2026-08-20) — battle-tested against this same",
     "reviewer bot. Only this config.json differs: it points at pr's own channel",
-    "(#ent-internal) instead of review-loop's #ooolab-be. Do not edit the scripts to",
+    "(#dev-enterprise) instead of review-loop's #ooolab-be. Do not edit the scripts to",
     "change addresses — change them here."
   ],
 
   "slack": {
     "bot_review_channel": {
-      "name": "#ent-internal",
-      "id": "C052QGHD337",
-      "private": true,
-      "_note": "Same channel pr's seed ping and tick replies already use."
+      "name": "#dev-enterprise",
+      "id": "C051TAHF9GD",
+      "shared_externally": true,
+      "_note": "Slack Connect channel. Posts must use the user token via chat.postMessage (MCP sends are blocked/ignored by the bot)."
     },
     "bot_reviewer_user_id": "U0B6M74TLBY",
     "bot_reviewer_handle": "OOOLAB AI Agent",

@@ -40,7 +40,7 @@ bump submodule refs (`/bump-submodule`), or **merge / approve / close** a PR —
    `--force-with-lease` only on a branch it rebased. Phase 2 review fixes: commit + push to the same
    branches (auto-updates the open PRs).
 3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open).
-4. Slack: thread posts in `#ent-internal` (Phase 2). Jira: comments **only after explicit approval** (Phase 2).
+4. Slack: thread posts in `#dev-enterprise` (Phase 2). Jira: comments **only after explicit approval** (Phase 2).
 5. State files: `.shipkit/impl-gap-<ticket>.md`, `.shipkit/impl-failure-<ticket>.md` (Phase 1),
    `.shipkit/pr-<ticket>.md` (Phase 2).
 **Forbidden side-effects:** never merge a PR; never transition a ticket; no writes outside the
@@ -161,14 +161,29 @@ Phase 2 — the PR URLs collected here are its review targets.
 
 # Phase 2 — Review loop
 
-Fixed reviewer for this phase: Slack user `U0B6M74TLBY` ("OOOLAB AI Agent"), channel `#ent-internal` (`C052QGHD337`).
+Fixed reviewer for this phase: Slack user `U0B6M74TLBY` ("OOOLAB AI Agent"), channel `#dev-enterprise` (`C051TAHF9GD`, Slack Connect).
+
+## Posting to Slack (every post in this phase)
+The reviewer bot ignores messages sent through the Slack MCP and only answers Slack **user-token**
+posts, and `#dev-enterprise` is externally shared so MCP sends are blocked there. **Never use
+`slack_send_message`.** Every post — seed ping, tick reply, sign-off ack — goes through:
+```bash
+jq -n --arg c "C051TAHF9GD" --arg t "$THREAD_TS" --arg x "$TEXT" '{channel:$c,thread_ts:$t,text:$x}' |
+  curl -sS -X POST https://slack.com/api/chat.postMessage \
+    -H "Authorization: Bearer $SLACK_REVIEW_TOKEN" -H "Content-Type: application/json; charset=utf-8" --data @-
+```
+Check `ok` in the response (`ok:false` → surface `error`, don't retry blindly); keep `ts` and
+`channel`. Read a thread with `conversations.replies` (`channel`, `ts=<thread root>`) and the channel
+with `conversations.history`, same token. Resolve `my_account_id` with `auth.test` (`user_id`).
+**Token rules:** read `SLACK_REVIEW_TOKEN` from the environment only — never write it to a file, the
+state file, or a log, never `echo` it or enable `set -x`. Unset → tell the user to export it and stop.
 
 Composes existing pieces — do not reimplement any of them:
 - **REQUIRED:** `superpowers:systematic-debugging` — trace each raised concern to the real code path before classifying it. Never classify from the reviewer's wording alone.
 - **REQUIRED for any code fix:** `superpowers:test-driven-development` — write the regression test first.
 - **REQUIRED:** this project's `review-pr` skill — reuse its fix/commit/push/quality-check mechanics (Steps 3–5: minimal fix, preserve `REQ-SDD-NNN` citations, run the right submodule's checks, commit, push). Don't re-derive any of that here.
 - `bugfix`'s state-file/`silent_ticks` shape, applied to a Slack thread instead of a Jira comment thread — but **not** its `ScheduleWakeup` backoff. Like `clarify`, this phase polls via background bash scripts instead of `/loop`'s `ScheduleWakeup`, which reloads the whole session's context on every tick even when nothing changed.
-- **REQUIRED:** this skill's own `wait-for-verdict.sh` + `verdict-predicate.py` (colocated in this folder, copied 2026-08-20 from `/Users/tung/ooolab/review-loop` — battle-tested there against this exact reviewer bot, `U0B6M74TLBY`). Use it verbatim for "has the reviewer replied yet?" instead of blind fixed-interval polling — see Step 3 below. It reads its channel/bot id/tunables from this folder's own `config.json` (already pointed at `#ent-internal` / `C052QGHD337`) — don't hardcode those values elsewhere, and don't confuse this file with review-loop's separate `config.json`, which targets a different channel (`#ooolab-be`) for a different pipeline.
+- **REQUIRED:** this skill's own `wait-for-verdict.sh` + `verdict-predicate.py` (colocated in this folder, copied 2026-08-20 from `/Users/tung/ooolab/review-loop` — battle-tested there against this exact reviewer bot, `U0B6M74TLBY`). Use it verbatim for "has the reviewer replied yet?" instead of blind fixed-interval polling — see Step 3 below. It reads its channel/bot id/tunables from this folder's own `config.json` (already pointed at `#dev-enterprise` / `C051TAHF9GD`) — don't hardcode those values elsewhere, and don't confuse this file with review-loop's separate `config.json`, which targets a different channel (`#ooolab-be`) for a different pipeline.
 - **REQUIRED for the Jira PO-decision check:** `wait-for-jira-comment.sh` (colocated in this folder as a symlink to `clarify`'s copy — one script, one source of truth). No `ScheduleWakeup` anywhere in this skill, and no fallback when a token is missing: `SLACK_REVIEW_TOKEN` and `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are hard requirements now, same as they are for `clarify`.
 
 State lives in `.shipkit/pr-<ticket>.md`.
@@ -185,9 +200,9 @@ A concern that's actually correct doesn't become "needs a decision" just because
 
 ## Hard rule: Slack posts directly, Jira posts need my confirmation first
 
-These are not symmetric. A Slack thread reply is fast-moving, cheap to follow up on, and read only by the reviewer and whoever's in `#ent-internal`; a Jira comment is a durable, org-visible record on the ticket itself, and the one that pulls the PO in to make a call. Slack messages post without waiting on me. Jira comments still do.
+These are not symmetric. A Slack thread reply is fast-moving, cheap to follow up on, and read only by the reviewer and whoever's in `#dev-enterprise`; a Jira comment is a durable, org-visible record on the ticket itself, and the one that pulls the PO in to make a call. Slack messages post without waiting on me. Jira comments still do.
 
-**Slack: draft it, tag correctly, post it — no approval wait.** Fixing a real defect never needed approval (that's code); now the message describing it, the tick-reply summary, the not-an-issue explanation, and the sign-off ack don't either. Still apply the tagging rule below and the debate/classification discipline elsewhere in this skill — "no approval needed" is not "skip the thinking," it's "don't pause for a yes before sending."
+**Slack: draft it, tag correctly, post it (per *Posting to Slack*) — no approval wait.** Fixing a real defect never needed approval (that's code); now the message describing it, the tick-reply summary, the not-an-issue explanation, and the sign-off ack don't either. Still apply the tagging rule below and the debate/classification discipline elsewhere in this skill — "no approval needed" is not "skip the thinking," it's "don't pause for a yes before sending."
 
 **Jira: still draft → show me → wait for explicit approval → post.** A wake with no reply yet means no post this tick.
 
@@ -212,7 +227,7 @@ If this tick's poller notification arrives unattended (nobody's approved the Jir
 
 ## Handling Slack's message-length limit
 
-Slack rejects any single message over its length cap with `{"ok": false, "error": "msg_too_long"}` (the send tool's own limit is 5000 chars, but Slack's server-side cap can bite sooner). A tick with several concerns — each carrying a fixed-and-pushed note, an escalation note, or a reasoned explanation — can add up past that before you notice.
+Slack rejects any single message over its length cap with `{"ok": false, "error": "msg_too_long"}` (Slack's server-side cap can bite well before the API's own limit). A tick with several concerns — each carrying a fixed-and-pushed note, an escalation note, or a reasoned explanation — can add up past that before you notice.
 
 Before posting any Slack draft (seed ping or tick reply), check its length. If it's within limits, post it directly, same as always.
 
@@ -233,15 +248,15 @@ Never drop a concern's content to fit — split, don't shrink.
 
 The local state file is not the source of truth for "has this been seeded" — Slack is. The file can be missing for reasons that have nothing to do with whether a thread exists: a fresh clone/worktree, a teammate ran this from another machine, or the seed post landed but the file write never happened. Checking only the file's existence causes a duplicate seed message and fragments the reviewer's replies across two threads.
 
-0. **Before drafting anything**, search `#ent-internal` for an existing seed message for this ticket — e.g. `slack_search_public_and_private` for the ticket ID scoped to that channel, or read recent channel history for a message mentioning `AR-{num}`. Do this even when `.shipkit/pr-<ticket>.md` is missing.
-   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/pr-<ticket>.md` from it: `channel_id` (`C052QGHD337`), the message's `ts` as `thread_ts`, its permalink as `message_link`, `reviewer_id` (`U0B6M74TLBY`), `my_account_id` (your own Slack account), populate `## Concerns` from whatever thread replies already exist (mark any that read as fixed-and-pushed), `last_checked_ts` set to now, `silent_ticks: 0`, `round` counted from existing reviewer-message cycles seen, `pending_action: null`. Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
+0. **Before drafting anything**, look in `#dev-enterprise` for an existing thread for this ticket — `conversations.history` (user token) for a recent message mentioning `AR-{num}`. Do this even when `.shipkit/pr-<ticket>.md` is missing.
+   - **Found one** → treat it as already seeded. Reconstruct `.shipkit/pr-<ticket>.md` from it: `channel_id` (`C051TAHF9GD`), the message's `ts` as `thread_ts`, its permalink as `message_link`, `reviewer_id` (`U0B6M74TLBY`), `my_account_id` (your own Slack account), populate `## Concerns` from whatever thread replies already exist (mark any that read as fixed-and-pushed), `last_checked_ts` set to now, `silent_ticks: 0`, `round` counted from existing reviewer-message cycles seen, `pending_action: null`. Do not post anything. Skip the rest of this step and go straight to Step 3's loop body.
    - **Nothing found** → proceed to draft and post below, this is a genuine first seed.
-1. Draft one Slack message to `#ent-internal` tagging `<@U0B6M74TLBY>`, listing the staging PR links plus the root repo PR link from Step 1, e.g.: "Hey <@U0B6M74TLBY> — AR-{num} PRs are up for review: {submodule links}, plus the root repo PR: {root link}. Let me know what you find."
-2. Post it directly via the Slack send-message tool to channel `C052QGHD337` — no approval wait, per the Hard Rule. Capture the returned message link and `message_ts` — this is the thread anchor (`thread_ts`) for every reply from here on, and the "tracked" link to report back to me.
+1. Draft one Slack message, a **reply inside a thread** (`thread_ts` required — the bot only answers in threads), to `#dev-enterprise` tagging `<@U0B6M74TLBY>`, listing the staging PR links plus the root repo PR link from Step 1, e.g.: "Hey <@U0B6M74TLBY> — AR-{num} PRs are up for review: {submodule links}, plus the root repo PR: {root link}. Let me know what you find."
+2. Post it directly with `chat.postMessage` (see *Posting to Slack*) to channel `C051TAHF9GD` — no approval wait, per the Hard Rule. No thread yet → first post one plain root message for the ticket (no tag), then post the tagged ping as its reply. Capture the ping's `ts` and permalink — the **root's** `ts` is the anchor (`thread_ts`) for every reply from here on, and the "tracked" link to report back to me.
 3. Write `.shipkit/pr-<ticket>.md`:
    ```markdown
    # PR loop state — <ticket>
-   channel_id: C052QGHD337
+   channel_id: C051TAHF9GD
    thread_ts: <ts>
    message_link: <link>
    reviewer_id: U0B6M74TLBY
@@ -256,7 +271,7 @@ The local state file is not the source of truth for "has this been seeded" — S
    ## Concerns
    (none yet)
    ```
-   Resolve `my_account_id` once here (the currently-authenticated Slack account posting the seed ping) — Step 3 needs it to recognize your own messages in the thread and never auto-reply to them. `last_checked_jira_comment_id` stays `null` until a needs-decision concern first posts to Jira (Step 3.5) — it's the cursor `wait-for-jira-comment.sh` needs, not used before then.
+   Resolve `my_account_id` once here (`auth.test` `user_id` for `SLACK_REVIEW_TOKEN` — the account posting the seed ping) — Step 3 needs it to recognize your own messages in the thread and never auto-reply to them. `last_checked_jira_comment_id` stays `null` until a needs-decision concern first posts to Jira (Step 3.5) — it's the cursor `wait-for-jira-comment.sh` needs, not used before then.
 
 ## Step 3 — Loop body (every time a background poller reports new activity, or right after seeding)
 
