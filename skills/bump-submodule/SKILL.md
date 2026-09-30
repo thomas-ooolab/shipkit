@@ -79,7 +79,7 @@ conflict:
 ```bash
 git fetch origin && git rebase origin/<default-branch>
 # per path@sha (capture BEFORE for the Bumps table):
-BEFORE=$(git ls-tree HEAD <path> | awk '{print $3}')
+BEFORE=$(git rev-parse HEAD:<path>)
 git -C <path> checkout <sha>
 git add <path>
 # repeat per path
@@ -113,6 +113,10 @@ to `jira.done_transition` and comment the merged PR URL. Otherwise tell the user
 `<ticket>` manually. `/run-pipeline` reads the bump PR URL from this report.
 
 ## Gotchas
+- **No dollar-digit fields in this file's commands.** The skill loader substitutes them with the
+  command's arguments (an awk third-field print became `print AR-517`), so read a gitlink sha with
+  `git rev-parse HEAD:<path>`. Loops over `path sha` pairs break on zsh (no word-splitting) — wrap
+  them in `bash -c '...'`.
 - **Verify-merged is mandatory.** Bumping to an unmerged sha leaves the parent pointing at a commit
   nobody else can fetch. Step 2 guards this.
 - **Rebase before bumping.** A parent change merged seconds earlier would otherwise conflict on the

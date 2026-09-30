@@ -93,6 +93,9 @@ jira:
   base_url: <asked>          # e.g. https://ooolab.atlassian.net
   project_key: <asked>       # e.g. AR
   done_transition: "Done"    # Bitbucket has no labels; pipeline state lives in Jira transitions
+  # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
+  # after_merge_transition: "TESTING"
+  # after_merge_assignee_account_id: "<Jira accountId>"
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   parent_prefix: "feat/{ticket}-{slug}"
@@ -115,6 +118,8 @@ jira:
   base_url: <asked>
   project_key: <asked>
   done_transition: "Done"
+  # after_merge_transition: "TESTING"              # optional, used by /merge
+  # after_merge_assignee_account_id: "<Jira accountId>"
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   feature_prefix: "feat/{ticket}-{slug}"
