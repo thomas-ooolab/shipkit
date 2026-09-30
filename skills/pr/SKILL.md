@@ -261,7 +261,7 @@ The local state file is not the source of truth for "has this been seeded" — S
    message_link: <link>
    reviewer_id: U0B6M74TLBY
    my_account_id: <the Slack user id running this loop>
-   po_account_id: <id or "reporter">
+   jira.reporter_account_id: <id or "reporter">
    last_checked_ts: <ts>
    last_checked_jira_comment_id: null
    silent_ticks: 0

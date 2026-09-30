@@ -94,8 +94,9 @@ jira:
   project_key: <asked>       # e.g. AR
   done_transition: "Done"    # Bitbucket has no labels; pipeline state lives in Jira transitions
   # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
+  # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"
-  # after_merge_assignee_account_id: "<Jira accountId>"
+  # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   parent_prefix: "feat/{ticket}-{slug}"
@@ -118,8 +119,9 @@ jira:
   base_url: <asked>
   project_key: <asked>
   done_transition: "Done"
+  # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"              # optional, used by /merge
-  # after_merge_assignee_account_id: "<Jira accountId>"
+  # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   feature_prefix: "feat/{ticket}-{slug}"

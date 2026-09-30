@@ -47,6 +47,7 @@ if asked.
 1. `specs/NNN-slug/spec.md` (Step 5; overwrite vs `-v2` is user-confirmed).
 2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items) — business-language
    questions for the PO, consumed by `/clarify`.
+3. `.shipkit/config.yml` → `jira.reporter_account_id` only (Step 1b). No other key is touched.
 **Forbidden side-effects:** no git mutation (read-only `status`/`log`/`diff`); no Jira/Bitbucket
 mutation of any kind (reads only — never comment, transition, or edit); no code/test changes.
 
@@ -74,6 +75,14 @@ Everything else (evidence mining, requirements, tier, Key decisions) is identica
 - **Bitbucket PR:** fetch title + description via the API (`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`).
 - On fetch failure, or if Atlassian MCP isn't connected: AskUserQuestion for the ticket content (or
   ask the user to paste it). Don't construct a spec from the title alone.
+
+## Step 1b — Record the reporter
+Jira ticket only (skip for a PR URL). From the `getJiraIssue` response take `fields.reporter.accountId`
+(request `reporter` in `fields` if absent). Write it to `.shipkit/config.yml` as `jira.reporter_account_id`
+(add the key under `jira:` if missing; overwrite if it differs — it tracks the latest spec'd ticket's
+reporter; keep the file's other lines and comments byte-for-byte). No reporter or no accountId (deleted
+user) → leave the key untouched and say so in the report. This is the person `/clarify` tags with
+open questions.
 
 ## Step 2 — Evidence mining (source of truth)
 Before asking anything, resolve what the sources already answer. Build an **evidence ledger** —
@@ -191,6 +200,7 @@ shipkit · spec-from-ticket <ticket> — <title>
 Scope:   <scope>  (services: <list>)  · Tier: <tier>
 Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specified])
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
+Reporter: <displayName> (<accountId>) → jira.reporter_account_id   (or: unchanged — <reason>)
 Next:    /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
          (run /clarify <ticket> first if Open Qs > 0 — those block a sound plan)
 ```

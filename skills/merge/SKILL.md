@@ -157,14 +157,25 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
 
 ## Step 10 — Move the Jira ticket
 Only when **every** PR of the ticket — all child PRs and the root — is `MERGED` (re-read each PR's
-state from Bitbucket; don't trust your own log). Read `jira.after_merge_transition` and
-`jira.after_merge_assignee_account_id` from `.shipkit/config.yml`. Either key missing → skip this
-step and say so in the report (never hardcode a status or account).
+state from Bitbucket; don't trust your own log). Read `jira.after_merge_transition` from
+`.shipkit/config.yml`; missing → skip this step and say so in the report (never hardcode a status).
+`jira.qc_account_id` is optional: the *suggested default* in the prompt below; when
+unset, the built-in default is `642a9e7922330bdf97ab2aa8` (Tung's pick for QC).
 1. `getTransitionsForJiraIssue` → find the transition **by name** (`after_merge_transition`, e.g.
    `TESTING`); ids differ per project, never reuse a remembered id. Not found → stop, list the
    available names. `transitionJiraIssue` with that id.
-2. `editJiraIssue` with `fields: {"assignee": {"accountId": "<after_merge_assignee_account_id>"}}`.
-3. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
+2. **Fetch assignable users** for the ticket (the Atlassian MCP has no such lookup —
+   `lookupJiraAccountId` is an unfiltered name search — so use REST with the `JIRA_URL`/`JIRA_EMAIL`/
+   `JIRA_API_TOKEN` the sibling skills already require):
+   `curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/assignable/search?issueKey=<TICKET>&maxResults=50"`
+   → keep `accountId`, `displayName` of active users. Creds unset, HTTP error or empty list → do
+   **not** guess an assignee: leave it as is and tell the user why in the report.
+3. `AskUserQuestion` — "Who is the QC for <TICKET>?" with options from that list only. If the default
+   (config value, else `642a9e7922330bdf97ab2aa8`) is in the list, put it **first** as "(Recommended)". Never offer an account absent from the
+   fetched list. (Long list → the ~4 most relevant, e.g. default + recent reporter/commenters; "Other"
+   lets the user type a name — resolve it against the fetched list, never assign unlisted.)
+4. `editJiraIssue` with `fields: {"assignee": {"accountId": "<chosen accountId>"}}`.
+5. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
    what was requested; report a mismatch as a failure, not a success.
 No Jira comment unless the user approves the exact text first.
 
@@ -176,7 +187,7 @@ ai-roleplay-be  #123   <sha8>      ✅ SUCCESSFUL (#456)
 ai-roleplay     #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | CI red | conflict | blocked by Part order (<predecessor>)>
-Jira <TICKET>: status <status.name> · assignee <accountId>   (or: skipped — config keys missing)
+Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>)   (or: skipped — transition key missing; assignee unchanged — <reason>)
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged>
 ```
 
@@ -204,7 +215,8 @@ Next: <fix the failing pipeline, then re-run /merge | nothing — all merged>
   each trigger a run within the same few seconds.
 - **Confirm-before-merge has no exceptions** — same discipline as `/pr`'s Jira-comment gate. Applies
   to the child PRs (Step 5) **and** again to the root PR (Step 9.4).
-- **Jira status/assignee come from `.shipkit/config.yml`** (`jira.after_merge_transition`,
-  `jira.after_merge_assignee_account_id`), looked up by transition *name* at run time.
+- **Jira status comes from `.shipkit/config.yml`** (`jira.after_merge_transition`, looked up by
+  transition *name* at run time). **The assignee (QC) is asked every run** from the ticket's real
+  assignable-users list; `jira.qc_account_id` only overrides the built-in default (`642a9e7922330bdf97ab2aa8`).
 - **Re-running is safe.** `.shipkit/merge-<ticket>.md` records what's already merged — a re-run
   skips PRs already merged and only waits on pipelines still pending.
