@@ -78,9 +78,9 @@ A ticket can have concerns in different buckets at once — classify each on its
 
 1. Fix every real-defect concern now, on the ticket's **existing feature branch** — a bug reported on an in-flight feature ticket almost always has one already; check it out per this project's normal flow (e.g. `report-bug` FLOW C's branch/test/push/PR path, if this project has that skill). Pushing there auto-updates any open PRs. Only create a new branch from the base branch (e.g. `staging`) in the rare case no feature branch exists for this ticket yet. Regression test first. Push once tests pass.
 2. Leave not-a-defect and needs-decision concerns as comments only — no code changes yet.
-3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way); additionally @-mention the **PO** on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
+3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way) as `@[Name](commenter_account_id)`; additionally @-mention the **PO** as `@[Name](jira.reporter_account_id)` on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
 4. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment` in the state file below and stop — don't launch the background poller yet.
-5. Once approved, post it, then write `.shipkit/bugfix-<ticket>.md`:
+5. Once approved, post it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (the MCP tool leaves mentions as plain text; If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).), then write `.shipkit/bugfix-<ticket>.md`:
    ```markdown
    # Bugfix loop state — <ticket>
    commenter_account_id: <id of the tester/QA who posted the bug comment>
@@ -117,7 +117,7 @@ A ticket can have concerns in different buckets at once — classify each on its
    - **Neither** (vague reply, defers to someone else) → leave open, add a short bracketed status note.
 4. Draft exactly one Jira comment covering this tick's activity (same discipline as Step 3.3). Reaching this step already means a new reporter comment exists (Step 4.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
 5. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off concerns, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
-6. Once approved, post it, update `last_checked_comment_id` (this is also the `<after_comment_id>` for the next poller launch) and `silent_ticks`, clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 4.1 to keep waiting.
+6. Once approved, post it via the script (Step 3.5), update `last_checked_comment_id` (this is also the `<after_comment_id>` for the next poller launch) and `silent_ticks`, clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 4.1 to keep waiting.
 
 ## Step 5 — Continue or stop
 

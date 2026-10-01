@@ -185,6 +185,32 @@ bash "$(find ~/.claude/plugins -name apply-permissions.sh 2>/dev/null | sort -V 
 the plugin lives at a versioned cache path, so a path-scoped rule would break on every update. The
 applier is idempotent and backs up before writing.
 
+## Posting Jira comments
+
+Skills that comment on Jira (`clarify`, `bugfix`, `pr`, `plan-deep`) post through
+`scripts/jira-comment.py`, because the Atlassian MCP `addCommentToJiraIssue` stores @mentions as plain
+text and notifies nobody. The script uses REST API v3 and sends real mention nodes.
+
+```bash
+export JIRA_URL=https://yourorg.atlassian.net JIRA_EMAIL=you@org.com JIRA_API_TOKEN=...
+printf 'Hi @[Boris](712020:05d5...), which option do you want?\n\n- A: ...\n- B: ...\n' > draft.md
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md   # add --dry-run to see the ADF
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-id>
+```
+
+| Syntax | Result |
+|---|---|
+| `@[Name](accountId)` | real @mention (`@[](accountId)` looks the name up) |
+| `**bold**`, `` `code` `` | bold, inline code |
+| `[text](https://url)` | link |
+| `- item` / `1. item` | bullet / numbered list |
+| `# Heading` | heading |
+| blank line / single newline | new paragraph / line break |
+
+Exit codes: 0 ok · 2 bad usage · 3 env vars missing (skills fall back to MCP; mentions won't notify) ·
+4 Jira rejected · 5 posted but a mention didn't come back. Prints `{"id","url","mentions"}`.
+`python3 scripts/jira-comment.py --self-test` runs offline checks.
+
 ## Spec = source of truth in git
 
 Specs are git-tracked files (`specs/NNN-slug/spec.md`), not Jira comments — so they diff, review,

@@ -63,9 +63,9 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 3. The PO to tag is `jira.reporter_account_id` from `.shipkit/config.yml` (written by `/spec-from-ticket`) —
    the only source; don't re-derive it from the ticket and don't copy it into the state file. Key
    missing → stop and tell the user to run `/spec-from-ticket <ticket>` first.
-   **Every comment this skill posts must @mention that account** (Atlassian mention node with the
-   accountId, not the plain display name) so the PO is notified; after posting, confirm the comment
-   came back with a mention, else tell the user.
+   **Every comment this skill posts must @mention that account.** Write `@[Name](<reporter_account_id>)`
+   in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` — it sends a real ADF mention (the MCP tool stores mentions as
+   plain text, so nobody is notified). The script verifies the mention came back. If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).
 
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)
 
@@ -77,7 +77,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 1. Read `open-question.md` → list of questions, each already in business-language / lettered-option format (`spec-from-ticket` and `plan-deep` both write to this file).
 2. Translate any that still read technical (they shouldn't, if `spec-from-ticket` wrote them, but re-check) into plain business language per the rule above.
 3. Draft ONE comment tagging the PO with every open question, then confirm it with me per the Hard Rule above. If unconfirmed this turn, write it as `pending_comment` in the state file below and stop — don't launch the background poller yet.
-4. Once approved, post via `addCommentToJiraIssue`. Note the posted comment's ID (or ticket's current latest comment ID if the API doesn't echo it back) as `last_checked_comment_id`, and clear `pending_comment`.
+4. Once approved, post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (see Step 1.3). Note the `id` it prints as `last_checked_comment_id`, and clear `pending_comment`.
 5. Write `.shipkit/clarify-<ticket>.md`:
    ```markdown
    # Clarify loop state — <ticket>
@@ -119,7 +119,7 @@ The local state file is not the source of truth for "has this been seeded" — t
    **Round cap on new questions — no unbounded branching.** If this tick would add a genuinely-new bucket-2 question, increment `follow_up_rounds` first. If it would now exceed 3: do **not** add the new question this way. Instead, fold it into a single closing summary — everything still open, including this last item, phrased as one consolidated ask — and say so to the user: "hit the follow-up cap (3 rounds) — asking everything outstanding in one final comment instead of opening another round; if the PO's answer raises something further, that's a manual follow-up, not another auto-generated tick." This mirrors `pr`'s `max_rounds` — the point is the same: a chain of one-new-question-per-reply is a design smell, not a feature.
 5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
 6. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
-7. Once approved, post it, update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
+7. Once approved, post it via the script (Step 1.3), update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
 
 ## Step 4 — Continue or stop
 
