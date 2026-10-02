@@ -79,6 +79,8 @@ them here. Then, before asking the PO business questions:
 - Attach the real-screen screenshots from `specs/NNN-slug/current/` to that comment with
   `--image <path>:<one-line caption>` (or `![caption](/abs/path.png)` on its own line in the draft).
   Show the images in the draft you confirm with me; `--dry-run` uploads nothing.
+- Shape of that comment: the placement question comes first and is a single question; at most one
+  further question follows it; six sentences or fewer; no file names or process talk.
 - Rule behind it: the prototype of a feature must sit in that feature, on the real screen — not be
   gathered on another feature's page or tab.
 

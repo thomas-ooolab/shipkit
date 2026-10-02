@@ -156,8 +156,10 @@ context, and implementation pays for it.
    or mutate), open it and save a screenshot to `specs/NNN-slug/current/<screen>.png`. Write
    `specs/NNN-slug/current-behaviour.md`: one section per screen — `entry point | fields+labels |
    steps | states | screenshot | (verified in <file>:<line>)`. Cannot run → say so, cite code only.
-   If **two** existing screens edit the same entity (e.g. the new Create course wizard vs the older Edit
-   Task modal), list both and note where they differ.
+   Then grep the source for **every other screen that creates or edits the same entities** the
+   feature touches (routes, pages, modals, wizards) — including ones the ticket never mentions. When
+   two screens edit the same entity (e.g. the new Create course wizard vs the older Edit Task modal),
+   list both, note where they differ, and ask the PO which the feature must live in (or both).
 2. **Compare the design against that reality**, per screen the design draws:
    - same fields and labels? same layout and steps? same entry point?
    - anything drawn that cannot exist today (a locked/disabled state for something with no authoring
@@ -171,6 +173,8 @@ context, and implementation pays for it.
    has today, and the question for the PO ("which screen should this live on — can you redraw it
    there?"). It is a design omission, not a dev defect — say so. Never choose a placement for the PO's
    feature; state what gets built meanwhile (`blocked` or `built on <real screen> pending design`).
+   PO-facing wording stays in the product's own words: it never names spec files (`current-behaviour.md`)
+   or says the app could not run — the screenshots (when taken) are the evidence.
 4. Add a pointer under the spec's `## Contracts`: `Current behaviour: current-behaviour.md`.
 
 ## Step 4 — Classify, then interview (one batched question)
