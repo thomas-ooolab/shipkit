@@ -195,6 +195,7 @@ text and notifies nobody. The script uses REST API v3 and sends real mention nod
 export JIRA_URL=https://yourorg.atlassian.net JIRA_EMAIL=you@org.com JIRA_API_TOKEN=...
 printf 'Hi @[Boris](712020:05d5...), which option do you want?\n\n- A: ...\n- B: ...\n' > draft.md
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md   # add --dry-run to see the ADF
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit AR-526 <comment-id> --file draft.md   # replace body, no re-notify
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-id>
 ```
 
@@ -205,10 +206,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-i
 | `[text](https://url)` | link |
 | `- item` / `1. item` | bullet / numbered list |
 | `# Heading` | heading |
+| `![caption](/abs/path.png)` on its own line, or `--image path[:caption]` | inline image (uploaded as an attachment, caption in italics) |
 | blank line / single newline | new paragraph / line break |
 
 Exit codes: 0 ok · 2 bad usage · 3 env vars missing (skills fall back to MCP; mentions won't notify) ·
-4 Jira rejected · 5 posted but a mention didn't come back. Prints `{"id","url","mentions"}`.
+4 Jira rejected (incl. failed image upload) · 5 posted but a mention didn't come back. Prints `{"id","url","mentions"}`.
 `python3 scripts/jira-comment.py --self-test` runs offline checks.
 
 ## Spec = source of truth in git

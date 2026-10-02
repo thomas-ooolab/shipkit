@@ -48,6 +48,8 @@ if asked.
 2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items) — business-language
    questions for the PO, consumed by `/clarify`.
 3. `.shipkit/config.yml` → `jira.reporter_account_id` only (Step 1b). No other key is touched.
+4. `specs/NNN-slug/current-behaviour.md` + `specs/NNN-slug/current/*.png` (Step 3c, only when the
+   ticket touches an existing screen/flow or carries a design/prototype).
 **Forbidden side-effects:** no git mutation (read-only `status`/`log`/`diff`); no Jira/Bitbucket
 mutation of any kind (reads only — never comment, transition, or edit); no code/test changes.
 
@@ -137,6 +139,39 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
 | "Asking about every referenced component is excessive" | Only ones Step 3.5 couldn't verify reach here — this isn't every AC, just the undefined ones. |
+
+## Step 3c — Current behaviour + design fidelity & placement
+Runs when the ticket touches an existing screen/flow **or** carries a design/prototype (mockup, Figma,
+Claude design link, screenshots). Skip otherwise. This is the source of truth `/clarify` and
+`/design-recon` reuse — they do not redo it.
+
+**Principle: the prototype of a feature sits in that feature.** A prototype of feature A is drawn on
+the screen where A lives, starting from the real screen — never parked on another feature's page or
+tab, never gathered in one place. Otherwise it can't be compared with what exists or pictured in
+context, and implementation pays for it.
+
+1. **Understand the current feature first.** For every existing screen/flow the ticket touches, find
+   it in the real submodule source (route → page → component) and list its real fields, labels, steps,
+   states and entry point. When the app can run (`run` skill / Playwright MCP, read-only — never submit
+   or mutate), open it and save a screenshot to `specs/NNN-slug/current/<screen>.png`. Write
+   `specs/NNN-slug/current-behaviour.md`: one section per screen — `entry point | fields+labels |
+   steps | states | screenshot | (verified in <file>:<line>)`. Cannot run → say so, cite code only.
+   If **two** existing screens edit the same entity (e.g. the new Create course wizard vs the older Edit
+   Task modal), list both and note where they differ.
+2. **Compare the design against that reality**, per screen the design draws:
+   - same fields and labels? same layout and steps? same entry point?
+   - anything drawn that cannot exist today (a locked/disabled state for something with no authoring
+     screen)?
+   - anything the ticket says lives in screen X but the design draws on Y?
+   - **placement:** is the feature drawn on the real screen it belongs to? Flag a prototype parked on
+     another feature's page/tab, mock panels that don't resemble the real editor, and a new feature
+     that must live in two existing screens but is drawn for one.
+3. **Each mismatch becomes an `open-question.md` item** tagged `[design-omission]`, business language,
+   naming the real screen and pointing at its `current/*.png`: what the design shows, what the product
+   has today, and the question for the PO ("which screen should this live on — can you redraw it
+   there?"). It is a design omission, not a dev defect — say so. Never choose a placement for the PO's
+   feature; state what gets built meanwhile (`blocked` or `built on <real screen> pending design`).
+4. Add a pointer under the spec's `## Contracts`: `Current behaviour: current-behaviour.md`.
 
 ## Step 4 — Classify, then interview (one batched question)
 Classify each spec field against the evidence ledger as **Present** (cited source answers it),

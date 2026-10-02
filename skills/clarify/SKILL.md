@@ -67,6 +67,21 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
    in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` — it sends a real ADF mention (the MCP tool stores mentions as
    plain text, so nobody is notified). The script verifies the mention came back. If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).
 
+## Step 1c — Fidelity and placement gate (before any question is drafted or planned)
+
+If the ticket carries a design/prototype and `specs/NNN-slug/current-behaviour.md` doesn't exist yet,
+run `spec-from-ticket` Step 3c first (and `design-recon` Step 5b for the contract) — don't reimplement
+them here. Then, before asking the PO business questions:
+- Every `[design-omission]` item in `open-question.md` goes out in the seed as a plain-language
+  question: what the design shows, what the product has today, and "can you draw it on the real
+  screen?". Say plainly it's a design omission, not something dev got wrong. Never choose a
+  placement for the PO's feature, and say what we build meanwhile.
+- Attach the real-screen screenshots from `specs/NNN-slug/current/` to that comment with
+  `--image <path>:<one-line caption>` (or `![caption](/abs/path.png)` on its own line in the draft).
+  Show the images in the draft you confirm with me; `--dry-run` uploads nothing.
+- Rule behind it: the prototype of a feature must sit in that feature, on the real screen — not be
+  gathered on another feature's page or tab.
+
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)
 
 The local state file is not the source of truth for "has this been seeded" — the Jira ticket is. The file can be missing for reasons that have nothing to do with whether a seed comment exists: a fresh clone/worktree, a teammate ran this from another machine, or the comment posted but the file write never happened. Checking only the file's existence causes a duplicate question comment on the ticket.

@@ -196,6 +196,18 @@ Add a `## State matrix` section (from 4a.6): one row per state — `state | sour
 status (captured → Region name | not in mockup → OQ#)`. Every `not in mockup` row must have a matching
 Open Question. A spec with conditionals but a matrix holding only the default state is the same red flag.
 
+## Step 5b — Fidelity and placement (up front, next to the State matrix)
+Surface prototype-vs-reality problems **now**, not at `/design-verify`. Reuse
+`specs/NNN-slug/current-behaviour.md` + `current/*.png` when `/spec-from-ticket` Step 3c wrote them;
+otherwise run that step's items 1–2 for the screens this design draws (read-only browser, no submits).
+Principle: *the prototype of a feature sits in that feature* — drawn on the real screen where the
+feature lives, starting from it, not parked on another feature's page/tab.
+
+Add a `## Fidelity and placement` section after `## State matrix`, one row per drawn screen/region:
+`region | lives on (real screen, entry point) | drawn on | placement ok? | fidelity (fields/labels/layout/steps match?) | impossible-today? | → OQ#`.
+Every row that is not `ok` gets an Open Question tagged `[design-omission]` (design omission, not a
+dev defect; real-screen screenshot attached by `/clarify`). Never pick a placement for the PO.
+
 ## Step 6 — Write + report
 - Stop any transient server: `recon.sh stop <SERVE_PID>`.
 - Assign the spec dir (from `--ticket`, else next spec number). If `design-contract.md` exists →
@@ -208,6 +220,7 @@ shipkit · design-recon — <artifact>  (tier: <html|url|screenshot>, fidelity: 
 Contract:  specs/NNN-<slug>/design-contract.md   (<R> regions, <N> tokens, <M> approx/inexact)
 Reference: design-contract.reference.png | <image path>
 Captured:  desktop + <breakpoints> | states: <hover/focus…> | click-revealed: <N> regions (<names>)
+Placement: <P> regions — <K> ok, <B> mismatched (→ Open Questions [design-omission])
 States:    <S> in matrix — <C> captured, <G> not in mockup (→ Open Questions) | logic source: <spec|none>
            (screenshot tier: static only — hidden UI flagged as Open Questions)
 Next: implement, then /design-verify --ticket <ticket>  to diff the build against this contract.
