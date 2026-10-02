@@ -72,7 +72,7 @@ skip straight to Phase 2 Step 3 (its loop body picks up from the state file).
 **Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → there's one target: open **one** PR
 from `feat/<ticket>-<slug>` to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
 PR, no fan-out, no Part order, no bump** — Steps 5–6 collapse to that single PR. `--implement` (if
-given) delegates to one Antigravity terminal on the repo. Everywhere below that says "per affected submodule /
+given) delegates to one agent on the repo. Everywhere below that says "per affected submodule /
 parent," read it as "the repo." **`meta-with-submodules`** → the full fan-out flow below.
 
 Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/spec-from-ticket` +
@@ -98,10 +98,10 @@ For each affected submodule (from task tags), bind from config + git:
   submodule `already-open`: Steps 3–5 skip it. Do the same for the parent branch (Step 6).
 If every submodule and the parent are `already-open`, skip to Step 7.
 
-## Step 3 — (Optional) implement via Antigravity
+## Step 3 — (Optional) implement via agents
 **Only if `IMPLEMENT=true`**, and only for submodules not `already-open`. Delegate each submodule's
-tasks (in parallel) to an Antigravity terminal per `${CLAUDE_PLUGIN_ROOT}/skills/spawn/antigravity-delegate.md`
-(`PATH` = submodule path, `NAME` = submodule name). Compose each `BRIEF` with:
+tasks (in parallel) to one background agent per submodule, dispatched exactly as `/spawn` Step 5 does
+(`general-purpose` `Agent`, `run_in_background: true`, brief scoped to the submodule path). Compose each `BRIEF` with:
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md`; reuse existing patterns;
   don't invent structure.
 - **Objective + tasks:** the spec's tasks tagged for this submodule, each with its `REQ-NNN`.
@@ -331,7 +331,7 @@ The local state file is not the source of truth for "has this been seeded" — S
 ## Gotchas
 - **Never merges.** Both phases end at open PRs; merging, approving, and closing PRs are the human's call. This resolves review *concerns*, not PR merge state.
 - **Allowlist is a floor, not a ceiling-widener.** An out-of-allowlist file stops with a gap file — re-plan, don't widen silently. Applies to Phase 2 fixes too.
-- **`--implement` Antigravity terminals work off each submodule's branch** — uncommitted local edits
+- **`--implement` agents work off each submodule's branch** — uncommitted local edits
   in a different checkout are invisible to them; commit/stash first.
 - **Fan-out order matters.** If the plan pins Part order (BE contract before FE consumer), open/merge
   in that order so the FE PR doesn't reference an unmerged endpoint.
