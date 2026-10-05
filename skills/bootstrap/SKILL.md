@@ -71,9 +71,10 @@ Map each submodule → its signals. The user can edit these after.
 ## Step 3 — Infer per-submodule defaults
 - **suffix** — derive from the submodule name's trailing token (`…-be`→`-be`, `…-voice`→`-voice`,
   `…-fe` or a `nextjs` frontend→`-fe`). If ambiguous, ask.
-- **branch** — the probe's branch, or `main` if unset.
-- **staging_only** — ask the user which submodules (if any) are not production-ready (e.g. a voice
-  service). Default `false`.
+- **branch** — default `staging` (matches `pr_target: staging`). Use the probe's branch only if the
+  user says a submodule tracks something else.
+- **staging_only** — default `true` for every submodule (nothing PRs to `main` until the user flips
+  it). Ask which submodules, if any, are production-ready and set those to `false`.
 - **Jira** — ask for base URL + project key (can't be detected). Offer a guess only if `CLAUDE.md`
   states it; otherwise ask.
 
