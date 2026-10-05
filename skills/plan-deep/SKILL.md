@@ -35,6 +35,12 @@ before the plan is written; the draft is reviewed by `plan-self-reviewer` and `r
 > | "The spec already says this exists" | The spec recorded a claim from the ticket/PO, not a code read. Confirm it in the grounding digest before building on it. |
 > | "Grounding covered that area generally" | General coverage of a submodule isn't confirmation of one specific referenced capability — check for it by name. |
 > | "It's a reasonable assumption for this codebase" | Reasonable ≠ verified. If the Explore agent didn't find it, it's undefined until proven otherwise. |
+>
+> **Technical-names rule.** A table/column/field/role/endpoint name in the spec's Requirements or Key
+> decisions that carries no `(verified in <file>:<line>)` came from the PO's ticket — a guess, not a
+> decision. Resolve it against the grounding digest: the code's real name wins; no equivalent in code →
+> the technical shape is the dev's call, planned as its own task. Never plan on a ticket-invented name
+> and never send a technical question to the PO.
 
 ## Bounded scope
 Produces the plan inside `spec.md` only. Does not implement, open PRs, run tests, or merge. If asked
@@ -102,7 +108,8 @@ Draft the plan sections (tier-scaled) from the grounding digest:
   note **Fan-out** and a **Part order** (which submodule's PR must merge first, e.g. BE before FE).
 - **`## Contracts`** — only if a cross-service interface changes (new/changed endpoint, request/
   response shape, shared type); else "None".
-- **`## Key decisions`** — restate confirmed structural choices verbatim; mark any unresolved fork
+- **`## Key decisions`** — restate verbatim only choices that cite code or a dev's confirmation (a
+  ticket's technical suggestion is not one — see Technical-names rule); mark any unresolved fork
   `[not specified — ask before implementing]`.
 
 **Source-of-truth gate:** reason about whether the draft contradicts the verified ground truth (real
@@ -114,7 +121,8 @@ a true 2+ reading fork via AskUserQuestion listing the readings). If grounding l
 grounding digest: does it depend on a capability (**B**) that a later or sibling task's feature (**C**)
 assumes already exists? Three outcomes only:
 - **B is confirmed in code** (digest says so, with a file ref) → C's task proceeds, cite B's location.
-- **B is missing but is pure implementation** (no business-logic decision, just unbuilt code) → add B
+- **B is missing but is pure implementation** (no business-logic decision, just unbuilt code — this
+  includes any table/field/endpoint/role the ticket named that the code lacks) → add B
   as its own task, sequenced before C, tagged into the same Part order.
 - **B is missing and its shape is a business decision** (which of several ways to build it, or whether
   it should exist at all) → do **not** draft C's task on top of an assumed B. Append the gap to

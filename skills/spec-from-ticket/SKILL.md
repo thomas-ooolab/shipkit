@@ -37,6 +37,19 @@ only after every clarifying question is answered. Does **not** create branches (
 > | "The ticket says 'extend the existing X'" | "Existing" is a claim about the codebase — grep for X (Step 3) before assuming it's there. |
 > | "It's probably already there, standard stuff" | Standard-for-other-projects ≠ present in this codebase. Verify. |
 > | "specs/NNN-old-ticket/spec.md already describes this" | A spec is a plan, not a guarantee it shipped as written. Check the code, not the spec. |
+>
+> **Business-intent rule.** The ticket is written by a PO, who does not know the codebase. Take the
+> **business intent** from it — who does what, what changes for whom, what must stay true. Treat every
+> technical specific in it (table/column/field/enum/endpoint/role/file names, schema shape, job
+> schedules, "implement via X", "add column Y to Z") as the PO's guess: a search hint for Step 3, never
+> a requirement, a Key decision, or a fact. The real code decides the technical shape; the dev decides
+> the approach. Technical choices are never asked of the PO.
+>
+> | Excuse | Reality |
+> |---|---|
+> | "The ticket names the exact table/field, so it's specified" | The PO guessed the name. Find where it really lives in the code; use that. |
+> | "The ticket says 'super admin' / 'workspace admin', so that role exists" | Roles in PO words ≠ roles in code. Map the business actor to the real role, or ask which person is meant. |
+> | "Following the ticket's technical design saves time" | A guessed design built wrong costs a rewrite. Derive the design from code + business intent. |
 
 ## Bounded scope
 Extracts a spec from an existing ticket. It does **not**: triage/transition tickets, create branches
@@ -101,6 +114,10 @@ cited quotes attached to each field:
    *already does* ("today X happens", "reuses the existing Y", "same as Z") is a hypothesis, not
    evidence. Queue each one for verification in Step 3 — never cite it as-is to support a requirement
    about existing behavior.
+7. **Technical specifics** — sort every sentence into **business intent** (keep, cite) or **technical
+   specific** (names, schema, mechanisms, roles-as-code, implementation instructions). Technical
+   specifics go in a separate hints list for Step 3; they are not cited as evidence for any requirement.
+   Rewrite each requirement from the business intent alone.
 
 ## Step 3 — Auto-discover scope + verify current-state claims (grep the real code)
 Resolve which submodules the ticket touches from **evidence, not guesses**:
@@ -114,6 +131,13 @@ Resolve which submodules the ticket touches from **evidence, not guesses**:
    (never `specs/` or `docs/`) for the specific capability/flag/table/component named. Confirmed →
    cite `(verified in <file>:<line>)`. Not found → do **not** assume it exists; carry it into Step 3b
    as undefined.
+6. **Resolve the Step 2.7 hints against the code.** For each technical specific, find what the code
+   really has for that business concept (the real table/column/role/endpoint/component). Real name
+   differs from the ticket's → the code's name wins; record the mapping `ticket said X → code has Y
+   (verified in <file>:<line>)` under Key decisions and never ask the PO. No equivalent exists → the
+   technical shape is a dev decision: Key decision `[not specified — ask before implementing]`, put to the
+   local interviewee in Step 4, not the PO. A ticket specific is adopted only when the code confirms it
+   fits; cite the code, not the ticket.
 Derive `scope` (`fe-only`/`be-only`/`fe+be`/`fe+be+voice`/…) and `services` from the affected set.
 
 ## Step 3b — Undefined-reference & dependency-chain check
@@ -201,8 +225,11 @@ kebab-case `{slug}`. If `specs/NNN-slug/spec.md` exists, AskUserQuestion: `["Ove
 Populate **every** field of `${CLAUDE_PLUGIN_ROOT}/templates/spec.md`:
 - frontmatter: `spec-id`, `ticket`, `services` (from Step 3), `scope`, `tier`, `status: draft`.
 - **Goal**, **Requirements** — atomic, numbered `REQ-NNN`, each one observable/testable assertion with
-  a cited source.
+  a cited source, written in business terms (what the user/admin sees or can do). No ticket-invented
+  table/field/endpoint names in a requirement.
 - **Key decisions** — confirmed structural choices verbatim, or `[not specified — ask before implementing]`.
+  Technical choices cite the code they rest on, or the dev who confirmed them; a ticket's technical
+  suggestion appears only as `ticket suggested X → <adopted | replaced by Y> (verified in <file>:<line>)`.
 - **Contracts** — cross-service interface changes, else "None".
 - **Edge cases**, **Open questions** — record every AskUserQuestion answer here as Q→A.
 - Leave **Plan**/**Tasks** as template stubs — `/plan-deep` fills them.
@@ -252,6 +279,9 @@ Next:    /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
 - **Don't assume layout.** Scope comes from the grep in Step 3, not assumptions — works regardless of
   how many submodules a project has (ai-roleplay's 3 or learningos's larger set).
 - **Labels are evidence.** A `backend`/`frontend`/`voice` label is a cited scope signal — don't ignore it.
+- **Ticket technical detail is a PO guess.** Spec the business intent; let the code and the dev pick
+  the technical shape (Business-intent rule, Step 3.6). A business contradiction inside the ticket
+  (two rules that can't both hold) is still a PO question — a technical mismatch with the code is not.
 - **A "current behavior" claim is not evidence of current behavior.** Step 3.5 verifies it in real code
   before Requirements cite it as fact — the ticket/PO/comment is where the *claim* came from, not proof
   it's true.
