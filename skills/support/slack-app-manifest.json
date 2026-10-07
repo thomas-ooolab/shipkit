@@ -1,0 +1,23 @@
+{
+  "display_information": {
+    "name": "shipkit",
+    "description": "Reads my Slack notifications and posts replies as me (shipkit /support, /pr)",
+    "background_color": "#000000"
+  },
+  "oauth_config": {
+    "scopes": {
+      "user": ["chat:write", "channels:history", "groups:history", "im:history", "mpim:history"]
+    },
+    "pkce_enabled": false
+  },
+  "settings": {
+    "event_subscriptions": {
+      "user_events": ["message.channels", "message.groups", "message.im", "message.mpim"]
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false,
+    "app_level_token_rotation_enabled": false,
+    "is_mcp_enabled": false
+  }
+}
