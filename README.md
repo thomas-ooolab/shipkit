@@ -131,7 +131,7 @@ Without it `/support` polls the thread every 15s. With it, Slack pushes new repl
 polling, no public URL, no bot to invite into each channel. One-time:
 
 1. <https://api.slack.com/apps> → **Create New App → From a manifest** → pick the workspace → paste
-   `skills/support/slack-app-manifest.json` (user scopes, user events and Socket Mode are all in it).
+   `templates/slack-app-manifest.json` (user scopes, user events and Socket Mode are all in it).
 2. **Install App → Install to Workspace** → copy the **User OAuth Token** (`xoxp-…`) → `export SLACK_REVIEW_TOKEN=…`.
 3. **Basic Information → App-Level Tokens → Generate Token** with scope `connections:write` → copy the
    `xapp-…` token → `export SLACK_APP_TOKEN=…`.
