@@ -17,6 +17,15 @@ instead of answering twice.
 > rules"). Never post a token, credential, or `.env` value, and never read `SLACK_REVIEW_TOKEN` into
 > output, a file, a log, or `set -x`.
 
+## Hard rule: read-only
+This skill only reads: code (grep/read), git history, Jira (`getJiraIssue`, search), Bitbucket and pipeline
+status, Slack threads. It never edits or creates code or any file other than its own state file, never
+runs git write commands (commit, push, checkout, reset, branch), never writes to Jira (comment,
+transition, edit, create) or Bitbucket, and never runs a command that changes the system, a database, or
+an environment. The only writes it may make are the thread reply (*post directly*, below) and
+`.shipkit/support-<channel_id>-<thread_ts>.md`. A fix, ticket, or data change is the user's call — say so
+in the terminal note instead of doing it.
+
 ## Hard rule: post directly, speak as the user
 Like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait. The post goes out as
 the user, so write the way they type: first person, plain sentences, no bolded outline, no stock
