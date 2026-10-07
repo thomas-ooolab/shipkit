@@ -6,7 +6,7 @@
   },
   "oauth_config": {
     "scopes": {
-      "user": ["chat:write", "channels:history", "groups:history", "im:history", "mpim:history"]
+      "user": ["chat:write", "files:write", "channels:history", "groups:history", "im:history", "mpim:history"]
     },
     "pkce_enabled": false
   },
