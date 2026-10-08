@@ -52,6 +52,8 @@ to build it: "`/plan-deep` produces the plan; run `/run-pipeline <ticket>` to ex
 2. `specs/NNN-slug/open-question.md` — appended (never overwritten), only if Step 3 finds an undefined
    dependency or the cross-check gate finds a `[ticket-conflict]` (same file `spec-from-ticket` writes; consumed by `/clarify`).
 3. (Optional) one Jira pointer comment.
+4. `specs/NNN-slug/cross-check.md` + `specs/NNN-slug/conflicts/*.png` — written by `/cross-check` in the
+   Cross-check gate (Step 3), before the Step 5 confirm gate.
 **Forbidden side-effects:** never edit code/tests/other files; no git mutation (read-only
 `git status`/`log`/`diff` only); never branch/commit/push/merge or touch any PR. Every dispatched
 agent (`Explore`, `plan-self-reviewer`, `reference-verifier`) is read-only.

@@ -83,8 +83,9 @@ them here. Then, before asking the PO business questions:
   further question follows it; six sentences or fewer; no file names or process talk.
 - Rule behind it: the prototype of a feature must sit in that feature, on the real screen — not be
   gathered on another feature's page or tab.
-- Every `[ticket-conflict]` item in `open-question.md` goes out in the same seed, after the placement
-  question, as its own short paragraph in plain language: the two rules in the PO's own words, which
+- Applies even when the ticket carries no design: every `[ticket-conflict]` item in `open-question.md`
+  goes out in the same seed (after the placement question when there is one) as its own short paragraph
+  in plain language: the two rules in the PO's own words, which
   ticket each came from and roughly when, what the product does today, and "which one applies, or do both
   apply to different people?". Never say which is right, never use field/endpoint/file names. Attach
   `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `--image <path>:<one-line caption>`; no screenshot

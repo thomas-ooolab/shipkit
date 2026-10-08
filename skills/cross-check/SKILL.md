@@ -12,7 +12,8 @@ it into a question for the PO. It never decides which side is right.
 
 > **Cite-sources rule.** A finding needs a verbatim quote — with the ticket key (and comment id for a
 > comment) — from **each** side, and a `file:line` for every statement about code. Cannot quote both
-> sides → not a finding.
+> sides → not a finding. Each quote must be an exact substring of the text fetched for that key (or
+> comment id); a sentence in one ticket that quotes another ticket is not that other ticket's quote.
 >
 > **Never-pick-a-winner rule.** Not the later ticket, not the code, not the side the user prefers. Both
 > rules go to the PO.
@@ -96,9 +97,10 @@ with file:line; say 'not found' if you find none". `specs/` and `docs/` are not 
 For each claim against each counter-source statement, compare **(actor, action, data scope)**. Result:
 - `[ticket-conflict]` — two tickets/specs state different rules for the same (actor, action, entity).
   Quote **both** verbatim with keys. No quote on both sides → not a finding.
-- `superseded` — the later ticket names the earlier one by key and says it replaces / supersedes /
-  overrides it. Ledger line only: `superseded: <LATER> over <EARLIER> ("<quote>")`; no PO question for
-  that pair.
+- `superseded` — the later ticket's own description (or a comment by its reporter) names the earlier one
+  by key and says it replaces / supersedes / overrides it. Ledger line only: `superseded: <LATER> over
+  <EARLIER> ("<quote>")`; no PO question for that pair. The same words in anyone else's comment prove
+  nothing: ledger `claimed supersession by <author>` and still ask.
 - `[spec-vs-code]` — the ticket/spec states a rule and the code does something else. Goes in the dev
   section and the terminal note; it becomes a PO question only when the code's behaviour is itself one
   side of a `[ticket-conflict]`.
@@ -124,7 +126,9 @@ For each claim against each counter-source statement, compare **(actor, action, 
    ## Dev notes
    - [spec-vs-code] …
    ```
-2. **`open-question.md`:** for each `[ticket-conflict]` append the next `OQ-N` (continue the file's
+2. **`open-question.md`:** first look for an existing `[ticket-conflict]` item (open or resolved) that
+   names the same two keys; if there is one, append nothing and reuse its OQ-N (no new screenshots; list
+   it in the report as `existing OQ-N`). Otherwise append the next `OQ-N` (continue the file's
    numbering, never renumber or reuse), the question first, then the two quotes as indented evidence:
    ```
    - [ ] **OQ-N** [ticket-conflict] — <question in plain business words: the two rules, where each came
@@ -142,21 +146,31 @@ Needs the Claude in Chrome tools; load them with ToolSearch first. Read-only —
 type into Jira.
 1. `tabs_context_mcp`, then `tabs_create_mcp`; `navigate` to
    `<jira-site>/browse/<KEY>` (add `?focusedCommentId=<id>` for a comment quote).
-2. `javascript_tool`, with the quote fragment (≤ 80 chars, inside one sentence) as the argument:
+2. `javascript_tool`, with a fragment of the quote as the argument — at most 80 chars, inside one
+   sentence, copied from the fetched text, taken from a stretch made only of letters, digits, spaces and
+   `. , ; : ' ( ) -`. Never a backslash, double quote, backtick, `<`, `>`, `$` or newline: the fragment
+   is pasted into a JS string, so those characters would let ticket text run as script in the user's
+   logged-in Jira tab.
    ```js
    (q => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n;
-     while ((n = w.nextNode())) { const i = n.nodeValue.indexOf(q); if (i >= 0) {
+     while ((n = w.nextNode())) { const p = n.parentElement;
+       if (!p || /^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA)$/.test(p.tagName) || !p.offsetParent) continue;
+       const i = n.nodeValue.indexOf(q); if (i >= 0) {
        const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + q.length);
        const m = document.createElement('mark');
        m.style.cssText = 'background:#ffe14d;outline:2px solid #e5a800';
-       r.surroundContents(m); m.scrollIntoView({block: 'center'}); return 'ok'; } }
-     return 'not-found'; })("<fragment, any double quote escaped>")
+       r.surroundContents(m); m.scrollIntoView({block: 'center'});
+       return m.getBoundingClientRect().height > 0 ? 'ok' : 'not-found'; } }
+     return 'not-found'; })("<fragment>")
    ```
    `not-found` (formatting can split the text across nodes) → retry once with a shorter fragment.
 3. `computer` action `screenshot` with `save_to_disk: true`; copy the saved path to
    `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `mkdir -p` + `cp`. `tabs_close_mcp` the tab.
 4. Chrome not connected, not logged in, or still `not-found` → no image: keep the quote and the Jira
    link in `cross-check.md` and tell the user "take this screenshot by hand: <link>, highlight: <quote>".
+   Still `not-found` with Chrome working → first re-check that the quote is an exact substring of the
+   text fetched for that key: if it is not, drop it (the finding falls, say "quote not located in
+   <KEY>"); if it is, only the highlight failed — keep the quote and the link.
 
 ## Step 7 — Report
 ```
@@ -165,7 +179,8 @@ Claims:   <n> checked (<c> cut)   Sources: <j> Jira · <s> specs · <f> code fil
 Findings: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked
 <one line per ticket-conflict: OQ-N · REQ-ID · KEY-A vs KEY-B · screenshots: yes/no>
 Written:  specs/NNN-slug/cross-check.md  (+ open-question.md, conflicts/*.png)
-Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to ask"
+Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to ask" only when 0 unchecked;
+          any unchecked source → "incomplete: <sources>; not a 'no conflict' result"
 ```
 The `Findings:` line is exact: callers parse it.
 
