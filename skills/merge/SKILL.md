@@ -1,6 +1,6 @@
 ---
 name: merge
-description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop), no failed check and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
+description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
 argument-hint: "<jira-ticket>"
 ---
 
@@ -11,8 +11,8 @@ triggers, and — when all of them are SUCCESSFUL — finishes the root PR (bump
 conflicts → merge) and hands the Jira ticket to testing. Reports per-PR status at the end.
 
 > **Cite-sources rule.** Sign-off, CI status, and mergeability each trace to a confirmed
-> observation (state-file concern list, Bitbucket build status — or "none", reported as `n/a` —,
-> `git merge-tree` exit code) — never inferred from "the PR is open" alone.
+> observation (state-file concern list, `git merge-tree` exit code) — never inferred from "the PR is
+> open" alone.
 >
 > **Never-guess rule.** Can't confirm sign-off from either state file → stop, don't merge.
 > `twg` flags unverified → check its help first, never guess a flag name.
@@ -37,8 +37,8 @@ pointer logic. The root PR is **never merged while any child pipeline is FAILED 
    root PR merge (Step 9, gated).
 4. Jira: transition + assignee from `.shipkit/config.yml` (Step 10). **No Jira comment** without
    explicit approval.
-**Forbidden side-effects:** never merge without confirmed sign-off, or a PR with a FAILED / ERROR /
-STOPPED build status or a git-detected conflict (no build status at all is fine); never merge without
+**Forbidden side-effects:** never merge without confirmed sign-off, or a PR with a git-detected
+conflict; never merge without
 explicit user confirmation; never merge the root PR unless every child pipeline is SUCCESSFUL; never
 merge a PR whose Part-order predecessor didn't qualify, even if it individually passes; never
 force-merge over a conflict; never hand-resolve a rebase conflict that isn't a submodule gitlink.
@@ -73,11 +73,9 @@ found → stop: "No open PRs for `<TICKET>` — run `/pr <TICKET>` first."
 - Neither signal present → **stop**: "Can't confirm reviewer sign-off for `<TICKET>` — run `/pr
   <TICKET>` first." Absence of a state file is never evidence of sign-off.
 
-## Step 4 — Verify no failed check + no conflict, per PR
-**Build status.** Batch-fetch each candidate's latest commit build statuses via the Bitbucket API
-(`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`) — one batched call across the set, not one call per
-PR. Any status `FAILED` / `ERROR` / `STOPPED` → **exclude the PR** and record why. **No status at all** → CI is `n/a`, not a failure: these repos run only DEPLOY pipelines *after*
-the merge (Steps 7–8), so a PR branch has no CI. Note `CI: n/a` in the report and keep the PR.
+## Step 4 — Verify no conflict, per PR
+**No CI check.** These repos run only DEPLOY pipelines *after* the merge (Steps 7–8); a PR branch has
+no build status, so none is read or required.
 
 **Conflicts.** Don't rely on the API's `mergeable` flag (it may not be returned). In each PR's repo
 (`<path>`; `.` for single-repo): `git -C <path> fetch origin`, then
@@ -93,9 +91,9 @@ as a CI/sign-off failure.
 Nothing left qualifying → stop and report why (Step 8's report, `Merged:` empty).
 
 ## Step 5 — Confirm before merging (hard gate, no exceptions)
-Print the qualifying set — repo, PR #, title, source → destination branch, Part order position, and
-`CI: n/a` where the PR has no build status — and warn that merging into `<pr_target>` **triggers that
-repo's Bitbucket deploy pipeline** (staging/main), not a test run. Then the root-PR plan ("after all pipelines are SUCCESSFUL: bump pointers to the merge shas, rebase if it
+Print the qualifying set — repo, PR #, title, source → destination branch, Part order position — and warn
+that merging into `<pr_target>` **triggers that repo's Bitbucket deploy pipeline** (staging/main), not
+a test run. Then the root-PR plan ("after all pipelines are SUCCESSFUL: bump pointers to the merge shas, rebase if it
 conflicts (force-with-lease on the feature branch), merge, transition Jira") and ask for explicit go-ahead (`AskUserQuestion` or a plain "merge these now?"). Wait for it. This
 mirrors `/pr`'s Jira-comment confirm pattern: draft the list → show it → wait for an explicit reply
 → only then act. No exception for "all checks already passed" — the checks confirm it's *safe* to
@@ -190,11 +188,11 @@ No Jira comment unless the user approves the exact text first.
 ## Step 11 — Report
 ```
 shipkit · merge <TICKET> — <title>
-PR                     merge sha   pipeline (run#)        (PR CI before merge: n/a = no build status)
+PR                     merge sha   pipeline (run#)        
 ai-roleplay-be  #123   <sha8>      ✅ SUCCESSFUL (#456)
 ai-roleplay     #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
-Skipped:  <PR>  — <sign-off missing | build status FAILED/ERROR/STOPPED | conflict (<files>) | blocked by Part order (<predecessor>)>
+Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
 Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>)   (or: skipped — transition key missing; assignee unchanged — <reason>)
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged>
 ```
