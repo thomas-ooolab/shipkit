@@ -1,6 +1,6 @@
 ---
 name: cross-check
-description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope) or change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Trigger: /cross-check <ticket> [--stage spec|plan]. Examples: \"/cross-check AR-526\", \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
+description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope), set a threshold, limit, state or notification, or otherwise change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Trigger: /cross-check <ticket> [--stage spec|plan]. Examples: \"/cross-check AR-526\", \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
 argument-hint: "<jira-ticket> [--stage spec|plan]"
 ---
 
@@ -32,7 +32,7 @@ it into a question for the PO. It never decides which side is right.
 > | "The PO doesn't need the technical detail" | Correct — it stays in the dev section. But the code must still be read before you ask. |
 > | "The search found nothing, so there is no conflict" | A search proves only what it searched. The ledger records the search; a miss is not a verdict. |
 > | "No screenshot possible, so skip the question" | A missing screenshot downgrades the question to quote + link. It never removes it. |
-> | "These sound like the same rule" | Same rule = same actor, same action, same data scope. Differ on any one → quote both and ask. |
+> | "These sound like the same rule" | Same rule = same subject, same attribute (for access: same actor, action, data scope). Differ on any one, or on the value → quote both and ask. |
 
 ## Bounded scope
 Read-only research. Does **not**: edit code, edit `spec.md`, write to Jira, decide a conflict, or contact
@@ -62,10 +62,12 @@ is the part of `TICKET` before the dash.
 
 ## Step 2 — Select claims
 From `## Requirements` keep only requirements that (a) say who may see or do what — a role, a
-permission, a data scope (own / team / workspace / organisation) — or (b) change an existing feature
-(its name resolves in `docs/features/INDEX.md`, or its nouns have hits in the code). Skip the rest.
-Keep at most 10; say which were cut. For each kept claim write down: the REQ-ID, the actor, the action,
-the data scope, and 1–3 noun keywords.
+permission, a data scope (own / team / workspace / organisation) — or (b) set a number, limit,
+threshold, state or transition, or a notification or trigger (e.g. "suggest learners below 65"), or (c)
+change an existing feature (its name resolves in `docs/features/INDEX.md`, or its nouns have hits in the
+code). Skip the rest. Keep at most 10; say which were cut. For each kept claim write down: the REQ-ID,
+the subject (actor and entity), the attribute (action and data scope, or threshold, state, trigger) with
+its value, and 1–3 noun keywords.
 
 ## Step 3 — Gather counter-sources (reads only)
 For each claim, in parallel where possible. Every source that cannot be read is recorded `unchecked`
@@ -88,15 +90,23 @@ with the reason — never silently skipped.
 REQ-IDs with the same entity and a role. File missing → `unchecked: no docs/features/INDEX.md`.
 
 **c. Code.** The real access path of the entity per role: list-query filters, permission checks, route
-guards — cite `file:line`. `--stage plan`: use the grounding digest already in context if it states the
+guards — cite `file:line`. Cover **every** route that reads or acts on the entity — list, detail, and
+actions such as trigger, retry, delete — not only the screens the ticket names; a ticket that adds a new
+axis (plan, feature flag) also gets the existing guards on those same routes. For a number, state or
+trigger claim: the constant or rule the code already applies, with `file:line`. `--stage plan`: use the grounding digest already in context if it states the
 access rule per role; otherwise dispatch one read-only `Explore` agent per affected submodule (single
 repo: one agent) with: "for entity E, return for each role the filter/permission applied when reading E,
 with file:line; say 'not found' if you find none". `specs/` and `docs/` are not code.
 
 ## Step 4 — Compare
-For each claim against each counter-source statement, compare **(actor, action, data scope)**. Result:
-- `[ticket-conflict]` — two tickets/specs state different rules for the same (actor, action, entity).
-  Quote **both** verbatim with keys. No quote on both sides → not a finding.
+For each claim against each counter-source statement — and against the other requirements and the Edge
+cases of the same `spec.md` — compare **(actor, action, data scope)**, or for a number, state or trigger
+**(subject, attribute, value)**. Result:
+- `[ticket-conflict]` — two tickets/specs, or two parts of one spec, state different rules for the same
+  subject and attribute. Quote **both** verbatim with keys (inside one spec the key is the REQ-ID or
+  "Edge cases"). No quote on both sides → not a finding.
+- `builds-on` — the later ticket cites the earlier by key and agrees with it. Ledger line only:
+  `builds-on: <LATER> on <EARLIER>`.
 - `superseded` — the later ticket's own description (or a comment by its reporter) names the earlier one
   by key and says it replaces / supersedes / overrides it. Ledger line only: `superseded: <LATER> over
   <EARLIER> ("<quote>")`; no PO question for that pair. The same words in anyone else's comment prove
@@ -185,7 +195,7 @@ Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to a
 The `Findings:` line is exact: callers parse it.
 
 ## Gotchas
-- **Different words, same rule.** Compare actor × action × scope, not wording. A paraphrase you cannot
+- **Different words, same rule.** Compare actor × action × scope (or subject × attribute × value), not wording. A paraphrase you cannot
   quote on both sides is not a finding.
 - **A conflict can be real and already built.** State what the product does today when both rules are
   implemented; the PO needs that to answer.

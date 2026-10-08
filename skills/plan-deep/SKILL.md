@@ -148,8 +148,8 @@ implementation" — an unverified prerequisite is exactly what this gate exists 
 | "I'll fold B into C's task, it's small" | Folding a prerequisite into the dependent task hides scope and skips the check for whether B is even implementation-only or a business call. Give it its own task or escalate it. |
 | "Asking would stall the plan" | An assumed-but-wrong B stalls the PR review instead, later and more expensively. Escalate now. |
 
-**Cross-check gate.** If any Requirement says who may see or do what, or changes an existing feature,
-run `/cross-check <TICKET> --stage plan` now — the grounding digest above is already in context, so it
+**Cross-check gate.** If any Requirement says who may see or do what, sets a threshold, limit, state or
+notification, or changes an existing feature, run `/cross-check <TICKET> --stage plan` now — the grounding digest above is already in context, so it
 does not re-read the code. Each new `[ticket-conflict]` it appends to `open-question.md` blocks every
 task that serves the REQ-NNN it names: mark those tasks `blocked on OQ-N — see open-question.md` and
 leave them blocked (same rule as the dependency-chain gate). Never draft around a conflict and never

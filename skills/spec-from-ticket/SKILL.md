@@ -264,8 +264,8 @@ situation) — same business-language bar as `/clarify`'s own comments, not a co
 the gap.
 
 ## Step 5b — Cross-check against other tickets, specs and code
-Runs when any requirement says who may see or do what (role, permission, data scope) or changes an
-existing feature; otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
+Runs when any requirement says who may see or do what (role, permission, data scope), sets a threshold,
+limit, state or notification, or changes an existing feature; otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
 REQ-IDs now exist). For every `[ticket-conflict]` it appended to `open-question.md`, add
 ` — blocked on OQ-N` to the REQ-NNN line(s) in that item's `blocks:` list in `spec.md`; never resolve the
 conflict yourself and never pick the later ticket. Read its `Findings:` line for the report.
