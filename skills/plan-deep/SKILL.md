@@ -50,7 +50,7 @@ to build it: "`/plan-deep` produces the plan; run `/run-pipeline <ticket>` to ex
 1. The ticket's `spec.md` sections: `## Plan`, `## Tasks`, `## Contracts`, `## Key decisions`, and
    frontmatter `status: planned` — written once, after the Step 5 confirm gate.
 2. `specs/NNN-slug/open-question.md` — appended (never overwritten), only if Step 3 finds an undefined
-   dependency (same file `spec-from-ticket` writes; consumed by `/clarify`).
+   dependency or the cross-check gate finds a `[ticket-conflict]` (same file `spec-from-ticket` writes; consumed by `/clarify`).
 3. (Optional) one Jira pointer comment.
 **Forbidden side-effects:** never edit code/tests/other files; no git mutation (read-only
 `git status`/`log`/`diff` only); never branch/commit/push/merge or touch any PR. Every dispatched
@@ -96,6 +96,9 @@ digest — do not dump large code bodies:
   area generally. If the spec says "reuses the existing X" or a requirement implies a prerequisite
   feature, the digest states whether X was actually found in code, with a file reference, or that it
   wasn't found.
+- for every Requirement that says who may see or do what, the **actual access rule per role** the code
+  enforces on that entity — the list query's filter and the permission check, each with `file:line`
+  (or "not found").
 - the submodule's discipline anchors (BE: OpenAPI-first `api/api.yml`→`make gen`; FE: BFF-proxy +
   TanStack placement; Voice: Pipecat pipeline + staging-only).
 
@@ -143,6 +146,13 @@ implementation" — an unverified prerequisite is exactly what this gate exists 
 | "I'll fold B into C's task, it's small" | Folding a prerequisite into the dependent task hides scope and skips the check for whether B is even implementation-only or a business call. Give it its own task or escalate it. |
 | "Asking would stall the plan" | An assumed-but-wrong B stalls the PR review instead, later and more expensively. Escalate now. |
 
+**Cross-check gate.** If any Requirement says who may see or do what, or changes an existing feature,
+run `/cross-check <TICKET> --stage plan` now — the grounding digest above is already in context, so it
+does not re-read the code. Each new `[ticket-conflict]` it appends to `open-question.md` blocks every
+task that serves the REQ-NNN it names: mark those tasks `blocked on OQ-N — see open-question.md` and
+leave them blocked (same rule as the dependency-chain gate). Never draft around a conflict and never
+pick the later ticket. Tell the user in Step 6; recommend `/clarify`.
+
 ## Step 4 — Review + verify (parallel, bounded ≤2 passes)
 In a **single message**, dispatch both:
 - `Agent(subagent_type: "plan-self-reviewer")` — draft plan + spec → findings `[{section, description, severity}]`.
@@ -176,6 +186,7 @@ Tasks:   <n> across <submodules>  (Fan-out: yes/no · Part order: …)
 Refs:    P resolved · <list any [UNVERIFIED]>
 Review:  N found (M blocking, K advisory)
 Open Qs: <SPEC>/open-question.md  (K new blocking)   — or "none"
+Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked   — or "skipped"
 Next:    /run-pipeline <ticket>   (or implement, then /review-changes → /pr)
          (run /clarify <ticket> first if Open Qs > 0 — blocked tasks can't be implemented yet)
 ```

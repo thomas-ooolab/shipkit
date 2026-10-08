@@ -58,11 +58,13 @@ if asked.
 
 ## Write surface (the ONLY things written)
 1. `specs/NNN-slug/spec.md` (Step 5; overwrite vs `-v2` is user-confirmed).
-2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items) — business-language
+2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items; Step 5b appends `[ticket-conflict]` items) — business-language
    questions for the PO, consumed by `/clarify`.
 3. `.shipkit/config.yml` → `jira.reporter_account_id` only (Step 1b). No other key is touched.
 4. `specs/NNN-slug/current-behaviour.md` + `specs/NNN-slug/current/*.png` (Step 3c, only when the
    ticket touches an existing screen/flow or carries a design/prototype).
+5. `specs/NNN-slug/cross-check.md` + `specs/NNN-slug/conflicts/*.png` (Step 5b, written by
+   `/cross-check`), and the `blocked on OQ-N` marker added to the affected `REQ-NNN` line in `spec.md`.
 **Forbidden side-effects:** no git mutation (read-only `status`/`log`/`diff`); no Jira/Bitbucket
 mutation of any kind (reads only — never comment, transition, or edit); no code/test changes.
 
@@ -260,12 +262,20 @@ the whole file. Each item must read the way a non-technical PO would understand 
 situation) — same business-language bar as `/clarify`'s own comments, not a code-shaped description of
 the gap.
 
+## Step 5b — Cross-check against other tickets, specs and code
+Runs when any requirement says who may see or do what (role, permission, data scope) or changes an
+existing feature; otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
+REQ-IDs now exist). For every `[ticket-conflict]` it appended to `open-question.md`, add
+` — blocked on OQ-N` to the REQ-NNN line(s) in that item's `blocks:` list in `spec.md`; never resolve the
+conflict yourself and never pick the later ticket. Read its `Findings:` line for the report.
+
 ## Step 6 — Report
 ```
 shipkit · spec-from-ticket <ticket> — <title>
 Scope:   <scope>  (services: <list>)  · Tier: <tier>
 Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specified])
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
+Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (specs/NNN-<slug>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
 Reporter: <displayName> (<accountId>) → jira.reporter_account_id   (or: unchanged — <reason>)
 Next:    /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
          (run /clarify <ticket> first if Open Qs > 0 — those block a sound plan)
@@ -287,3 +297,4 @@ Next:    /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
   it's true.
 - **Don't spec a feature on an undefined foundation.** If C needs B and B isn't confirmed in code
   (Step 3b), C's requirement says so (`blocked on open question`) instead of quietly assuming B works.
+- **Two tickets can contradict each other and both look right.** Step 5b hunts for it; a conflict is a PO question with both quotes, never a choice made here.
