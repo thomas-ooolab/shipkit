@@ -76,8 +76,7 @@ found → stop: "No open PRs for `<TICKET>` — run `/pr <TICKET>` first."
 ## Step 4 — Verify no failed check + no conflict, per PR
 **Build status.** Batch-fetch each candidate's latest commit build statuses via the Bitbucket API
 (`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`) — one batched call across the set, not one call per
-PR. Any status `FAILED` / `ERROR` / `STOPPED` (or still `INPROGRESS`) → **exclude the PR** and record
-why. **No status at all** → CI is `n/a`, not a failure: these repos run only DEPLOY pipelines *after*
+PR. Any status `FAILED` / `ERROR` / `STOPPED` → **exclude the PR** and record why. **No status at all** → CI is `n/a`, not a failure: these repos run only DEPLOY pipelines *after*
 the merge (Steps 7–8), so a PR branch has no CI. Note `CI: n/a` in the report and keep the PR.
 
 **Conflicts.** Don't rely on the API's `mergeable` flag (it may not be returned). In each PR's repo
