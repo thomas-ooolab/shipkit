@@ -11,8 +11,8 @@ triggers, and — when all of them are SUCCESSFUL — finishes the root PR (bump
 conflicts → merge) and hands the Jira ticket to testing. Reports per-PR status at the end.
 
 > **Cite-sources rule.** Sign-off, CI status, and mergeability each trace to a confirmed
-> observation (state-file concern list, `git merge-tree` exit code) — never inferred from "the PR is
-> open" alone.
+> observation (state-file concern list, `git merge-tree` exit code, and — after the merge — the
+> pipeline result `twg` returns for the merge sha) — never inferred from "the PR is open" alone.
 >
 > **Never-guess rule.** Can't confirm sign-off from either state file → stop, don't merge.
 > `twg` flags unverified → check its help first, never guess a flag name.
