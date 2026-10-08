@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // observe-slack.js — stream the user's Slack notifications, one stdout line each, until killed.
-// For `/support` without a URL: run it under the Monitor tool; each line is one thing to look at.
+// For `/developer` without a URL: run it under the Monitor tool; each line is one thing to look at.
 //
 //   usage: node observe-slack.js            (needs SLACK_APP_TOKEN + SLACK_REVIEW_TOKEN)
 //          node observe-slack.js --self-test

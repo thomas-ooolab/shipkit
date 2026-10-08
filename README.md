@@ -121,13 +121,13 @@ auto-trigger it by description.
 | `/design-verify [--ticket <t>] [--url <route>]` | Close the loop — renders the *built* UI at every breakpoint, diffs computed styles against `design-contract.md`, and gates `PASS`/`FAILED` with per-token `expected → actual → fix`. Responsive breakage (overflow, non-stacking) always fails. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr <ticket> [--implement] [--target staging\|main]` | Two phases, in order. **Open:** fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated, reuses already-open PRs); opt-in `--implement` writes the code via parallel background agents first. **Review loop:** pings the Slack reviewer and triages every concern (fix / escalate to Jira / explain) until sign-off. Never merges. |
-| `/support [<slack-thread-url>] [--auto]` | **No URL → observer:** watches your Slack notifications (@mentions, DMs, replies in threads you joined) via `observe-slack.js` + Monitor and *drafts* answers for you to approve; `--auto` (or a scope you state, e.g. "auto-send in #qc") posts directly. **With URL:** reads one Slack support thread and replies **as you** (user token via `post-slack.js`, which can attach files/images; like `/pr`), in the thread starter's language. Answers only what it verified in the code / live Jira ticket, otherwise "let me check"; never commits you to dates, refunds or access. Watches the thread until the asker is done: pushed by Slack Socket Mode (`wait-for-slack-event.js`, needs `SLACK_APP_TOKEN` — see *Slack push setup*) or, without it, polled by `wait-for-slack-reply.sh`. Read-only on code, git and Jira. Needs `SLACK_REVIEW_TOKEN`. |
+| `/developer [<slack-thread-url>] [--auto]` | **No URL → observer:** watches your Slack notifications (@mentions, DMs, replies in threads you joined) via `observe-slack.js` + Monitor and *drafts* answers for you to approve; `--auto` (or a scope you state, e.g. "auto-send in #qc") posts directly. **With URL:** reads one Slack thread and replies **as you, the developer** (user token via `post-slack.js`, which can attach files/images; like `/pr`), in the thread starter's language. Answers only what it verified in the code / live Jira ticket, otherwise "let me check"; never commits you to dates, refunds or access. Watches the thread until the asker is done: pushed by Slack Socket Mode (`wait-for-slack-event.js`, needs `SLACK_APP_TOKEN` — see *Slack push setup*) or, without it, polled by `wait-for-slack-reply.sh`. Read-only on code, git and Jira. Needs `SLACK_REVIEW_TOKEN`. |
 | `/merge <ticket>` | Merges child PRs already signed off with no git-detected conflict (no PR CI is read — these repos only run deploy pipelines after the merge; hard-confirms first and warns that the merge triggers the deploy), waits on each merge's Bitbucket Pipeline via bundled `wait-pipelines.sh` (matched by merge sha). If all SUCCESSFUL: bumps the root PR's pointers, rebases gitlink-only conflicts, merges it (confirms again), then moves the Jira ticket to `jira.after_merge_transition` and **asks who the QC is** (picked from the ticket's assignable users; `jira.qc_account_id` is only the suggested default). |
 | `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
 
-## Slack push setup (optional, for `/support`)
+## Slack push setup (optional, for `/developer`)
 
-Without it `/support` polls the thread every 15s. With it, Slack pushes new replies over a websocket — no
+Without it `/developer` polls the thread every 15s. With it, Slack pushes new replies over a websocket — no
 polling, no public URL, no bot to invite into each channel. One-time:
 
 1. <https://api.slack.com/apps> → **Create New App → From a manifest** → pick the workspace → paste
@@ -139,8 +139,8 @@ polling, no public URL, no bot to invite into each channel. One-time:
 
 | Env var | Token | Scopes / events it needs | Used by |
 |---|---|---|---|
-| `SLACK_REVIEW_TOKEN` | user token `xoxp-…` | user scopes `chat:write` (post as you), `files:write` (attach files/images to a reply; an app installed before this scope existed must be re-installed), `channels:history`, `groups:history`, `im:history`, `mpim:history` (read threads) | `/support` (post, read thread, `auth.test`), `/pr` Slack phase |
-| `SLACK_APP_TOKEN` | app-level `xapp-…` | `connections:write`; user events `message.channels`, `message.groups`, `message.im`, `message.mpim` | `/support` push waiter and observer (Socket Mode) |
+| `SLACK_REVIEW_TOKEN` | user token `xoxp-…` | user scopes `chat:write` (post as you), `files:write` (attach files/images to a reply; an app installed before this scope existed must be re-installed), `channels:history`, `groups:history`, `im:history`, `mpim:history` (read threads) | `/developer` (post, read thread, `auth.test`), `/pr` Slack phase |
+| `SLACK_APP_TOKEN` | app-level `xapp-…` | `connections:write`; user events `message.channels`, `message.groups`, `message.im`, `message.mpim` | `/developer` push waiter and observer (Socket Mode) |
 
 No bot token, client id/secret or signing secret is used. **Leave token rotation off** (Basic Information →
 App-Level Tokens, and OAuth & Permissions): the scripts read each token once from the environment and
@@ -151,8 +151,8 @@ thread; `observe-slack.js` (no URL) keeps @mentions, DMs and replies in threads 
 only — never message text. Both drop your own messages. Slack allows ~10 concurrent socket connections per
 app: one per watched thread in URL mode, one in total for the observer. Observer gaps: messages posted
 while the socket reconnects (~2s) are not replayed. Check the scripts without Slack:
-`node skills/support/wait-for-slack-event.js --self-test`, `node skills/support/observe-slack.js --self-test`,
-`node skills/support/post-slack.js --self-test`.
+`node skills/developer/wait-for-slack-event.js --self-test`, `node skills/developer/observe-slack.js --self-test`,
+`node skills/developer/post-slack.js --self-test`.
 
 ## Design fidelity loop (UI tickets with a mockup)
 

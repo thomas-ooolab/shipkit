@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "shipkit",
-    "description": "Reads my Slack notifications and posts replies as me (shipkit /support, /pr)",
+    "description": "Reads my Slack notifications and posts replies as me (shipkit /developer, /pr)",
     "background_color": "#000000"
   },
   "oauth_config": {
