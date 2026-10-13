@@ -1,10 +1,10 @@
 ---
-name: spawn
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (same kind as the running agent) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /spawn <jira-ticket | task>. Examples: \"/spawn AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
+name: assign
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (same kind as the running agent) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /assign <jira-ticket | task>. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
 argument-hint: "<jira-ticket | task text> [--only <submodule,...>]"
 ---
 
-# shipkit · spawn
+# shipkit · assign
 
 Fans out a ticket's per-submodule implementation tasks to parallel background agents (spawned like the running agent) instead of
 working through submodules one at a time. Reads the tasks `/plan-deep` already wrote and grouped
@@ -28,8 +28,9 @@ Implements code only (ticket mode reads the plan; free-form mode takes the task 
 1. Code in each submodule, restricted to that submodule's task-tagged file paths.
 2. One commit + push per submodule's feature branch (creates the branch if missing).
 3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the agent confirmed done (and git verifies).
-4. `.shipkit/spawn-<ticket>.md` — per-submodule wave/status log.
-5. `.shipkit/spawn-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
+4. `.shipkit/assign-<ticket>.md` — per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
+5. `.shipkit/assign-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
+6. Orca mode only: one Orca terminal per submodule (`terminal create` / `send`) — never an Orca worktree or orchestration task.
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
 a submodule's own task allowlist; no force-push unless that submodule's branch was rebased.
 
@@ -84,7 +85,12 @@ has {dirty|unpushed} changes on its branch — re-run its agent anyway and let i
 there, or skip?" (`--only <name>` alone does not imply force.)
 
 ## Step 5 — Delegate each wave (parallel)
-Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
+**Transport — pick once, before the first wave.** Resolve `ORCA` the way the `orca-cli` skill's stub says,
+then run `ORCA worktree current --json`. It succeeds (the session is inside an Orca-managed worktree)
+→ **Orca mode** (below). Anything else — no CLI, Orca not running, not an Orca worktree — → **Agent
+mode**. Never `ORCA open` just to get Orca mode.
+
+**Agent mode.** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
 `general-purpose` (the running agent's own kind), `run_in_background: true`, no model override, no
 worktree isolation (each agent owns a distinct submodule); the brief tells it to work only inside `PATH`. No waiting
 between submodules — this is the whole point. Each agent's final line must be exactly
@@ -104,23 +110,41 @@ Per submodule, `PATH` = its path,
 - **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't push red.
 - **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch.
-Wait for the whole wave to finish (a completion notification from every agent in it) before starting the
-next wave — a later wave may depend on what an earlier one just pushed (e.g. FE reading BE's freshly
+
+**Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
+wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
+`Agent`. For every submodule in the wave, do 1–3 before waiting on any of them:
+1. `ORCA terminal create --worktree active --title <NAME> --command claude --json` → keep the `handle`
+   (`claude` = the running agent's own CLI). The agent shares this checkout and owns only its `PATH`, as in
+   Agent mode — never `worktree create` (a second checkout `probe.sh` can't see) or `orchestration task-create`.
+2. `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json`; send only when
+   `wait.satisfied` is true, else that submodule is `❌ agent did not start`.
+3. `ORCA terminal send --terminal <handle> --text "<BRIEF>" --enter --wait-submit 10 --json`. Never resend on a
+   receipt that only says `input_accepted`.
+4. Then per handle `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 1800000 --json` and
+   `ORCA terminal read --terminal <handle> --json` for the agent's final `✅`/`❌` line. No such line (idle on
+   a permission prompt, or timed out) → `❌ needs attention — terminal <handle>`: tell the user, and never
+   answer a prompt on their behalf.
+Leave terminals open so the user can read them; record the handles in the state file. Checkpoint with
+`ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
+
+Wait for the whole wave to finish (a completion notification from every agent in it; Orca mode: step 4 for
+every handle) before starting the next wave — a later wave may depend on what an earlier one just pushed (e.g. FE reading BE's freshly
 generated types).
 
 ## Step 6 — Reconcile + report
 Per agent's `✅`, check off its tasks `[x]` in `spec.md` (only the ones it confirmed — never assume
 the rest of that submodule's tasks are done because one succeeded). Any `❌` → append to
-`.shipkit/spawn-failure-<ticket>.md` (submodule, error, recovery) and keep the other submodules'
-results — one failure doesn't roll back siblings. Write `.shipkit/spawn-<ticket>.md`:
+`.shipkit/assign-failure-<ticket>.md` (submodule, error, recovery) and keep the other submodules'
+results — one failure doesn't roll back siblings. Write `.shipkit/assign-<ticket>.md`:
 ```
-# Spawn state — <ticket>
+# Assign state — <ticket>
 Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be
         ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice
-Wave 2: ai-roleplay           ❌ test failure — see spawn-failure-AR-450.md
+Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md
 ```
 Report the same table to the user, then: "Run `/pr <ticket>` next to open PRs for the completed
-submodules." (Failed ones need a fix-and-retry `/spawn <ticket> --only <name>` first.)
+submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas
 - **Parallel within a wave, sequential across waves — never the reverse.** The whole point is not
@@ -133,5 +157,5 @@ submodules." (Failed ones need a fix-and-retry `/spawn <ticket> --only <name>` f
 - **Trust git, not the agent's last line.** Before checking off tasks, confirm via `probe.sh state` that
   the feature branch exists and is pushed (`unpushed=0`); otherwise record `❌ not pushed`.
 - **This is not `/pr --implement`.** That flag lives inside `/pr`'s own PR-opening flow and only
-  covers submodules not already PR'd. `/spawn` runs standalone, any time, independent of PR state,
+  covers submodules not already PR'd. `/assign` runs standalone, any time, independent of PR state,
   and hands off to `/pr` afterward instead of opening PRs itself.

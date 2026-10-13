@@ -100,7 +100,7 @@ If every submodule and the parent are `already-open`, skip to Step 7.
 
 ## Step 3 — (Optional) implement via agents
 **Only if `IMPLEMENT=true`**, and only for submodules not `already-open`. Delegate each submodule's
-tasks (in parallel) to one background agent per submodule, dispatched exactly as `/spawn` Step 5 does
+tasks (in parallel) to one background agent per submodule, dispatched exactly as `/assign` Step 5 does
 (`general-purpose` `Agent`, `run_in_background: true`, brief scoped to the submodule path). Compose each `BRIEF` with:
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md`; reuse existing patterns;
   don't invent structure.
