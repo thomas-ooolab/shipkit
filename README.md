@@ -68,6 +68,15 @@ work:
 Public GitHub repo — no credentials needed to install or auto-update. If you'd rather pin the
 git URL explicitly: `/plugin marketplace add https://github.com/thomas-ooolab/shipkit.git`.
 
+### Kiro (Agent Plugins)
+
+The root `plugin.json` follows the [Agent Plugins 1.0.0](https://agent-plugins.org) manifest, so Kiro
+can install shipkit as a power. The standard only carries `skills/` and `mcp.json`, so in Kiro:
+`agents/` (the reviewer subagents) and Claude hooks are not loaded, and `${CLAUDE_PLUGIN_ROOT}` /
+`` !`cmd` `` in a SKILL.md are Claude Code features the spec does not define, so skills that call
+`scripts/probe.sh` need those paths adjusted. Keep `plugin.json` and `.claude-plugin/plugin.json`
+versions in sync when bumping.
+
 ---
 
 ## Day-to-day
