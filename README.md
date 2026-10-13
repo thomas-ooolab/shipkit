@@ -237,7 +237,6 @@ text and notifies nobody. The script uses REST API v3 and sends real mention nod
 export JIRA_URL=https://yourorg.atlassian.net JIRA_EMAIL=you@org.com JIRA_API_TOKEN=...
 printf 'Hi @[Boris](712020:05d5...), which option do you want?\n\n- A: ...\n- B: ...\n' > draft.md
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md   # add --dry-run to see the ADF
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md --reply-to <comment-id>   # quote + re-mention that comment's author
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit AR-526 <comment-id> --file draft.md   # replace body, no re-notify
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-id>
 ```

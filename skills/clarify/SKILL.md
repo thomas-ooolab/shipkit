@@ -64,7 +64,7 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
    the only source; don't re-derive it from the ticket and don't copy it into the state file. Key
    missing → stop and tell the user to run `/spec-from-ticket <ticket>` first.
    **Every comment this skill posts must @mention that account.** Write `@[Name](<reporter_account_id>)`
-   in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (a follow-up that answers a specific PO comment adds `--reply-to <that comment id>`: it quotes the comment and re-mentions its author) — it sends a real ADF mention (the MCP tool stores mentions as
+   in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` — it sends a real ADF mention (the MCP tool stores mentions as
    plain text, so nobody is notified). The script verifies the mention came back. If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).
 
 ## Step 1c — Fidelity and placement gate (before any question is drafted or planned)
