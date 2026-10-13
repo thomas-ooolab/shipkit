@@ -1,10 +1,16 @@
 ---
 name: merge
-description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
+description: "Use when a ticket's child submodule PRs are open, conflict-free and ready to land (reviewer sign-off check is temporarily skipped; the user's confirmation stands in). Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
 argument-hint: "<jira-ticket>"
 ---
 
 # shipkit · merge
+
+> ⏸️ **SIGN-OFF CHECK TEMPORARILY SKIPPED.** `/pr` no longer pings the reviewer on Slack (its Phase 2
+> is disabled), so no `.shipkit/pr-<TICKET>.md` / stage-5 sign-off signal is produced. **Skip Step 3**
+> entirely — don't stop for a missing state file. Wherever this skill says "confirmed sign-off",
+> the user's explicit go-ahead at Step 5 (and 9.4) stands in for it. Every other gate (conflicts,
+> Part order, confirm-before-merge, pipelines) is unchanged. Step 3 is kept intact for re-enabling.
 
 Merges a ticket's already-reviewed, conflict-free child PRs, blocks on the Bitbucket Pipeline each merge
 triggers, and — when all of them are SUCCESSFUL — finishes the root PR (bump pointers → resolve
@@ -64,7 +70,7 @@ Run `probe.sh state <TICKET>` for branches. **`single-repo`** → the one open P
 parent-repo PR is never a candidate here** — exclude it explicitly (Gotchas). No open child PRs
 found → stop: "No open PRs for `<TICKET>` — run `/pr <TICKET>` first."
 
-## Step 3 — Verify sign-off (never-guess gate)
+## Step 3 — Verify sign-off (never-guess gate)  (⏸️ SKIPPED for now — see banner at top)
 - `.shipkit/pr-<TICKET>.md` exists → every `## Concerns` item must be `[x]`, and `pending_action`
   must be empty. Any `[ ]` or a set `pending_action` → **stop**, name the blocking concern(s).
 - Absent → check `.shipkit/pipeline-<TICKET>.md`: stage `5 prs` must be marked `[x]` (that only
