@@ -1,6 +1,6 @@
 ---
 name: design-recon
-description: "Captures the GROUND-TRUTH design from a ticket's mockup — a screenshot, an HTML file, or an auth-gated Claude design link — by driving it in a real browser (Playwright MCP) and reading COMPUTED styles, then snapping every value to the project's Tailwind tokens. Writes specs/NNN-slug/design-contract.md so the implementer assembles known classes instead of guessing at spacing/color/typography, and /verify can later diff the built UI against it. Reading computed styles via the browser is cheaper AND more accurate than reading the mockup's HTML. For FE/UI tickets that carry a visual reference; not for backend/logic work, and not for GENERATING a design (that's /design-pipeline)."
+description: "Captures the GROUND-TRUTH design from a ticket's mockup — a screenshot, an HTML file, or an auth-gated Claude design link — by driving it in a real browser (Playwright MCP) and reading COMPUTED styles, then snapping every value to the project's Tailwind tokens. Writes specs/NNN-slug/design-contract.md so the implementer assembles known classes instead of guessing at spacing/color/typography, and /verify can later diff the built UI against it. Reading computed styles via the browser is cheaper AND more accurate than reading the mockup's HTML. For FE/UI tickets that carry a visual reference; not for backend/logic work, and not for GENERATING a new design."
 argument-hint: "<artifact: image path | .html path | design URL> [--ticket <jira-ticket>] [--selector <css>]"
 ---
 
@@ -35,8 +35,7 @@ the spec. Half 1 of the recon→verify loop; `/verify` closes it after implement
 
 ## Bounded scope
 Captures a design into `design-contract.md`. It does **not**: write component code (that's the
-implementer / `/pr --implement`), open a PR, generate a *new* design (`/design-pipeline` +
-Impeccable), or verify an implementation (`/verify`). It ends at the contract file.
+implementer / `/pr --implement`), open a PR, generate a *new* design, or verify an implementation (`/verify`). It ends at the contract file.
 
 ## Write surface (the ONLY things written)
 1. `specs/NNN-slug/design-contract.md` (Step 6; overwrite vs `-v2` is user-confirmed).
@@ -232,7 +231,7 @@ contract) → implement (the contract is the styling brief) → `/verify --ticke
 gates fidelity) → `/review-changes` → `/pr`. `/run-pipeline` folds this in as an **opt-in**
 gate — it asks once (for UI tickets) whether to run recon→verify, runs `/design-recon` after the spec
 and `/verify` before PRs when you opt in, and skips it otherwise. `/design-recon` captures a
-design you must **match**; `/design-pipeline` (Impeccable) generates a design from scratch — different routes.
+design you must **match**.
 
 ## Gotchas
 - **Click-revealed UI is the most commonly missed capture.** Dropdown menus, modals, notification

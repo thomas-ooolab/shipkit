@@ -125,7 +125,6 @@ auto-trigger it by description.
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/assign <ticket \| task> [--only <submodule,...>]` | Fan out `spec.md`'s per-submodule tasks to parallel background agents instead of implementing submodules one at a time — dependency waves per the plan's Part order, ground-truth skip on already-in-progress branches. Inside an Orca-managed worktree each agent runs as a visible Orca terminal (see `/orca-cli`); otherwise as a background `Agent`. Hands off to `/pr` afterward. |
-| `/design-pipeline <change> [--ticket <t>]` | UI/UX route — orchestrates the Impeccable companion (shape → craft → document) + required anti-pattern detect gate in the frontend submodule; produces a `DESIGN.md`. Requires the Impeccable plugin. |
 | `/design-recon <artifact> [--ticket <t>]` | **Match a mockup** — drives a screenshot / HTML / auth-gated Claude design link in a real browser (Playwright MCP), reads *computed* styles, snaps to the project's Tailwind tokens, and writes `design-contract.md` (all breakpoints + states). Cheaper *and* more accurate than reading the mockup's HTML. |
 | `/verify [--ticket <t>] [--concern "<scenario>"] [--url <route>] [--api <url>]` | **Prove it works** after a feature is implemented or a bug fixed — exercises every `REQ-NNN` (or `--concern`) on the running app and saves evidence under `.shipkit/evidence/<ticket>/`: **FE → screenshot, BE → request/response + data** (redacted; no evidence = no PASS). When a `design-contract.md` exists it also renders the *built* UI at every breakpoint and diffs computed styles against it (responsive breakage fails). Gates `PASS` / `FAILED` / `INCOMPLETE`; feature runs post the evidence to Jira after you approve, `/bugfix` runs don't. Replaces `/design-verify`. |
 | `/cross-check <ticket> [--stage spec\|plan]` | Finds contradictions between a ticket and other Jira tickets, earlier specs, the ticket's own edge cases and the running code (who may see/do what, thresholds, limits, states, notifications, existing features; every route that touches the entity). Writes `cross-check.md` + `[ticket-conflict]` PO questions with verbatim quotes and a highlighted Jira screenshot (Chrome, text-only fallback). Never picks a winner. Called by `/spec-from-ticket` (Step 5b) and `/plan-deep`; `/clarify` sends the questions. Read-only. |
@@ -201,9 +200,6 @@ it's absent (they block with a clear message, never fake a pass).
 ticket additionally asks once whether to run the design-fidelity half (recon→verify, remembered for resumes) —
 opt in and recon runs after the spec and the built UI is diffed against the contract before PRs. `FAILED` and
 `INCOMPLETE` halt like a review blocker; `auto` runs skip only the design-fidelity half.
-
-This is distinct from `/design-pipeline`, which *generates* a design via the Impeccable companion.
-`/design-recon` is for when a design already exists and you must **match** it.
 
 ## Permissions (run `/fix-permissions` first)
 
