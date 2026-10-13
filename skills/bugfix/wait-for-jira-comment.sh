@@ -1,1 +1,0 @@
-../clarify/wait-for-jira-comment.sh

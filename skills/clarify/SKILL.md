@@ -12,7 +12,7 @@ Composes three existing pieces — do not reimplement any of them:
   `specs/NNN-slug/open-question.md` — this skill only reads and updates that file, it never decides on
   its own what counts as an open question.
 - Atlassian MCP tools, to read/post Jira comments
-- **not** `/loop`'s `ScheduleWakeup` — this skill polls via `wait-for-jira-comment.sh` (colocated in this folder), a background bash script that sleeps and re-checks Jira itself. A `ScheduleWakeup` wake reloads the whole session's context every tick even when nothing changed; the background script costs one `curl` per interval and only notifies you when there's real news.
+- **not** `/loop`'s `ScheduleWakeup` — this skill polls via `wait-for-jira-comment.sh` (shared at `${CLAUDE_PLUGIN_ROOT}/scripts/`, also used by `bugfix` and `pr`), a background bash script that sleeps and re-checks Jira itself. A `ScheduleWakeup` wake reloads the whole session's context every tick even when nothing changed; the background script costs one `curl` per interval and only notifies you when there's real news.
 
 State lives in `.shipkit/clarify-<ticket>.md` at the SDD root repo, so a re-invocation picks up where it left off instead of re-seeding.
 
@@ -128,7 +128,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 0. If `pending_comment` is set (a draft from an earlier tick wasn't confirmed yet), skip straight to confirming and posting it per the Hard Rule above — don't relaunch the poller or reclassify anything until it's posted and `pending_comment` is cleared.
 1. **Wait for the PO via the background poller, not a fixed-interval `/loop` wake.** Right after seeding, or after posting any tick reply, launch in the background (`Bash(run_in_background: true)`):
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/clarify/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
+   ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
    ```
    This sleeps and re-checks Jira itself (default: every 60s, up to a 24h window) instead of paying for a full session wake on every empty check — you're notified once, only when something actually posted. Exit codes:
    - **0** — a new comment landed. Continue to step 2 below.

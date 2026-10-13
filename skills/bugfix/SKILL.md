@@ -12,7 +12,7 @@ Composes existing pieces — do not reimplement any of them:
 - **REQUIRED for any code fix:** `superpowers:test-driven-development` — write the regression test first.
 - This project's own bugfix mechanics, if it has one (e.g. a `report-bug` skill's dev flow — branch, fix, test, push, PR) — reuse its conventions, don't invent a parallel one. If none exists, just follow the repo's normal branch/commit/PR workflow.
 - `clarify`'s state-file/`silent_ticks` shape and business-language rule below — same mechanics, applied to bug concerns instead of spec open-questions.
-- **REQUIRED:** `wait-for-jira-comment.sh` (colocated in this folder as a symlink to `clarify`'s copy — one script, one source of truth, don't fork it into a bugfix-specific variant). It's a plain interval poller against the Jira REST API (no Slack bot involved), so it fits this skill exactly as-is: pass the ticket and `last_checked_comment_id`, it blocks until a new comment lands. No `/loop`/`ScheduleWakeup` anywhere in this skill — `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are hard requirements, same as `clarify`.
+- **REQUIRED:** `wait-for-jira-comment.sh` (shared at `${CLAUDE_PLUGIN_ROOT}/scripts/` — one script, one source of truth, don't fork it into a bugfix-specific variant). It's a plain interval poller against the Jira REST API (no Slack bot involved), so it fits this skill exactly as-is: pass the ticket and `last_checked_comment_id`, it blocks until a new comment lands. No `/loop`/`ScheduleWakeup` anywhere in this skill — `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are hard requirements, same as `clarify`.
 
 State lives in `.shipkit/bugfix-<ticket>.md`.
 
@@ -102,7 +102,7 @@ A ticket can have concerns in different buckets at once — classify each on its
 0. If `pending_comment` is set (a draft from an earlier tick wasn't confirmed yet), skip straight to confirming and posting it per the Hard Rule above — don't relaunch the poller or reclassify anything until it's posted and `pending_comment` is cleared.
 1. **Wait for the reporter via the background poller, not a fixed-interval `/loop` wake.** Right after seeding, or after posting any tick reply, launch in the background (`Bash(run_in_background: true)`):
    ```bash
-   ${CLAUDE_PLUGIN_ROOT}/skills/bugfix/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
+   ${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-jira-comment.sh <ticket> <last_checked_comment_id>
    ```
    This sleeps and re-checks Jira itself (default: every 60s, up to a 24h window) instead of paying for a full session wake on every empty check — you're notified once, only when something actually posted. Exit codes:
    - **0** — a new comment landed. Continue to step 2 below.
