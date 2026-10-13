@@ -43,8 +43,9 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 ## Write surface
 1. **Evidence files:** `.shipkit/evidence/<TICKET>/<id>-<slug>-after.png|txt` (and `-before` when a
    bug was reproduced first). `<id>` = `REQ-NNN` or the concern number. No code, no git/Bitbucket call.
-2. **One Jira comment with the evidence** (Step 6) — **feature runs only** (spec-driven, no `--concern`),
-   only on `PASS`, only after the user approves the exact text. `--concern` runs (how `/bugfix` calls it)
+2. **The one evidence comment on the ticket** (Step 6) — **feature runs only** (spec-driven, no `--concern`),
+   only on `PASS`, only after the user approves the exact text. It is created once; every later run **edits that
+   same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
    and `--no-jira` never post — the caller's own comment carries the evidence. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
@@ -175,7 +176,7 @@ verification proof rides in `/bugfix`'s own Jira comment.
 1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
    attach below it). One row per check, in this shape:
    ```
-   | # | Yêu cầu | FE/BE | Kiểm tra | Kết quả | Bằng chứng |
+   | /verify | Yêu cầu | FE/BE | Kiểm tra | Kết quả | Bằng chứng |
    |---|---|---|---|---|---|
    | REQ-001 | <the requirement in business words> | FE | <what was done> | ✅ PASS | Screenshot 1 bên dưới |
    | REQ-002 | <…> | BE | <what was done> | ✅ PASS | `GET /…/digest/weekly` → 200, `calls_total` = 1; truy vấn dữ liệu: 1 |
@@ -187,14 +188,28 @@ verification proof rides in `/bugfix`'s own Jira comment.
    requirement holds) — never a token, credential, real personal data or raw database dump; the full file
    stays in `.shipkit/evidence/`. Write the cells in the language of the ticket's comments. A pipe inside a
    cell is written `\|`.
-2. Show the user the exact text and the attachment list; **wait for explicit approval** ("post it" / "change X"
-   / "skip"). Unapproved = not posted; say so in the report.
-3. Post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md> --image <png>:<caption> ...`
-   (PNG only; one `--image` per screenshot). Exit 3 (Jira env unset) → don't skip silently and don't fall back
-   to a mention-less MCP comment: tell the user the evidence was **not** posted, why, and that the files are in
-   `.shipkit/evidence/<TICKET>/`. Exit 5 = posted but a mention didn't land — say so; the comment id is printed.
-4. Report the comment link in the final report: `Jira <TICKET>: evidence posted <permalink>` or
-   `Jira <TICKET>: evidence NOT posted — <reason>`.
+   The header's first cell is the literal `/verify` — it is the marker that identifies this comment later.
+2. **Find the existing evidence comment first — there is only ever one.** Look up its id:
+   (a) `.shipkit/evidence/<TICKET>/jira-comment-id`, if present; else (b) scan the ticket's comments
+   (`getJiraIssue` with comments) for one whose body is a table with `/verify` as its first header cell. Found
+   (a) or (b) → this run is an **edit**. Several found → edit the newest and tell the user about the extras.
+   None found, and no id file → this is the **first post**. An id file exists but its comment is gone (deleted)
+   → don't post: ask the user whether to create it anew.
+3. Show the user the exact text and the attachment list, labelled **"will EDIT comment <id>"** or **"will POST
+   the first evidence comment"**; **wait for explicit approval** ("post it" / "change X" / "skip"). Unapproved =
+   not posted; say so in the report.
+4. Send it (PNG only; one `--image` per screenshot):
+   - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md> --image <png>:<caption> ...`
+     then save the printed comment id to `.shipkit/evidence/<TICKET>/jira-comment-id`;
+   - re-run: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit <TICKET> <COMMENT_ID> --file <draft.md> --image <png>:<caption> ...`
+     — the body is replaced in place; the table always shows the **latest** result of every row.
+   **Never run `post` when an evidence comment exists, not even if `edit` fails** — an edit that errors (exit 4,
+   e.g. the comment belongs to someone else) → stop, tell the user the evidence was **not** updated and why.
+   Exit 3 (Jira env unset) → don't skip silently and don't fall back to a mention-less MCP comment: tell the user
+   the evidence was **not** posted/updated, why, and that the files are in `.shipkit/evidence/<TICKET>/`.
+   Exit 5 = sent but a mention didn't land — say so.
+5. Report: `Jira <TICKET>: evidence comment <posted|edited> <permalink>` or
+   `Jira <TICKET>: evidence NOT <posted|updated> — <reason>`.
 
 ## How it fits the pipeline
 `/design-recon` (UI tickets, opt-in) → implement (`/assign`, by hand, `/pr --implement`) → **`/verify`** (fix → re-run
