@@ -23,7 +23,8 @@ instead of answering twice.
 ## Hard rule: read-only
 This skill only reads: code (grep/read), git history, Jira (`getJiraIssue`, search), Bitbucket and pipeline
 status, Slack threads. It never edits or creates code or any file other than its own state file, never
-runs git write commands (commit, push, checkout, reset, branch), never writes to Jira (comment,
+runs git write commands (commit, push, pull, checkout, reset, branch — `git fetch` is the one exception: it
+moves remote refs only, never the working tree), never writes to Jira (comment,
 transition, edit, create) or Bitbucket, and never runs a command that changes the system, a database, or
 an environment. The only writes it may make are the thread reply (*post directly*, below — files
 attached to it are read from disk, never created) and
@@ -74,7 +75,7 @@ still none → ask the user once.
 
 ## Hard rule: answer only what is verified
 A support answer is a claim about the product. Before replying, find the answer in the **real source**
-(grep/read the relevant submodule — not `specs/` or `docs/`) and, when a ticket key appears in the
+(grep/read the relevant submodule as set by *Ground the code* — not `specs/` or `docs/`) and, when a ticket key appears in the
 thread, the live Jira ticket (`getJiraIssue`: description, comments, status). Cite nothing you did not
 read. Nothing verifiable → post a short "let me check and get back to you" in the thread's language,
 tell the user in the terminal what is unresolved, and wait.
@@ -134,14 +135,32 @@ from Slack asks of the user — never from the notification line:
 | change | feature request, data/prod change, access, ETA | "let me check with the team" + terminal note |
 | skip | chatter, thanks, addressed to others, already answered | one terminal line |
 
+## Ground the code
+Before verifying, when the thread names a ticket (first `[A-Z]+-\d+`), pick where its code is read from:
+
+| Ticket state | Observable | Read from |
+|---|---|---|
+| done | `.shipkit/merge-<key>.md` exists, or Jira status is the configured post-merge status, or its PR is merged | latest remote: `git -C <submodule> fetch origin`, then `git show` / `git grep` on `origin/<tracking branch>` |
+| in progress | a worktree matches the key | that worktree's path, as it is on disk |
+| neither, or no key | — | the submodule's tracking branch, fetched as for *done* |
+
+**Worktree match:** `ORCA worktree list --json` across repos (Orca unavailable → `git worktree list --porcelain`
+in the root and each submodule); key case-insensitive in branch, name, comment, or linked issue. Several →
+the one on `feat/<key>-*`; still tied → ask the user. Reading only: never edit, stash, or switch it.
+
+Fetch, never `git pull`: the user may be mid-edit in the primary worktree, and a fetched remote ref is the
+same latest code with the working tree untouched. Fetch fails → say in the terminal the code may be stale.
+
+The reply says which state it read. In progress → it is work in progress, not merged and not on
+staging/prod, and what the worktree shows can still change; never answer as if shipped. Done → name the
+branch it was read from.
+
 ## Delegate a bug
 Resolve `ORCA` and load the `orca-cli` skill. `ORCA worktree list --json` fails → no delegation: tell the
 user and stop at the reply. Never `ORCA open`. In observer mode the delegation needs the same approval as
 the draft (it starts a writer agent); `--auto` scope covers both.
 1. **Ticket.** The first `[A-Z]+-\d+` in the thread. None → ask the user which ticket (Vietnamese), delegate nothing until answered.
-2. **Find the worktree.** `ORCA worktree list --json`, all repos; match the key case-insensitively in
-   branch, name, comment, or linked issue. One match → reuse it. Several → the one on `feat/<key>-*`;
-   still tied → ask the user. None → `ORCA worktree create --name <key>-bugfix --no-parent --agent claude --prompt "<PLAN BRIEF>" --json`
+2. **Find the worktree.** The *Worktree match* from *Ground the code*. One match → reuse it. None → `ORCA worktree create --name <key>-bugfix --no-parent --agent claude --prompt "<PLAN BRIEF>" --json`
    (agent-first: that is the planner terminal — skip step 3, keep its `startupTerminal.handle`).
    Two agents share the worktree: **claude plans, kiro implements.**
 3. **Planner terminal** (reused worktree). `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-plan --command claude --json`
