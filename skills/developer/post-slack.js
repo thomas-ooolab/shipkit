@@ -22,9 +22,25 @@ const fs = require('fs');
 const path = require('path');
 
 const API = process.env.SLACK_API_BASE || 'https://slack.com/api';
-// ponytail: filename blocklist, not a content scan — the caller still decides what is relevant to attach.
-// Secrets/credentials, plus DB dumps (production data / PII).
-const SECRET_NAME = /^\.env|\.pem$|\.key$|\.p12$|id_rsa|id_ed25519|credentials|secret|^settings(\.local)?\.json$|\.sql$|\.dump$/i;
+// Three layers, any hit -> exit 5: credential directory in the resolved path, credential-ish filename,
+// credential-looking content (first 64KB of text files). ponytail: heuristics, not a scanner — SKILL.md's
+// rule stays the main guard; a one-line renamed .env or a secret in a log can still slip through.
+const SECRET_DIR = new Set(['.ssh', '.aws', '.gnupg', '.kube', '.docker', '.gcloud']);
+// `.key` is NOT here (Keynote files) — real private keys are caught by content. `secret` only as a whole name.
+const SECRET_NAME = /^\.env|^\.(npmrc|netrc|pgpass)$|\.pem$|\.p12$|id_rsa|id_ed25519|credentials|^secrets?\.\w+$|\.secrets?$|^settings(\.local)?\.json$|\.sql$|\.dump$/i;
+const SECRET_BODY = /-----BEGIN [A-Z ]*PRIVATE KEY-----|\b(xox[abposr]-|ghp_|gho_|github_pat_|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,})/;
+const ENV_LINE = /^(export\s+)?[A-Z][A-Z0-9_]*=\S/gm;
+
+function looksSecret(f) {
+  const real = fs.realpathSync(f); // follows symlinks, so a link to ~/.ssh/config is judged by its target
+  if (real.split(path.sep).some((p) => SECRET_DIR.has(p))) return true;
+  if (SECRET_NAME.test(path.basename(f)) || SECRET_NAME.test(path.basename(real))) return true;
+  const fd = fs.openSync(real, 'r'), buf = Buffer.alloc(65536);
+  const n = fs.readSync(fd, buf, 0, buf.length, 0); fs.closeSync(fd);
+  if (buf.subarray(0, n).includes(0)) return false; // binary (png, Keynote zip): names/dirs only
+  const s = buf.toString('utf8', 0, n);
+  return SECRET_BODY.test(s) || (s.match(ENV_LINE) || []).length >= 2;
+}
 
 class Fail extends Error { constructor(code, msg) { super(msg); this.code = code; } }
 
@@ -43,7 +59,7 @@ function checkFile(f) {
   let st;
   try { st = fs.statSync(f); } catch { throw new Fail(5, `FILE_ERROR: ${f} does not exist`); }
   if (!st.isFile() || st.size === 0) throw new Fail(5, `FILE_ERROR: ${f} is not a non-empty regular file`);
-  if (SECRET_NAME.test(path.basename(f))) throw new Fail(5, `FILE_ERROR: ${f} looks like a secret, credential or DB-dump file — not attaching`);
+  if (looksSecret(f)) throw new Fail(5, `FILE_ERROR: ${f} looks like a secret, credential or DB-dump file — not attaching`);
   return st.size;
 }
 
@@ -117,6 +133,14 @@ async function selfTest() {
   const env = path.join(dir, '.env'); fs.writeFileSync(env, 'X=1');
   const sql = path.join(dir, 'prod_users.sql'); fs.writeFileSync(sql, 'x');
   const dump = path.join(dir, 'users.DUMP'); fs.writeFileSync(dump, 'x');
+  fs.mkdirSync(path.join(dir, '.ssh'));
+  const sshCfg = path.join(dir, '.ssh', 'config'); fs.writeFileSync(sshCfg, 'Host x');
+  const link = path.join(dir, 'notes.txt'); fs.symlinkSync(sshCfg, link);
+  const renamedEnv = path.join(dir, 'config.txt'); fs.writeFileSync(renamedEnv, 'DB_URL=postgres://u:p@h/d\nAPI_KEY=abc\n');
+  const pemInTxt = path.join(dir, 'pk.txt'); fs.writeFileSync(pemInTxt, '-----BEGIN OPENSSH PRIVATE KEY-----\nabc');
+  const secretsJson = path.join(dir, 'secrets.json'); fs.writeFileSync(secretsJson, '{}');
+  const keynote = path.join(dir, 'Deck.key'); fs.writeFileSync(keynote, Buffer.from([0x50, 0x4b, 0, 1]));
+  const secretPng = path.join(dir, 'secret-santa.png'); fs.writeFileSync(secretPng, 'pngbytes');
   const base = { api, token: 't', channel: 'C1', thread: '9.000009', text: 'hi' };
 
   assert.strictEqual(await post(base), '1.000001', 'text only -> chat.postMessage');
@@ -129,10 +153,11 @@ async function selfTest() {
   assert.strictEqual(done.initial_comment, 'hi'); assert.strictEqual(done.thread_ts, '9.000009'); assert.strictEqual(done.channel_id, 'C1');
 
   calls.length = 0;
-  for (const bad of [env, sql, dump, path.join(dir, 'nope.png'), dir]) {
+  for (const bad of [env, sql, dump, sshCfg, link, renamedEnv, pemInTxt, secretsJson, path.join(dir, 'nope.png'), dir]) {
     await assert.rejects(post({ ...base, files: [png, bad] }), (e) => e.code === 5, `rejects ${path.basename(bad)}`);
   }
   assert.strictEqual(calls.length, 0, 'a bad file posts nothing, not even the good one');
+  for (const ok of [keynote, secretPng]) await post({ ...base, files: [ok] }); // false positives of the old basename check
 
   await assert.rejects(post({ ...base, api: api + '/x' }), (e) => e.code === 4, 'Slack error -> exit 4');
   srv.close(); fs.rmSync(dir, { recursive: true });

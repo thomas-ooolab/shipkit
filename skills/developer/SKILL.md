@@ -50,6 +50,9 @@ zero or more local files or images and posts them with the text as **one** messa
 messages). Non-zero exit → surface the message, don't retry blindly: **3** `SLACK_REVIEW_TOKEN` unset
 (tell the user to export it, stop) · **4** Slack rejected (`msg_too_long`; `missing_scope` → the app
 needs `files:write`, re-install it) · **5** a file is unusable or looks like a secret — nothing posted.
+After **4** or **5** on a send with attachments, never fall back to re-sending the text alone: the text
+refers to the attachment ("ảnh bên dưới"), so it would post a reply that points at nothing. Tell the user
+what failed and wait; they decide to fix the cause and re-run the same send, drop the file, or reword.
 Over-long text → split at point boundaries into sequential thread replies marked `(1/2)`, `(2/2)`;
 files go on part 1. Read the thread with `conversations.replies` (`channel`, `ts=<root>`) and resolve
 `my_account_id` with `auth.test`.
