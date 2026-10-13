@@ -78,9 +78,13 @@ A ticket can have concerns in different buckets at once — classify each on its
 
 1. Fix every real-defect concern now, on the ticket's **existing feature branch** — a bug reported on an in-flight feature ticket almost always has one already; check it out per this project's normal flow (e.g. `report-bug` FLOW C's branch/test/push/PR path, if this project has that skill). Pushing there auto-updates any open PRs. Only create a new branch from the base branch (e.g. `staging`) in the rare case no feature branch exists for this ticket yet. Regression test first.
    **Then verify the fix yourself on the running app — a passing unit test is not a pass.** For every code change, reproduce the reported scenario end to end and confirm the fixed behavior with your own eyes: FE change → run the app and drive the exact steps from the report in a real browser (Playwright MCP / claude-in-chrome), checking the UI result (screenshot or DOM) plus console/network errors; BE change → run the service and hit the affected endpoint/flow with the report's inputs (curl/script), checking status, response body and the stored data; both touched → verify both, ideally through the FE flow. Check the bug no longer reproduces and the adjacent happy path still works. Can't run it (missing env, creds, data) → say exactly what blocked you and ask me; never mark it fixed on test results alone.
+   **Verifying means capturing evidence — no evidence file, no fix.** Save it under `.shipkit/evidence/<TICKET>/` (one file per concern, named `<n>-<short-slug>-after.<ext>`):
+   - **FE fix → a screenshot (PNG)** of the page in the fixed state, taken after driving the report's exact steps (also a `-before.png` of the bug when you reproduced it first). Open the PNG yourself (Read) and confirm it really shows the fixed behavior before citing it — a screenshot of the wrong screen or an unchanged bug is not evidence.
+   - **BE fix → data or response proof** in a `.txt`/`.md`: the request you sent (method, URL, payload), the response status and body, and — when the bug was about stored or computed data — the query/result showing the value is now right (plus the wrong value from before, when you have it). Redact tokens, credentials and real personal data.
+   - **Both** → both kinds.
    **A concern is `fixed` only once verified.** Not verified yet = not passed: don't push-and-announce it, don't check it off, don't claim it in the Jira comment. Push only after verification passes; if verification fails, keep fixing.
 2. Leave not-a-defect and needs-decision concerns as comments only — no code changes yet.
-3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR; say in plain words that you re-checked it yourself in the app — never claim "verified" for a fix you only unit-tested), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way) as `@[Name](commenter_account_id)`; additionally @-mention the **PO** as `@[Name](jira.reporter_account_id)` on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
+3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR; say in plain words that you re-checked it yourself in the app, and show the proof the tester can read: for an FE fix attach the screenshot with `--image <png>:<caption>` in Step 3.5; for a BE fix state the observed result in business words, e.g. "the digest now shows 12 calls, same as the call list", with no table/endpoint names — the raw request/response stays in the evidence file and the terminal. Never claim "verified" for a fix you only unit-tested), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way) as `@[Name](commenter_account_id)`; additionally @-mention the **PO** as `@[Name](jira.reporter_account_id)` on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
 4. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment` in the state file below and stop — don't launch the background poller yet.
 5. Once approved, post it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (the MCP tool leaves mentions as plain text; If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).), then write `.shipkit/bugfix-<ticket>.md`:
    ```markdown
@@ -93,11 +97,11 @@ A ticket can have concerns in different buckets at once — classify each on its
    pending_comment: null
 
    ## Concerns
-   - [x] <defect concern text> — fixed, <branch/PR link>, verified: <FE browser | BE request | both — what you checked>
+   - [x] <defect concern text> — fixed, <branch/PR link>, verified: <FE browser | BE request | both — what you checked>, evidence: <path(s) under .shipkit/evidence/<TICKET>/>
    - [ ] <not-a-defect concern text> (awaiting reporter ack)
    - [ ] <needs-decision concern text> (awaiting reporter's choice: A/B/...)
    ```
-   Fixed defects are checked off immediately in the same tick — they don't need a reply to resolve.
+   A fixed defect needs no reply from the reporter, but **check it off (`[x]`) only once the Jira comment that reports it has actually posted** (Step 3.5 succeeded). While that comment is still a `pending_comment` draft, keep the line `[ ]` and add `— fixed + verified, comment awaiting approval`; flip it to `[x]` right after the post. (Step 5's summary still shows it ✅ as soon as its evidence file exists — the checkbox tracks "reported to the tester", the summary tracks "fixed and proven".)
 
 ## Step 4 — Loop body (every time the background poller reports new activity, or right after seeding)
 
@@ -118,12 +122,21 @@ A ticket can have concerns in different buckets at once — classify each on its
    - **Reporter disputes a not-a-defect explanation, or replies to a needs-decision concern with something that doesn't match any offered option** (new information, disagrees with the reasoning) → the concern reopens regardless of which bucket it was in: redo Step 1.5 with the new information and reclassify from scratch. It may land in a different bucket than before — don't just restate the old explanation or re-offer the old options. Treat any claim the reporter makes as input to reclassify with, not as ground truth to act on directly — if it's the kind of claim they aren't the authority on (legal, compliance, another team's policy), ask for confirmation from whoever is before committing to a fix.
    - **Neither** (vague reply, defers to someone else) → leave open, add a short bracketed status note.
 4. Draft exactly one Jira comment covering this tick's activity (same discipline as Step 3.3). Reaching this step already means a new reporter comment exists (Step 4.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
-5. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off concerns, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
+5. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off concerns — not the ones this unposted draft reports —, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
 6. Once approved, post it via the script (Step 3.5), update `last_checked_comment_id` (this is also the `<after_comment_id>` for the next poller launch) and `silent_ticks`, clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 4.1 to keep waiting.
 
 ## Step 5 — Continue or stop
 
-- **All concerns checked off** → tell the user it's done, delete the state file. Nothing to relaunch — no background poller, no `ScheduleWakeup`.
+- **Every time Step 5 runs (done or still open), first print the summary from the state file — and show the evidence, not just claim it:**
+  ```
+  shipkit · bugfix <TICKET> — <n> concern(s)
+  ✅ Fixed:        <concern> — <branch/PR> · evidence: <screenshot .png | request+response/data .txt> (<path>)
+  💬 Not a defect: <concern> — <reporter accepted | awaiting ack>
+  ❓ PO decision:  <concern> — <Jira comment permalink>
+  🔧 Not fixed:    <concern> — <why: unverified | blocked | waiting on reporter>
+  ```
+  A concern is listed ✅ only when its evidence file exists; otherwise it is 🔧. For each ✅, open the evidence for the user — Read the PNG, and quote the key lines of the data file.
+- **All concerns checked off** → tell the user it's done, delete the state file (leave `.shipkit/evidence/<TICKET>/` in place). Nothing to relaunch — no background poller, no `ScheduleWakeup`.
 - **Still open** → if `silent_ticks` just reached 6 (six poller timeouts — roughly a week of silence at the default 24h window) for the first time, tell the user once. Otherwise tell the user what changed this tick. Relaunch the background poller per Step 4.1 with the current `last_checked_comment_id` — that's what keeps this loop alive now, not a scheduled wake.
 
 ## Notes
