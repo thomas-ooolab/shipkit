@@ -12,11 +12,11 @@ captured: ""                 # e.g. "desktop 1280, tablet 768, mobile 375; state
 # Design Contract — {Feature / Surface}
 
 **Produced by `/design-recon` from {artifact}. Consumed by the implementer (styling brief) and
-`/design-verify` (fidelity gate).** Values are the project's Tailwind classes; a raw `(px/#hex)` in
+`/verify` (fidelity gate).** Values are the project's Tailwind classes; a raw `(px/#hex)` in
 parentheses means the snap was inexact (`exact:false`) or vision-estimated (`approx`) — double-check those.
 
 > **Rule — match, don't reinterpret.** Implement with the classes below. Where a class is given, use
-> *that* class; don't substitute a "close enough" value. `/design-verify` diffs the built UI against
+> *that* class; don't substitute a "close enough" value. `/verify` diffs the built UI against
 > this file and blocks on class-level mismatches.
 >
 > **Rule — RESPONSIVE IS MANDATORY.** Every region MUST behave per its Responsive row at all three

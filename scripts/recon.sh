@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shipkit recon helper — evidence-first support for /design-recon and /design-verify.
+# shipkit recon helper — evidence-first support for /design-recon and /verify.
 #
 # Read-only except `serve` (starts a transient local static server so an HTML mockup
 # with relative asset paths loads reliably; `file://` is tried first by the skill).

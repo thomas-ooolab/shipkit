@@ -1,6 +1,6 @@
 ---
 name: design-recon
-description: "Captures the GROUND-TRUTH design from a ticket's mockup — a screenshot, an HTML file, or an auth-gated Claude design link — by driving it in a real browser (Playwright MCP) and reading COMPUTED styles, then snapping every value to the project's Tailwind tokens. Writes specs/NNN-slug/design-contract.md so the implementer assembles known classes instead of guessing at spacing/color/typography, and /design-verify can later diff the built UI against it. Reading computed styles via the browser is cheaper AND more accurate than reading the mockup's HTML. For FE/UI tickets that carry a visual reference; not for backend/logic work, and not for GENERATING a design (that's /design-pipeline)."
+description: "Captures the GROUND-TRUTH design from a ticket's mockup — a screenshot, an HTML file, or an auth-gated Claude design link — by driving it in a real browser (Playwright MCP) and reading COMPUTED styles, then snapping every value to the project's Tailwind tokens. Writes specs/NNN-slug/design-contract.md so the implementer assembles known classes instead of guessing at spacing/color/typography, and /verify can later diff the built UI against it. Reading computed styles via the browser is cheaper AND more accurate than reading the mockup's HTML. For FE/UI tickets that carry a visual reference; not for backend/logic work, and not for GENERATING a design (that's /design-pipeline)."
 argument-hint: "<artifact: image path | .html path | design URL> [--ticket <jira-ticket>] [--selector <css>]"
 ---
 
@@ -9,7 +9,7 @@ argument-hint: "<artifact: image path | .html path | design URL> [--ticket <jira
 Turns a design reference into a measurable **Design Contract**. It opens the mockup in a real browser
 (Playwright MCP), reads the **computed** styles — the truth the page renders, not the authored CSS you
 get by reading HTML — snaps every number to a Tailwind class, and writes `design-contract.md` next to
-the spec. Half 1 of the recon→verify loop; `/design-verify` closes it after implementation.
+the spec. Half 1 of the recon→verify loop; `/verify` closes it after implementation.
 
 > **Cite-sources rule.** Every token in the contract traces to a confirmed observation: a
 > `browser_evaluate` extraction result, a screenshot the model actually read, a file Read, or a user
@@ -36,7 +36,7 @@ the spec. Half 1 of the recon→verify loop; `/design-verify` closes it after im
 ## Bounded scope
 Captures a design into `design-contract.md`. It does **not**: write component code (that's the
 implementer / `/pr --implement`), open a PR, generate a *new* design (`/design-pipeline` +
-Impeccable), or verify an implementation (`/design-verify`). It ends at the contract file.
+Impeccable), or verify an implementation (`/verify`). It ends at the contract file.
 
 ## Write surface (the ONLY things written)
 1. `specs/NNN-slug/design-contract.md` (Step 6; overwrite vs `-v2` is user-confirmed).
@@ -147,7 +147,7 @@ The `screenshot` tier needs **no** browser and **no** extension.
    e. No spec (user answered "mockup only") → still run 6b on what's on screen; unresolvable rows go to
       Open Questions, and the contract states `logic source: none`.
 7. `browser_take_screenshot` (full target, default state) → save as the contract's reference image
-   (`design-contract.reference.png` beside the spec) for `/design-verify`'s perceptual fallback. Save
+   (`design-contract.reference.png` beside the spec) for `/verify`'s perceptual fallback. Save
    each click-revealed or forced-state screenshot from 5b/6c alongside it (e.g.
    `design-contract.reference-menu-open.png`).
 
@@ -176,7 +176,7 @@ No computed styles exist — this tier is vision-estimated and honest about it.
    (e.g. "kebab menu top-right — contents unknown, request an opened-state screenshot").
 4. Build the State matrix exactly as 4a.6a–b. A flat image can reach nothing (6c), so every row that
    isn't the drawn state goes `not in mockup` → Open Question (6d).
-5. Keep the image path as the contract's reference for `/design-verify`'s perceptual diff.
+5. Keep the image path as the contract's reference for `/verify`'s perceptual diff.
 
 ## Step 5 — Structure the contract
 Fold the extraction JSON into the human/agent-readable `${CLAUDE_PLUGIN_ROOT}/templates/design-contract.md`
@@ -197,7 +197,7 @@ status (captured → Region name | not in mockup → OQ#)`. Every `not in mockup
 Open Question. A spec with conditionals but a matrix holding only the default state is the same red flag.
 
 ## Step 5b — Fidelity and placement (up front, next to the State matrix)
-Surface prototype-vs-reality problems **now**, not at `/design-verify`. Reuse
+Surface prototype-vs-reality problems **now**, not at `/verify`. Reuse
 `specs/NNN-slug/current-behaviour.md` + `current/*.png` when `/spec-from-ticket` Step 3c wrote them;
 otherwise run that step's items 1–2 for the screens this design draws (read-only browser, no submits).
 Principle: *the prototype of a feature sits in that feature* — drawn on the real screen where the
@@ -223,15 +223,15 @@ Captured:  desktop + <breakpoints> | states: <hover/focus…> | click-revealed: 
 Placement: <P> regions — <K> ok, <B> mismatched (→ Open Questions [design-omission])
 States:    <S> in matrix — <C> captured, <G> not in mockup (→ Open Questions) | logic source: <spec|none>
            (screenshot tier: static only — hidden UI flagged as Open Questions)
-Next: implement, then /design-verify --ticket <ticket>  to diff the build against this contract.
+Next: implement, then /verify --ticket <ticket>  to diff the build against this contract.
 ```
 
 ## How it fits the pipeline
 For a UI ticket with a mockup: `/spec-from-ticket` → **`/design-recon --ticket <T>`** (writes the
-contract) → implement (the contract is the styling brief) → `/design-verify --ticket <T>` (Half 2,
+contract) → implement (the contract is the styling brief) → `/verify --ticket <T>` (Half 2,
 gates fidelity) → `/review-changes` → `/pr`. `/run-pipeline` folds this in as an **opt-in**
 gate — it asks once (for UI tickets) whether to run recon→verify, runs `/design-recon` after the spec
-and `/design-verify` before PRs when you opt in, and skips it otherwise. `/design-recon` captures a
+and `/verify` before PRs when you opt in, and skips it otherwise. `/design-recon` captures a
 design you must **match**; `/design-pipeline` (Impeccable) generates a design from scratch — different routes.
 
 ## Gotchas
@@ -253,6 +253,6 @@ design you must **match**; `/design-pipeline` (Impeccable) generates a design fr
 - **`screenshot` tier is honestly low-fidelity.** It never claims `exact`; estimated tokens carry
   `approx: true` and missing dynamic behavior goes to `Open questions`. Don't launder a guess as a measurement.
 - **Don't upgrade a screenshot into HTML.** Generating HTML from a PNG and reconning *that* compounds
-  error. Screenshot tier leans on `/design-verify`'s perceptual diff instead.
+  error. Screenshot tier leans on `/verify`'s perceptual diff instead.
 - **Headless never prompts** — auth/absent-MCP take the grep-stable `BLOCKED` terminal, never a
   fabricated pass.

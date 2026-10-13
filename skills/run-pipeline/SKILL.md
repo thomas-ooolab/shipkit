@@ -30,7 +30,7 @@ with no spec, redirect: "Run `/spec-from-ticket <ticket>` first, then `/run-pipe
 2. `.shipkit/pipeline-failure-<ticket>.md` — on a stage failure.
 3. Feature **branches** (parent + affected submodules) — setup only.
 Everything else happens inside a dispatched command (`spec-from-ticket`, `plan-deep`,
-`design-recon`, `review-changes`, `design-verify`, `pr`, `bump-submodule`), each with its
+`design-recon`, `review-changes`, `verify`, `pr`, `bump-submodule`), each with its
 own write surface.
 **Forbidden side-effects:** never edit app/test/doc code; never merge a PR (stops at the open PR);
 never bump a submodule before its child PR is confirmed merged; no force-push.
@@ -76,7 +76,7 @@ Derive each stage's status from observations:
 | **branches** | parent + every affected submodule has `branch=feat/<ticket>-…` |
 | **implement** *(human gate)* | affected submodule branches have commits/dirty changes (`dirty=yes` or `unpushed>0`) |
 | **review** | `/review-changes` has run (state file marks it `[x]`) |
-| **design-verify** *(opt-in gate, UI)* | design gate is `off`, or `/design-verify` reported PASS (state file `[x]`) |
+| **verify** *(gate)* | `/verify` reported PASS (state file `[x]`); an old state file's `design-verify` line counts as this stage |
 | **prs** | a Bitbucket PR exists per affected submodule + parent |
 | **merged** *(external gate)* | all child PRs merged (Bitbucket) |
 | **bump** | parent submodule refs point at merged shas; parent PR open/merged |
@@ -96,7 +96,7 @@ Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|uns
 - [ ] 2 branches      — feat/<ticket>-<slug>(+ per-submodule suffix)
 - [ ] 3 implement     — HUMAN: write code in the submodule branches (orchestrator never edits code)
 - [ ] 4 review        — /review-changes
-- [ ] 4.5 design-verify — /design-verify (opt-in gate; only if Design gate = on)
+- [ ] 4.5 verify      — /verify (gate: behavior evidence for every ticket; UI fidelity too when Design gate = on)
 - [ ] 5 prs           — /pr
 - [ ] 6 merged        — EXTERNAL: child PRs merge on Bitbucket (orchestrator never merges)
 - [ ] 7 bump          — /bump-submodule <path>@<sha> --closes <ticket>
@@ -134,12 +134,15 @@ re-confirm success from ground truth and append the result + timestamp to the st
 - **Stage 4 — review** (changes present, review not done): dispatch `/review-changes --ticket <ticket>`.
   Success = output reports per-submodule ✅/⚠️ and checks off tasks. On ⚠️ blocking issues in strict
   mode, stop and report; in `AUTO=true`, surface them but continue only if non-blocking.
-- **Stage 4.5 — design-verify** *(gate; only if `Design gate = on`)*: dispatch
-  `/design-verify --ticket <ticket>`. It needs the app running + Playwright MCP; if either is absent →
-  **note-and-skip** (don't hard-block a run that legitimately can't measure) and mark the stage skipped.
-  On `FAILED: N` → **stop** like a review blocker: "design-verify FAILED: N — the build doesn't match
-  the contract (responsive included). Fix and re-run `/run-pipeline <ticket>`." On `PASS` → mark `[x]`
-  and continue. When `Design gate = off`, this stage is a no-op.
+- **Stage 4.5 — verify** *(gate, every ticket)*: dispatch `/verify --ticket <ticket>`. It exercises each
+  `REQ-NNN` on the running app and saves evidence (FE screenshot, BE request/response and data); when
+  `Design gate = on` it also diffs the built UI against `design-contract.md` (responsive included). It needs
+  the app/service running (+ Playwright MCP for FE) — if they aren't, `/verify` asks the user to start them
+  and otherwise reports `INCOMPLETE`. On `PASS` → it offers the Jira evidence comment (user-approved, per
+  `/verify` Step 6), mark `[x]` and continue. On `FAILED: N` → **stop** like a review blocker: "verify
+  FAILED: N — fix and re-run `/run-pipeline <ticket>`." On `INCOMPLETE: N` → **stop** too: an unverified
+  requirement is not a pass; unblock it or have the user waive it explicitly, then re-run. In `AUTO=true`
+  never waive.
 
 - **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): dispatch
   `/pr <ticket> --target <pr_target>`. It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket

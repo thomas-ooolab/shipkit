@@ -143,7 +143,7 @@ Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be
         ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice
 Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md
 ```
-Report the same table to the user, then: "Run `/pr <ticket>` next to open PRs for the completed
+Report the same table to the user, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas

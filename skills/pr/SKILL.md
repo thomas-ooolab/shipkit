@@ -117,6 +117,7 @@ tasks (in parallel) to one background agent per submodule, dispatched exactly as
   BFF proxy + TanStack; Voice → Pipecat, staging-only.
 - **Verify:** run the submodule's test command (Step 4 cascade); commit allowlisted files only
   (`git add <paths>`, never `-A`); push the feature branch.
+After the agents finish, run `/verify --ticket <TICKET>` before Step 4 — `FAILED`/`INCOMPLETE` stops here, same as a `❌`.
 On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (submodule, error, recovery), stop.
 > Default (no `--implement`): the human implemented on the branches; skip to Step 4.
 

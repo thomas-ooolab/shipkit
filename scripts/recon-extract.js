@@ -16,7 +16,7 @@
 //
 // Every numeric style is snapped to the nearest Tailwind utility class so the
 // implementer assembles known classes instead of interpreting raw px/hex. Each
-// snap carries `exact:false` when it had to round, so /design-verify never asserts
+// snap carries `exact:false` when it had to round, so /verify never asserts
 // false precision on an approximate value.
 //
 // This file is data + pure functions only — no network, no writes, no page mutation

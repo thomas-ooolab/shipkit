@@ -127,7 +127,7 @@ auto-trigger it by description.
 | `/assign <ticket \| task> [--only <submodule,...>]` | Fan out `spec.md`'s per-submodule tasks to parallel background agents instead of implementing submodules one at a time — dependency waves per the plan's Part order, ground-truth skip on already-in-progress branches. Inside an Orca-managed worktree each agent runs as a visible Orca terminal (see `/orca-cli`); otherwise as a background `Agent`. Hands off to `/pr` afterward. |
 | `/design-pipeline <change> [--ticket <t>]` | UI/UX route — orchestrates the Impeccable companion (shape → craft → document) + required anti-pattern detect gate in the frontend submodule; produces a `DESIGN.md`. Requires the Impeccable plugin. |
 | `/design-recon <artifact> [--ticket <t>]` | **Match a mockup** — drives a screenshot / HTML / auth-gated Claude design link in a real browser (Playwright MCP), reads *computed* styles, snaps to the project's Tailwind tokens, and writes `design-contract.md` (all breakpoints + states). Cheaper *and* more accurate than reading the mockup's HTML. |
-| `/design-verify [--ticket <t>] [--url <route>]` | Close the loop — renders the *built* UI at every breakpoint, diffs computed styles against `design-contract.md`, and gates `PASS`/`FAILED` with per-token `expected → actual → fix`. Responsive breakage (overflow, non-stacking) always fails. |
+| `/verify [--ticket <t>] [--concern "<scenario>"] [--url <route>] [--api <url>]` | **Prove it works** after a feature is implemented or a bug fixed — exercises every `REQ-NNN` (or `--concern`) on the running app and saves evidence under `.shipkit/evidence/<ticket>/`: **FE → screenshot, BE → request/response + data** (redacted; no evidence = no PASS). When a `design-contract.md` exists it also renders the *built* UI at every breakpoint and diffs computed styles against it (responsive breakage fails). Gates `PASS` / `FAILED` / `INCOMPLETE`; feature runs post the evidence to Jira after you approve, `/bugfix` runs don't. Replaces `/design-verify`. |
 | `/cross-check <ticket> [--stage spec\|plan]` | Finds contradictions between a ticket and other Jira tickets, earlier specs, the ticket's own edge cases and the running code (who may see/do what, thresholds, limits, states, notifications, existing features; every route that touches the entity). Writes `cross-check.md` + `[ticket-conflict]` PO questions with verbatim quotes and a highlighted Jira screenshot (Chrome, text-only fallback). Never picks a winner. Called by `/spec-from-ticket` (Step 5b) and `/plan-deep`; `/clarify` sends the questions. Read-only. |
 | `/review-changes [--ticket <t>] [--pr <id>]` | Three-pass parallel review (correctness/security · style/docs · infra/ops) across affected submodules + drift check. Local mode prints findings; PR mode posts a locked Bitbucket comment. |
 | `/pr <ticket> [--implement] [--target staging\|main]` | Two phases, in order. **Open:** fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated, reuses already-open PRs); opt-in `--implement` writes the code via parallel background agents first. **Review loop:** pings the Slack reviewer and triages every concern (fix / escalate to Jira / explain) until sign-off. Never merges. |
@@ -178,7 +178,7 @@ renders). shipkit closes this with a measure-based loop:
       ▼
    implement — the contract IS the styling brief (assemble known classes, not guesses)
       ▼
-/design-verify --ticket AR-123 --url <route>   ← Half 2: render the BUILT UI at every breakpoint,
+/verify --ticket AR-123 --url <route>   ← Half 2: render the BUILT UI at every breakpoint,
       │                                            diff computed styles vs the contract, gate PASS/FAILED
       ▼                                            with expected → actual → fix. Responsive breakage fails.
    fix → re-run until PASS → /review-changes → /pr
@@ -193,13 +193,14 @@ extension**. Only an **auth-gated Claude design link** needs the [Playwright Chr
 so the MCP attaches to *your* Chrome and reuses your logged-in session. The skills degrade cleanly when
 it's absent (they block with a clear message, never fake a pass).
 
-> Responsive is enforced two ways: `/design-verify` fails on live overflow/non-stacking at 375/768/1280,
+> Responsive is enforced two ways: `/verify` fails on live overflow/non-stacking at 375/768/1280,
 > and `/review-changes` statically flags desktop-only diffs (hardcoded widths, no `sm:`/`md:` variants)
 > **even on tickets without a contract**.
 
-`/run-pipeline` folds this in as an **opt-in** gate: for a UI ticket it asks once whether to run
-recon→verify (remembered for resumes); if you opt in, recon runs after the spec and verify gates
-before PRs — a `FAILED` halts like a review blocker. Decline it, backend tickets, and `auto` runs skip it.
+`/run-pipeline` runs `/verify` as a gate for **every** ticket (behavior evidence: FE screenshot, BE data); a UI
+ticket additionally asks once whether to run the design-fidelity half (recon→verify, remembered for resumes) —
+opt in and recon runs after the spec and the built UI is diffed against the contract before PRs. `FAILED` and
+`INCOMPLETE` halt like a review blocker; `auto` runs skip only the design-fidelity half.
 
 This is distinct from `/design-pipeline`, which *generates* a design via the Impeccable companion.
 `/design-recon` is for when a design already exists and you must **match** it.

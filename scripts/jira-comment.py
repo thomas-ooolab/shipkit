@@ -14,7 +14,8 @@ Exit: 0 ok, 2 bad usage, 3 env missing, 4 Jira rejected (incl. failed upload / m
 
 Markdown subset: @[Name](accountId)  @[](accountId) (name looked up)  **bold**  `code`
 [text](https://url)  "- " bullets  "1. " ordered  "# " headings  blank line = paragraph,
-single newline = hard break.
+single newline = hard break  pipe tables ("| a | b |" + "|---|---|" + rows; first row = header,
+"\\|" = a literal pipe; images go below the table, not in cells).
 Images: a line `![caption](/abs/path.png)` becomes an inline image (italic caption paragraph above
 it); `--image PATH[:CAPTION]` appends images at the end. Each file is uploaded once as an issue
 attachment, then embedded. --dry-run uploads nothing: it prints the ADF and lists the files.
@@ -79,6 +80,28 @@ def lines_inline(lines, names):
     return out
 
 
+SEP_ROW = re.compile(r"\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?")
+
+
+def table_cells(line):
+    parts = re.split(r"(?<!\\)\|", line.strip())
+    if parts and parts[0].strip() == "":
+        parts = parts[1:]
+    if parts and parts[-1].strip() == "":
+        parts = parts[:-1]
+    return [c.strip().replace("\\|", "|") for c in parts]
+
+
+def table_block(ls, names):
+    rows = []
+    for i, ln in enumerate([ls[0]] + ls[2:]):
+        kind = "tableHeader" if i == 0 else "tableCell"
+        rows.append({"type": "tableRow", "content": [
+            {"type": kind, "attrs": {}, "content": [{"type": "paragraph", "content": inline(c, names)}]}
+            for c in table_cells(ln)]})
+    return {"type": "table", "attrs": {"isNumberColumnEnabled": False, "layout": "default"}, "content": rows}
+
+
 def build_adf(md, names, images=None):
     """images(path) -> (uuid, width, height); only called for `![cap](path)` lines."""
     blocks = []
@@ -91,6 +114,9 @@ def build_adf(md, names, images=None):
             if images is None:
                 die(2, f"image {im.group('path')!r} found but no image resolver")
             blocks += image_blocks(im.group("cap"), images(im.group("path")))
+            continue
+        if len(ls) >= 3 and all(l.lstrip().startswith("|") for l in ls) and SEP_ROW.fullmatch(ls[1].strip()):
+            blocks.append(table_block(ls, names))
             continue
         kind = pat = None
         if all(re.match(r"- ", l) for l in ls):
@@ -366,6 +392,12 @@ def self_test():
         f.write(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR" + struct.pack(">II", 300, 200))
         f.flush()
         assert png_size(f.name) == (300, 200)
+    d = build_adf("| REQ | Kết quả |\n|---|---|\n| REQ-001 | **PASS** a \\| b |\n| REQ-002 | @[Ann](a:1) |", lambda i: i)
+    t = d["content"][0]
+    assert t["type"] == "table" and len(t["content"]) == 3, t
+    assert [c["type"] for c in t["content"][0]["content"]] == ["tableHeader", "tableHeader"]
+    assert t["content"][1]["content"][1]["content"][0]["content"][-1]["text"] == " a | b"
+    assert list(mention_ids(d)) == ["a:1"]
     print("self-test ok")
 
 
