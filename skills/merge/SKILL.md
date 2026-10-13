@@ -169,26 +169,39 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
 
 ## Step 10 — Move the Jira ticket
 Only when **every** PR of the ticket — all child PRs and the root — is `MERGED` (re-read each PR's
-state from Bitbucket; don't trust your own log). Read `jira.after_merge_transition` from
-`.shipkit/config.yml`; missing → skip this step and say so in the report (never hardcode a status).
-`jira.qc_account_id` is optional: the *suggested default* in the prompt below; when
-unset, the built-in default is `642a9e7922330bdf97ab2aa8` (Tung's pick for QC).
-1. `getTransitionsForJiraIssue` → find the transition **by name** (`after_merge_transition`, e.g.
-   `TESTING`); ids differ per project, never reuse a remembered id. Not found → stop, list the
-   available names. `transitionJiraIssue` with that id.
-2. **Fetch assignable users** for the ticket (the Atlassian MCP has no such lookup —
+state from Bitbucket; don't trust your own log). Not all merged → don't touch Jira, but still report
+it (Step 11). **This step is never skipped silently** — a missing config value means *ask*, not skip.
+Read `jira.after_merge_transition` from `.shipkit/config.yml` (never hardcode a status, never reuse a
+remembered transition id — ids differ per project). `jira.qc_account_id` is optional: the *suggested
+default* in 10.4; when unset, the built-in default is `642a9e7922330bdf97ab2aa8` (Tung's pick for QC).
+Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
+1. **Transition.** `getTransitionsForJiraIssue` for the ticket, and read its current `status.name`.
+   - Config value set and found **by name** → `transitionJiraIssue` with that id.
+   - Config value **unset, or not found among the ticket's transitions** → don't skip. `AskUserQuestion`
+     "Move <TICKET> (now: <status.name>) to which status?" with options = the ticket's real transition
+     names (long list → the ~4 most relevant; "Other" lets the user type one, resolved against the
+     list) **plus** "Không chuyển trạng thái lần này". Mention in the question why it's asking
+     (config key unset / `<name>` not available). Picked a transition → `transitionJiraIssue` with its id.
+     Picked "Không…" → no transition; `JIRA_NOTE` = "user chose not to transition". Continue to 10.3 either way.
+   - `transitionJiraIssue` errors → `JIRA_NOTE` = the error verbatim; continue to 10.3.
+2. **Offer to save** — only if the transition just done came from the prompt above (config was unset)
+   and it succeeded: ask one yes/no question "Lưu `<name>` vào `.shipkit/config.yml` làm
+   `jira.after_merge_transition` cho lần sau?" Write it **only on yes** (add/uncomment the key under
+   `jira:`; that file is gitignored, local only). No → leave the file untouched.
+3. **Fetch assignable users** for the ticket (the Atlassian MCP has no such lookup —
    `lookupJiraAccountId` is an unfiltered name search — so use REST with the `JIRA_URL`/`JIRA_EMAIL`/
    `JIRA_API_TOKEN` the sibling skills already require):
    `curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/assignable/search?issueKey=<TICKET>&maxResults=50"`
    → keep `accountId`, `displayName` of active users. Creds unset, HTTP error or empty list → do
-   **not** guess an assignee: leave it as is and tell the user why in the report.
-3. `AskUserQuestion` — "Who is the QC for <TICKET>?" with options from that list only. If the default
+   **not** guess an assignee: leave it as is, add the reason to `JIRA_NOTE`, go to 10.6.
+4. `AskUserQuestion` — "Who is the QC for <TICKET>?" with options from that list only. If the default
    (config value, else `642a9e7922330bdf97ab2aa8`) is in the list, put it **first** as "(Recommended)". Never offer an account absent from the
    fetched list. (Long list → the ~4 most relevant, e.g. default + recent reporter/commenters; "Other"
    lets the user type a name — resolve it against the fetched list, never assign unlisted.)
-4. `editJiraIssue` with `fields: {"assignee": {"accountId": "<chosen accountId>"}}`.
-5. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
-   what was requested; report a mismatch as a failure, not a success.
+5. `editJiraIssue` with `fields: {"assignee": {"accountId": "<chosen accountId>"}}`.
+6. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
+   what was requested; report a mismatch as a failure, not a success. Record the final `status.name`
+   and assignee for Step 11.
 No Jira comment unless the user approves the exact text first.
 
 ## Step 11 — Report
@@ -199,9 +212,11 @@ ai-roleplay-be  #123   <sha8>      ✅ SUCCESSFUL (#456)
 ai-roleplay     #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
-Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>)   (or: skipped — transition key missing; assignee unchanged — <reason>)
-Next: <fix the failing pipeline, then re-run /merge | nothing — all merged>
+Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>)
+         — or, when anything wasn't done: Jira KHÔNG được cập nhật (or: chỉ cập nhật một phần) — <JIRA_NOTE: reason>; ticket vẫn ở <current status.name>, assignee <current>
+Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | chuyển <TICKET> sang <status> và gán QC thủ công trên Jira (hoặc chạy lại /merge) — if Jira wasn't fully updated>
 ```
+Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; the Next line must name the manual step.
 
 ## Gotchas
 - **The root PR is merged only after its pointers are bumped to the verified child merge shas.** It's
@@ -228,7 +243,8 @@ Next: <fix the failing pipeline, then re-run /merge | nothing — all merged>
 - **Confirm-before-merge has no exceptions** — same discipline as `/pr`'s Jira-comment gate. Applies
   to the child PRs (Step 5) **and** again to the root PR (Step 9.4).
 - **Jira status comes from `.shipkit/config.yml`** (`jira.after_merge_transition`, looked up by
-  transition *name* at run time). **The assignee (QC) is asked every run** from the ticket's real
+  transition *name* at run time); unset/unknown → asked from the ticket's real transitions, never
+  silently skipped (Step 10.1). **The assignee (QC) is asked every run** from the ticket's real
   assignable-users list; `jira.qc_account_id` only overrides the built-in default (`642a9e7922330bdf97ab2aa8`).
 - **Re-running is safe.** `.shipkit/merge-<ticket>.md` records what's already merged — a re-run
   skips PRs already merged and only waits on pipelines still pending.
