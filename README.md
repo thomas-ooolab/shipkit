@@ -161,8 +161,8 @@ thread; `observe-slack.js` (no URL) keeps @mentions, DMs and replies in threads 
 only — never message text. Both drop your own messages. Slack allows ~10 concurrent socket connections per
 app: one per watched thread in URL mode, one in total for the observer. Observer gaps: messages posted
 while the socket reconnects (~2s) are not replayed. Check the scripts without Slack:
-`node skills/developer/wait-for-slack-event.js --self-test`, `node skills/developer/observe-slack.js --self-test`,
-`node skills/developer/post-slack.js --self-test`.
+`node scripts/wait-for-slack-event.js --self-test`, `node skills/developer/observe-slack.js --self-test`,
+`node scripts/post-slack.js --self-test`.
 
 ## Design fidelity loop (UI tickets with a mockup)
 
@@ -227,6 +227,8 @@ applier is idempotent and backs up before writing.
 
 ## Posting Jira comments
 
+**Rule for every skill: write to Jira/Slack through this plugin's scripts (`scripts/jira-comment.py`, `scripts/post-slack.js`); use a Claude connector (Atlassian/Slack MCP) only to read, or as a last-resort fallback when the script's env vars are missing.**
+
 Skills that comment on Jira (`clarify`, `bugfix`, `pr`, `plan-deep`) post through
 `scripts/jira-comment.py`, because the Atlassian MCP `addCommentToJiraIssue` stores @mentions as plain
 text and notifies nobody. The script uses REST API v3 and sends real mention nodes.
@@ -235,6 +237,7 @@ text and notifies nobody. The script uses REST API v3 and sends real mention nod
 export JIRA_URL=https://yourorg.atlassian.net JIRA_EMAIL=you@org.com JIRA_API_TOKEN=...
 printf 'Hi @[Boris](712020:05d5...), which option do you want?\n\n- A: ...\n- B: ...\n' > draft.md
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md   # add --dry-run to see the ADF
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post AR-526 --file draft.md --reply-to <comment-id>   # quote + re-mention that comment's author
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit AR-526 <comment-id> --file draft.md   # replace body, no re-notify
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-id>
 ```

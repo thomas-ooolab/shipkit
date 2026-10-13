@@ -40,7 +40,7 @@ phrases ("hope this helps", "please let me know"), never sign as an AI or mentio
 wrong identity). Reply in the thread (`thread_ts` = root, always; the one exception is a top-level DM,
 which is answered in the DM itself without `thread_ts`):
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/developer/post-slack.js" <channel_id> <root_ts|-> [file ...] <<'EOF'
+node "${CLAUDE_PLUGIN_ROOT}/scripts/post-slack.js" <channel_id> <root_ts|-> [file ...] <<'EOF'
 <message text>
 EOF
 ```
@@ -137,8 +137,8 @@ say what was read, say what wasn't.
 Launch in the background (`Bash(run_in_background: true)`). Push when the Slack app is set up —
 check with `[ -n "${SLACK_APP_TOKEN:-}" ]`, never print the value — otherwise poll:
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/developer/wait-for-slack-event.js" <channel_id> <thread_ts> <last_seen_ts> <my_account_id>  # SLACK_APP_TOKEN set
-bash "${CLAUDE_PLUGIN_ROOT}/skills/developer/wait-for-slack-reply.sh" <channel_id> <thread_ts> <last_seen_ts> <my_account_id>  # otherwise
+node "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-slack-event.js" <channel_id> <thread_ts> <last_seen_ts> <my_account_id>  # SLACK_APP_TOKEN set
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-slack-reply.sh" <channel_id> <thread_ts> <last_seen_ts> <my_account_id>  # otherwise
 ```
 Same arguments, same exit codes. `<thread_ts>` is always the **root**, never the ts of a message you just
 posted. Exit codes:

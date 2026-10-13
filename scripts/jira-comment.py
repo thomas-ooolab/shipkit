@@ -3,7 +3,7 @@
 
 The Atlassian MCP addCommentToJiraIssue stores mentions as plain text (nobody is notified).
 
-  python3 jira-comment.py post <TICKET> (--file PATH | -) [--image PATH[:CAPTION]]... [--dry-run]
+  python3 jira-comment.py post <TICKET> (--file PATH | -) [--reply-to COMMENT_ID] [--image PATH[:CAPTION]]... [--dry-run]
   python3 jira-comment.py edit <TICKET> <COMMENT_ID> (--file PATH | -) [--image PATH[:CAPTION]]... [--dry-run]
   python3 jira-comment.py delete <TICKET> <COMMENT_ID>
   python3 jira-comment.py --self-test
@@ -19,6 +19,9 @@ Images: a line `![caption](/abs/path.png)` becomes an inline image (italic capti
 it); `--image PATH[:CAPTION]` appends images at the end. Each file is uploaded once as an issue
 attachment, then embedded. --dry-run uploads nothing: it prints the ADF and lists the files.
 `edit` replaces the comment body in place without re-notifying (notifyUsers=false).
+--reply-to ID (post only): Jira Cloud has no threaded replies, so the comment is prefixed with a real
+@mention of comment ID's author (they are notified) and a blockquote of its first ~200 chars. Replying
+to your own comment still mentions you (harmless). --dry-run prints placeholders, no network.
 """
 import base64, json, os, re, struct, sys, urllib.error, urllib.parse, urllib.request, uuid
 
@@ -277,10 +280,57 @@ def src_of(args, usage):
     die(2, usage)
 
 
+def plain(node):
+    """Flatten an ADF node to one line of text (mentions as their @text, images as [image])."""
+    if isinstance(node, list):
+        return " ".join(filter(None, (plain(n) for n in node)))
+    t = node.get("type")
+    if t == "text":
+        return node.get("text", "")
+    if t == "mention":
+        return node.get("attrs", {}).get("text", "")
+    if t in ("media", "mediaSingle"):
+        return "[image]"
+    if t == "hardBreak":
+        return " "
+    return plain(node.get("content", []))
+
+
+def reply_blocks(author_id, author_name, parent_adf, limit=200):
+    """Jira Cloud has no threaded replies: a reply is a real @mention of the parent's author plus a
+    blockquote of the start of the parent comment."""
+    snip = re.sub(r"\s+", " ", plain(parent_adf)).strip()
+    if len(snip) > limit:
+        snip = snip[:limit].rstrip() + "…"
+    return [
+        {"type": "paragraph", "content": [
+            {"type": "mention", "attrs": {"id": author_id, "text": "@" + author_name.lstrip("@")}},
+            text(" — replying to:")]},
+        {"type": "blockquote", "content": [{"type": "paragraph", "content": [text(snip or "[empty comment]")]}]},
+    ]
+
+
+def get_reply_blocks(ticket, cid, dry):
+    if dry:  # no network in --dry-run
+        return reply_blocks("<parent-author-accountId>", "<parent author>", {"type": "text", "text": f"<comment {cid}>"})
+    p = call("GET", f"/rest/api/3/issue/{ticket}/comment/{cid}")
+    a = p.get("author") or {}
+    if not a.get("accountId"):
+        die(4, f"comment {cid} on {ticket}: no author accountId in response")
+    return reply_blocks(a["accountId"], a.get("displayName") or a["accountId"], p.get("body") or {})
+
+
 def cmd_post(args):
-    usage = "usage: post <TICKET> (--file PATH | -) [--image PATH[:CAPTION]]... [--dry-run]"
+    usage = "usage: post <TICKET> (--file PATH | -) [--reply-to COMMENT_ID] [--image PATH[:CAPTION]]... [--dry-run]"
     dry = "--dry-run" in args
     args, extra = split_image_opts([a for a in args if a != "--dry-run"])
+    reply = None
+    if "--reply-to" in args:
+        i = args.index("--reply-to")
+        if i + 1 >= len(args) or not args[i + 1].isdigit():
+            die(2, "--reply-to needs a numeric COMMENT_ID")
+        reply = args[i + 1]
+        args = args[:i] + args[i + 2:]
     if not args:
         die(2, usage)
     src = src_of(args[1:], usage)
@@ -289,6 +339,8 @@ def cmd_post(args):
     if not md.strip():
         die(2, "empty comment body")
     adf = build_adf("\n\n".join([md] + extra), (lambda i: i) if dry else display_name, make_resolver(args[0], dry))
+    if reply:
+        adf["content"] = get_reply_blocks(args[0], reply, dry) + adf["content"]
     if dry:
         print(json.dumps(adf, indent=2, ensure_ascii=False))
         return
@@ -360,6 +412,15 @@ def self_test():
     assert d["content"][2]["attrs"] == {"layout": "center"}
     assert list(mention_ids(d)) == ["a:1"]
     assert split_image_opts(["T", "--image", "/p/a.png:Cap", "--image", "/p/b.png"]) == (["T"], ["![Cap](/p/a.png)", "![](/p/b.png)"])
+    parent = {"type": "doc", "content": [
+        {"type": "paragraph", "content": [{"type": "mention", "attrs": {"id": "p:1", "text": "@Pat"}}, text(" which   option?")]},
+        {"type": "paragraph", "content": [text("x" * 300)]}]}
+    rb = reply_blocks("p:1", "Pat", parent)
+    assert [b["type"] for b in rb] == ["paragraph", "blockquote"]
+    assert list(mention_ids(rb)) == ["p:1"]
+    q = rb[1]["content"][0]["content"][0]["text"]
+    assert q.startswith("@Pat which option? xxx") and q.endswith("…") and len(q) == 201, q
+    assert reply_blocks("p:1", "Pat", {})[1]["content"][0]["content"][0]["text"] == "[empty comment]"
     assert UUID_RE.search("https://api.media/file/0a1b2c3d-1111-2222-3333-444455556666/binary?x=1")
     import tempfile
     with tempfile.NamedTemporaryFile(suffix=".png") as f:
