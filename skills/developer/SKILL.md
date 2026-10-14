@@ -164,8 +164,9 @@ fails → tell the user and stop. Never `ORCA open`.
    | other | Task, chore, spike, sub-task, epic, a plain question, unclear | tell the user the intent and why, ask what to do (Vietnamese); create nothing |
 
    No ticket key (description-only input) → ask which ticket, in Vietnamese, before anything else. A worktree
-   already matches the key: **feature** → tell the user its path and terminal titles
-   (`ORCA terminal list --worktree <id> --json`) and stop, never a second set; **bug** → reuse it, that is
+   already matches the key: **feature** → `ORCA terminal list --worktree <id> --json`: terminals listed → tell the
+   user its path and terminal titles and stop, never a second set; none listed (a failed start was closed) → reuse
+   the worktree and open a fresh planner, as for a bug; **bug** → reuse it, that is
    the ticket's feature branch and where the fix belongs.
 2. **Worktree + planner.** First `kiro-cli whoami` (kiro implements later): "Not logged in" → stop, create nothing,
    tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại." No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
@@ -186,7 +187,8 @@ fails → tell the user and stop. Never `ORCA open`.
    - **Ready:** `terminal wait --for tui-idle --timeout-ms 60000`; `wait.satisfied` false → once more with
      `--timeout-ms 120000`. Then `terminal read` until claude's own prompt box is on screen — `tui-idle` alone is not
      enough, a bare shell is idle too. Still false, or a shell prompt on screen → `❌ agent did not start`, close that
-     terminal (`terminal close --terminal <handle>`), send nothing, tell the user.
+     terminal (`terminal close --terminal <handle>`), send nothing, tell the user (re-running `/developer <KEY>` reuses
+     the worktree and opens a fresh planner).
    - **Send:** `terminal send --text "<message>" --enter --wait-submit 10`; never resend on a receipt that only says
      `input_accepted` — it is unconfirmed: `terminal read` and confirm the agent is working before the next step. Text
      landed in a shell → close that terminal, `❌`, tell the user.
