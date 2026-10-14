@@ -1,6 +1,6 @@
 ---
 name: bump-submodule
-description: After child PRs merge, bump the parent repo's submodule pointer(s) to explicit merged commits and open or update the parent PR that ties the feature to the ticket. Pins each submodule via <path>@<sha> (path is whatever .gitmodules declares). Rejects --to-default-branch-head combined with --closes. Transitions the Jira ticket on merge. Not for single-repo projects.
+description: After child PRs merge, bump the parent repo's submodule pointer(s) to explicit merged commits and open or update the parent PR that ties the feature to the ticket. Pins each submodule via <path>@<sha> (path is whatever .gitmodules declares). Rejects --to-default-branch-head combined with --closes. Never writes to Jira — the report names the manual step. Not for single-repo projects.
 argument-hint: "<path>@<sha>… [--closes <jira-ticket>] [--to-default-branch-head] [--replace]"
 ---
 
@@ -15,7 +15,7 @@ child PRs merge; also runnable manually.
 > table). Verify each SHA is actually merged before bumping.
 >
 > **Never-guess rule.** Reject `--closes` with `--to-default-branch-head` (non-deterministic SHA →
-> the ticket transition would race). Reject a duplicate open bump PR without `--replace`.
+> the ticket would be tied to a moving SHA). Reject a duplicate open bump PR without `--replace`.
 >
 > **Forbidden language.** No "I think / probably." Say "confirmed merged via merge-base", "resolved
 > to <sha>", "user confirmed via --replace".
@@ -29,9 +29,8 @@ For submodule (multi-repo) projects only. It does **not**: implement code (`/pr`
    one commit, one pushed branch (the ticket's parent branch, or a `bump/<ticket>` branch if none).
 2. One parent Bitbucket PR (created, or updated if it already exists); with `--replace`, decline the
    superseded bump PR.
-3. On the parent PR merging: the Jira ticket transition (if Atlassian MCP connected).
-**Forbidden side-effects:** never merge a PR; never edit submodule code or any parent file beyond the
-pointers; no test/build execution.
+**Forbidden side-effects:** never merge a PR; never write to Jira (no transition, no comment); never
+edit submodule code or any parent file beyond the pointers; no test/build execution.
 
 ---
 
@@ -53,7 +52,7 @@ Parse `$ARGUMENTS`:
 - `REPLACE` — true if `--replace`.
 
 Reject `MODE=remote` + `CLOSES` set: "`--to-default-branch-head` cannot combine with `--closes` —
-the SHA is non-deterministic, so the ticket transition would race. Pin an explicit `<path>@<sha>`."
+the SHA is non-deterministic, so the ticket would be tied to a moving SHA. Pin an explicit `<path>@<sha>`."
 If no `BUMPS` → AskUserQuestion for at least one `<path>@<sha>`.
 
 ## Step 2 — Verify each SHA is merged
@@ -106,11 +105,12 @@ key in the title is the link.)
 Report:
 ```
 ✅ Bump PR: <url>   (paths: <path@sha, …> · closes: <ticket|none>)
+Jira: NOT updated — this skill never writes to Jira. <`--closes` set: "When the PR merges, move
+<ticket> to its done status yourself." | unset: "No ticket given (`--closes`), nothing to move.">
 When it merges → the feature is shipped.
 ```
-When the parent PR merges: if Atlassian MCP is connected and `CLOSES` was set, transition the ticket
-to `jira.done_transition` and comment the merged PR URL. Otherwise tell the user to transition
-`<ticket>` manually. `/run-pipeline` reads the bump PR URL from this report.
+Always print the `Jira:` line — never end the report without it. `/run-pipeline` reads the bump PR URL
+from this report.
 
 ## Gotchas
 - **No dollar-digit fields in this file's commands.** The skill loader substitutes them with the
@@ -122,8 +122,8 @@ to `jira.done_transition` and comment the merged PR URL. Otherwise tell the user
 - **Rebase before bumping.** A parent change merged seconds earlier would otherwise conflict on the
   gitlink.
 - **`--to-default-branch-head` is non-deterministic** — two runs minutes apart can capture different
-  shas; that's why it can't auto-transition a ticket (`--closes` is rejected with it).
-- **Ticket transition replaces GitHub's auto-close.** Bitbucket has no closing keyword; the Jira
-  transition on merge is how the ticket reaches Done.
+  shas; that's why `--closes` is rejected with it.
+- **No auto-close, no Jira write.** Bitbucket has no closing keyword and this skill never touches
+  Jira, so the ticket only reaches Done when the user moves it — Step 6 says so every run.
 - **Path-agnostic.** Works for whatever `.gitmodules` declares — ai-roleplay's 3 submodules or
   learningos's larger set; never assumes a path prefix.

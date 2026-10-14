@@ -154,8 +154,8 @@ re-confirm success from ground truth and append the result + timestamp to the st
   "Waiting on child PRs to merge: <list>. Re-run `/run-pipeline <ticket>` after they merge."
 - **Stage 7 — bump** (all child PRs merged): dispatch
   `/bump-submodule <path>@<sha> … --closes <ticket>` with the merged shas. Success = parent refs
-  bumped + parent PR open. When the parent PR merges, transition the Jira ticket
-  (`jira.done_transition`) if Atlassian MCP is connected, else tell the user to transition manually.
+  bumped + parent PR open. `/bump-submodule` never writes to Jira: relay its `Jira:` line and tell the
+  user to move `<ticket>` to its done status themselves once the parent PR merges.
 
 **On any stage failure:** write `.shipkit/pipeline-failure-<ticket>.md` (failed stage, the command
 dispatched, full error, recovery step), mark the stage `❌` in the state file, then stop and report ❌.

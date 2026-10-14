@@ -109,7 +109,7 @@ contracts · edge cases). Then you implement, review, and open PRs.
 /merge AR-123              merge signed-off, conflict-free child PRs → wait on the Bitbucket
                            pipeline (twg) → report done/error
       ▼
-/bump-submodule path@sha --closes AR-123    bump parent refs → parent PR merges → ticket done
+/bump-submodule path@sha --closes AR-123    bump parent refs → parent PR merges → you move the ticket to Done
 ```
 
 ## Skills
@@ -133,7 +133,7 @@ auto-trigger it by description.
 | `/pr <ticket> [--implement] [--target staging\|main]` | Two phases, in order. **Open:** fan out child PRs per submodule + parent PR (allowlist-enforced, test-gated, reuses already-open PRs); opt-in `--implement` writes the code via parallel background agents first. **Review loop:** pings the Slack reviewer and triages every concern (fix / escalate to Jira / explain) until sign-off. Never merges. |
 | `/developer [<slack-thread-url>] [--auto]` | **No URL → observer:** watches your Slack notifications (@mentions, DMs, replies in threads you joined, QC report posts that name a ticket) via `observe-slack.js` + Monitor and *drafts* answers for you to approve; `--auto` (or a scope you state, e.g. "auto-send in #qc") posts directly. **With URL:** reads one Slack thread and replies **as you, the developer** (user token via `post-slack.js`, which can attach files/images; like `/pr`), in the thread starter's language. Answers only what it verified in the code / live Jira ticket, otherwise "let me check"; never commits you to dates, refunds or access. Watches the thread until the asker is done: pushed by Slack Socket Mode (`wait-for-slack-event.js`, needs `SLACK_APP_TOKEN` — see *Slack push setup*) or, without it, polled by `wait-for-slack-reply.sh`. Read-only on code, git and Jira. Needs `SLACK_REVIEW_TOKEN`. |
 | `/merge <ticket>` | Merges child PRs already signed off with no git-detected conflict (no PR CI is read — these repos only run deploy pipelines after the merge; hard-confirms first and warns that the merge triggers the deploy), waits on each merge's Bitbucket Pipeline via bundled `wait-pipelines.sh` (matched by merge sha). If all SUCCESSFUL: bumps the root PR's pointers, rebases gitlink-only conflicts, merges it (confirms again), then moves the Jira ticket to `jira.after_merge_transition` (unset → **asks which transition**, from the ticket's real ones, and offers to save it; never silently skipped) and **asks who the QC is** (picked from the ticket's assignable users; `jira.qc_account_id` is only the suggested default). |
-| `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table, transition the Jira ticket on merge |
+| `/bump-submodule <path>@<sha> --closes <ticket>` | Verify merged SHAs, bump submodule refs (rebase-safe), update/open the parent PR with a Bumps table. Never writes to Jira — the report always says which ticket you move to Done yourself |
 
 ## Slack push setup (optional, for `/developer`)
 

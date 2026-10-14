@@ -40,7 +40,7 @@ bump submodule refs (`/bump-submodule`), or **merge / approve / close** a PR —
    `--force-with-lease` only on a branch it rebased. Phase 2 review fixes: commit + push to the same
    branches (auto-updates the open PRs).
 3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open).
-4. Slack: thread posts in `#dev-enterprise` (Phase 2). Jira: comments **only after explicit approval** (Phase 2).
+4. Slack: thread posts in `#dev-enterprise` (Phase 2). Jira: the PR-links comment (Step 7) and Phase 2 comments **only after explicit approval**.
 5. State files: `.shipkit/impl-gap-<ticket>.md`, `.shipkit/impl-failure-<ticket>.md` (Phase 1),
    `.shipkit/pr-<ticket>.md` (Phase 2).
 **Forbidden side-effects:** never merge a PR; never transition a ticket; no writes outside the
@@ -155,10 +155,15 @@ Child PRs:
   ai-roleplay-be  → <url>  (dest: staging)  <opened | already open>
   ai-roleplay     → <url>  (dest: staging)  <opened | already open>
 Parent PR:        → <url>                   <opened | already open>
+Jira:             <PR-links comment posted <permalink> | not posted — <reason>>
 → Phase 2: pinging the reviewer.
 ```
-If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are set, optionally post the PR links as one Jira comment (via `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`). Then go straight to
-Phase 2 — the PR URLs collected here are its review targets.
+**Jira PR-links comment.** Before printing the report: `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` all set →
+show the user the draft (the PR links) and AskUserQuestion: post it / skip. Approved → post via
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`. The report's `Jira:` line
+is always printed, with the reason when nothing was posted: `JIRA_* not set` · `you skipped` ·
+`auto mode — no approval` (under `/run-pipeline auto` nothing is asked or posted) · `script error: <message>`.
+Never leave it out. Then go straight to Phase 2 — the PR URLs collected here are its review targets.
 
 # Phase 2 — Review loop
 
