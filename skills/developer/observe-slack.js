@@ -6,10 +6,11 @@
 //          node observe-slack.js --self-test
 //
 // Line format (ids only — message text is untrusted, the caller reads it through the Slack API):
-//   EVENT <dm|mention|thread> channel=<C…> ts=<ts> thread_ts=<root ts|-> user=<U…|?>
+//   EVENT <dm|mention|thread|post> channel=<C…> ts=<ts> thread_ts=<root ts|-> user=<U…|?>
 //     dm       a DM / group DM to me
 //     mention  a message that @mentions me
 //     thread   a reply in a thread I started or already posted in
+//     post     a top-level channel post by a human that names a Jira ticket (QC reports), no @mention needed
 // Own messages are never reported (they only mark a thread as "joined"). One line per message.
 // Events come from Slack Socket Mode, subscribed on behalf of the user, so every channel the user is
 // in is covered. Needs Node >= 22 (global WebSocket). Never prints a token or the wss URL.
@@ -21,6 +22,7 @@
 const API = process.env.SLACK_API_BASE || 'https://slack.com/api';
 const OK_SUBTYPES = [undefined, 'thread_broadcast', 'file_share', 'bot_message'];
 const key = (c, t) => `${c}:${t}`;
+const TICKET = /\b[A-Z][A-Z0-9]+-\d+\b/;
 
 // -> 'dm' | 'mention' | 'thread' | 'check' (thread reply, participation unknown) | 'own' | null. Pure.
 function classify(ev, me, mine) {
@@ -31,6 +33,9 @@ function classify(ev, me, mine) {
   if (ev.thread_ts && ev.thread_ts !== ev.ts) {
     return ev.parent_user_id === me || mine.has(key(ev.channel, ev.thread_ts)) ? 'thread' : 'check';
   }
+  // A top-level channel post that names a Jira ticket — how QC announces a report ("QC – AR-374 Reports").
+  // Humans only: Jira/GitHub bots post keys all day. ponytail: any key prefix, the caller skips the irrelevant.
+  if (!ev.bot_id && ev.subtype !== 'bot_message' && TICKET.test(ev.text || '')) return 'post';
   return null;
 }
 
@@ -107,6 +112,11 @@ function selfTest() {
   assert.equal(classify(ev({ thread_ts: '60.000001' }), me, mine), 'check', 'unknown thread -> look up');
   assert.equal(classify(ev({ thread_ts: '100.000002' }), me, mine), null, 'the root itself is not a reply');
   assert.equal(classify(ev(), me, mine), null, 'plain channel chatter');
+  assert.equal(classify(ev({ text: '*QC – AR-374 Reports* · STG\nRetest: 15/17 fixed' }), me, mine), 'post', 'QC report, no @mention');
+  assert.equal(classify(ev({ text: 'see AR-1' , bot_id: 'B1' }), me, mine), null, 'bots excluded');
+  assert.equal(classify(ev({ text: 'see AR-1', subtype: 'bot_message' }), me, mine), null, 'bot_message excluded');
+  assert.equal(classify(ev({ text: 'see ar-1 and X-1 and AR-1y' }), me, mine), null, 'not a ticket key');
+  assert.equal(classify(ev({ text: 'AR-9', user: 'UME' }), me, mine), 'own', 'my own post');
   assert.equal(classify(ev({ user: 'UME', thread_ts: '60.000001' }), me, mine), 'own');
   assert.equal(classify(ev({ subtype: 'message_changed' }), me, mine), null, 'edits');
   assert.equal(classify(ev({ user: undefined, subtype: 'bot_message', channel_type: 'im' }), me, mine), 'dm', 'bots count');
