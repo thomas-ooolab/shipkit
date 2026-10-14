@@ -32,6 +32,28 @@ detect_stack() {
   fi
 }
 
+# The project root, wherever the shell stands (a spec dir, a submodule): the nearest ancestor with
+# .shipkit/config.yml. Before bootstrap there is none — then the outermost git root, since
+# `git rev-parse --show-toplevel` inside a submodule returns the submodule, not the meta repo.
+find_root() {
+  local d sp
+  d=$(pwd -P)
+  while [ "$d" != "/" ]; do
+    [ -f "$d/.shipkit/config.yml" ] && { echo "$d"; return; }
+    d=$(dirname "$d")
+  done
+  d=$(git rev-parse --show-toplevel 2>/dev/null) || { pwd -P; return; }
+  while sp=$(git -C "$d" rev-parse --show-superproject-working-tree 2>/dev/null) && [ -n "$sp" ]; do d="$sp"; done
+  echo "$d"
+}
+START=$(pwd -P)
+ROOT=$(find_root)
+if [ "$ROOT" != "$START" ]; then
+  cd "$ROOT" || exit 1
+  # every path below is relative to ROOT — the caller must not read them against its own cwd
+  echo "SHIPKIT_ROOT_MOVED=from $START to $ROOT (paths below are relative to $ROOT; cd there before using them)"
+fi
+
 case "${1:-}" in
   topology)
     if [ -f .gitmodules ]; then
@@ -105,6 +127,7 @@ case "${1:-}" in
     ;;
 
   resolve)
+    echo "SHIPKIT_ROOT=$ROOT"
     # Topology auto-detect (independent of config, so skills branch correctly even pre-bootstrap).
     if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
     # Config-first resolution for run-pipeline. Requires bootstrap.

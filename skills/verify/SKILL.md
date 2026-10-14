@@ -51,7 +51,8 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only.
    The Part A fidelity measurement stays read-only (navigate + computed styles + screenshot, no form submits).
-   Never start a server yourself headlessly — ask the user to start it.
+   Start no server on your own: when the app isn't running, ask (Step 1) and start it only on the user's yes,
+   through the project's runbook.
 
 ---
 
@@ -59,7 +60,8 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 ```
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" resolve`
 ```
-If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
+If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.sh` prints are relative to
+`SHIPKIT_ROOT`; `SHIPKIT_ROOT_MOVED` means the shell stood elsewhere — `cd` to the root before using them.
 
 ## Step 1 — Resolve what to verify, and where
 - **Checks list**, first match:
@@ -70,11 +72,30 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
      Tag each as **FE / BE / both** from the spec's task `(submodule)` tags and where its code lives — read the
      real code in the submodule, not `specs/` or `docs/`, to find what implements it.
   3. Neither → AskUserQuestion what to verify. Don't invent requirements.
+- **Surface coverage (from the diff).** The list above is what the caller asked for; the diff is what changed, and
+  a `--concern` list is a floor, not the scope. For the ticket's branch in each submodule (single-repo: the repo),
+  list the changed files against its base — the config's tracking `branch`, fetched:
+  `git -C <path> diff --name-only origin/<branch>...HEAD`, plus uncommitted (`git -C <path> status --porcelain`).
+  Drop tests, docs, lockfiles and generated code, then classify the rest:
+  - **FE** — UI source (`.tsx .jsx .vue .svelte .html .css .scss .dart`, or components, pages, routes, styles and
+    client hooks in a submodule whose config `stack` is `nextjs`, `react` or `flutter`).
+  - **BE** — any other source in a submodule whose stack is not an FE stack.
+
+  Every surface with changed files needs ≥1 check of that kind that reaches it (an FE check whose scenario lands on
+  the changed component's screen; a BE check whose request reaches the changed handler or query). None → **add
+  one**: read the diff, name the screen or behavior it changes, and derive the scenario from the REQ it implements
+  or the caller's concern (e.g. `BuilderStep2Audience.tsx` changed → "report builder Step 2: the Replacement group
+  picker lists/hides …"); id `<n>-fe` / `<n>-be`, tagged with the changed files. No scenario you can state →
+  `UNVERIFIED — FE changed (<files>), no check exercises it`, which makes the gate `INCOMPLETE`. A changed surface
+  with no exercising check never ends in `PASS`; vitest/tsc/eslint do not count as exercising it.
 - **Design contract (Part A):** `--contract <path>`, else `specs/NNN/design-contract.md`. None, or no FE in
   scope → Part A is skipped; say so in the report. Its `fidelity:` field selects the diff method (A2).
 - **Running targets:** FE `--url <route>`, BE `--api <base-url>`. Absent → probe for a running dev server /
   service; none → AskUserQuestion `["The app isn't running. Start it and give me the URL(s), or point me at a
-  deployed dev/staging URL?", "I'll start it — here are the URLs", "Cancel"]`. A production URL → refuse.
+  deployed dev/staging URL?", "I'll start it — here are the URLs", "Cancel"]`, plus — when a
+  `local-dev-runbook.sh` exists (SDD root, then its parent) — `"Start it for me: local-dev-runbook.sh <fe|be>
+  <root>"`; run it only on that answer, read the runbook for what else it offers (e.g. data restore), and bring
+  FE up before driving it with the Playwright MCP browser tools (Step 2). A production URL → refuse.
   Missing seed data or credentials you may not use → that check is `UNVERIFIED`; you may offer a small local
   fixture, but create nothing without the user's yes.
 
@@ -149,7 +170,9 @@ REQ-003  BE  ✅ PASS        weekly digest counts a 3-person call once — .ship
 REQ-005  FE  ❌ FAIL        Save stays disabled after editing the name (expected enabled) — …/REQ-005-save-after.png
 REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
+2-fe     FE  ⚠️ UNVERIFIED  changed ai-roleplay/src/…/BuilderStep2Audience.tsx, no check exercised it
 ```
+Under it, one line per changed surface: `surface coverage: FE <files> → check <id>` (or `→ none`), same for BE.
 UI fidelity (Part A), blocking first, each as expected → actual → fix:
 ```
 Region: primary button (button.bg-blue-600)
@@ -219,6 +242,9 @@ until PASS) and `/review-changes` (either order) → `/pr`. `/bugfix` calls it w
 
 ## Gotchas
 - **Evidence or it didn't happen.** A check with no evidence file is `UNVERIFIED`, whatever the unit tests say.
+- **The caller's concern is not the scope.** `/bugfix` hands in the bug it just fixed; a later fix on another
+  surface (a BE fix, then an FE picker change) is only caught by the diff — and only if `/verify` runs after the
+  last code change.
 - **Open the screenshot.** The evidence is what the PNG shows, not that a file exists.
 - **Non-production only.** Driving a scenario creates test data; do it on local/dev/staging and never against prod.
 - **Business words stay out of this file's reach:** raw requests, endpoints and table names are fine in evidence
