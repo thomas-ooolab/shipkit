@@ -1,15 +1,10 @@
 ---
 name: pr
-description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Opens any missing Bitbucket PRs (one per affected submodule + the parent-repo PR; opt-in --implement writes the code first). The Slack reviewer-ping review loop (Phase 2) is temporarily disabled. Never merges. Trigger: /pr <ticket-id> [--implement] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
+description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Opens any missing Bitbucket PRs (one per affected submodule + the parent-repo PR; opt-in --implement writes the code first), then pings the reviewer in Slack and triages every concern they raise against the real code and the live Jira ticket until all are resolved. Never merges. Trigger: /pr <ticket-id> [--implement] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
 argument-hint: "<jira-ticket> [--implement] [--target staging|main]"
 ---
 
 # shipkit · pr
-
-> ⏸️ **PHASE 2 TEMPORARILY DISABLED.** Do **not** ping the reviewer on Slack, seed or adopt a thread,
-> launch any poller, or write `.shipkit/pr-<ticket>.md`. `/pr` ends after Phase 1's report (Step 7).
-> Everything under "Phase 2" below is kept intact for re-enabling — **ignore it**; delete this
-> banner (and the "Phase 2 disabled" lines in Step 1 and Step 7) to turn it back on.
 
 Two phases, always in order:
 
@@ -22,7 +17,7 @@ Two phases, always in order:
    what's actually broken, escalate what needs a product call, explain what isn't a bug — then keep
    checking the thread until every concern is resolved.
 
-Phase 1's report is printed, then Phase 2 starts immediately — no stop in between. *(Disabled for now: stop after the report.)*
+Phase 1's report is printed, then Phase 2 starts immediately — no stop in between.
 
 > **Cite-sources rule.** Every precondition traces to a confirmed observation: spec `status: planned`,
 > tasks present, branch exists, changed files vs allowlist, Bitbucket PR created/found.
@@ -73,7 +68,6 @@ Neither → ask for the ticket ID plainly.
 
 **Resume shortcut.** If `.shipkit/pr-<TICKET>.md` exists, Phase 1 already finished in an earlier run —
 skip straight to Phase 2 Step 3 (its loop body picks up from the state file).
-*(Phase 2 disabled: ignore this shortcut — Phase 1 is idempotent, so just re-run it; every open PR is reused.)*
 
 **Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → there's one target: open **one** PR
 from `feat/<ticket>-<slug>` to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
@@ -161,12 +155,12 @@ Child PRs:
   ai-roleplay-be  → <url>  (dest: staging)  <opened | already open>
   ai-roleplay     → <url>  (dest: staging)  <opened | already open>
 Parent PR:        → <url>                   <opened | already open>
-→ Phase 2 (Slack reviewer ping) is disabled — PRs are open, reviewer was NOT pinged.
+→ Phase 2: pinging the reviewer.
 ```
-If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are set, optionally post the PR links as one Jira comment (via `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`). Then **stop** — Phase 2 is
-disabled. *(When re-enabled: go straight to Phase 2 — the PR URLs collected here are its review targets.)*
+If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are set, optionally post the PR links as one Jira comment (via `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`). Then go straight to
+Phase 2 — the PR URLs collected here are its review targets.
 
-# Phase 2 — Review loop  (⏸️ DISABLED — do not execute; see banner at top)
+# Phase 2 — Review loop
 
 Fixed reviewer for this phase: Slack user `U0B6M74TLBY` ("OOOLAB AI Agent"), channel `#dev-enterprise` (`C051TAHF9GD`, Slack Connect).
 
