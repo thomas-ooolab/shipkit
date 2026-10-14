@@ -46,6 +46,14 @@ find_root() {
   while sp=$(git -C "$d" rev-parse --show-superproject-working-tree 2>/dev/null) && [ -n "$sp" ]; do d="$sp"; done
   echo "$d"
 }
+# The ticket's spec dir (`specs/NNN-slug`) or `none`: frontmatter `ticket:` (or `jira:`, older specs)
+# first, then a dir name containing the ticket.
+find_spec() {
+  local f d
+  f=$(grep -rlE "^(ticket|jira):[[:space:]]*\"?$1\"?[[:space:]]*$" specs/*/spec.md 2>/dev/null | head -1)
+  if [ -n "$f" ]; then dirname "$f"; return; fi
+  d=$(ls -d specs/*"$1"* 2>/dev/null | head -1); echo "${d:-none}"
+}
 START=$(pwd -P)
 ROOT=$(find_root)
 if [ "$ROOT" != "$START" ]; then
@@ -151,10 +159,7 @@ case "${1:-}" in
     if [ -z "$ticket" ]; then echo "STATE_ERROR=no-ticket" >&2; exit 2; fi
     echo "TICKET=$ticket"
     if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
-    # spec: match frontmatter `ticket:` (or `jira:`, older specs) first, then a dir name containing the ticket
-    specfile=$(grep -rlE "^(ticket|jira):[[:space:]]*\"?$ticket\"?[[:space:]]*$" specs/*/spec.md 2>/dev/null | head -1)
-    if [ -n "$specfile" ]; then echo "SPEC=$(dirname "$specfile")"; else
-      d=$(ls -d specs/*"$ticket"* 2>/dev/null | head -1); echo "SPEC=${d:-none}"; fi
+    echo "SPEC=$(find_spec "$ticket")"
     echo "BRANCHES:"
     bp=$(git branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
     if [ -f .gitmodules ]; then
@@ -173,6 +178,8 @@ case "${1:-}" in
       paths=$(git config -f .gitmodules --get-regexp '\.path$' 2>/dev/null | awk '{print $2}')
       while IFS= read -r p; do
         [ -z "$p" ] && continue
+        # not checked out: `git -C` would fall through to the parent repo and report ITS branch
+        if [ ! -e "$p/.git" ]; then echo "- $p: branch=none (not checked out)"; continue; fi
         b=$(git -C "$p" branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
         if [ -n "$b" ]; then
           dirty=$(git -C "$p" status --porcelain 2>/dev/null | head -1)
@@ -185,8 +192,27 @@ case "${1:-}" in
     fi
     ;;
 
+  branch)
+    # The one place the branch convention lives: feat/<TICKET>-<slug><suffix>.
+    # Usage: probe.sh branch <TICKET> [<submodule name>|parent]   (parent / single-repo: no suffix)
+    ticket="${2:-}"; target="${3:-parent}"
+    if [ -z "$ticket" ]; then echo "BRANCH_ERROR=no-ticket" >&2; exit 2; fi
+    spec=$(find_spec "$ticket")
+    if [ "$spec" = none ]; then
+      echo "BRANCH=none"
+      echo "BRANCH_NOTE=no spec for $ticket — slug = the ticket title in kebab-case (<=5 words), then feat/$ticket-<slug><suffix>"
+      exit 0
+    fi
+    slug=$(basename "$spec" | sed -E 's/^[0-9]+-//')
+    suffix=""
+    if [ "$target" != parent ] && [ -f .shipkit/config.yml ]; then
+      suffix=$(grep -E "name:[[:space:]]*$target[,[:space:]}]" .shipkit/config.yml | sed -n 's/.*suffix:[[:space:]]*\([^, }]*\).*/\1/p' | head -1)
+    fi
+    echo "BRANCH=feat/$ticket-$slug$suffix"
+    ;;
+
   *)
-    echo "usage: probe.sh {topology|remote|spec|config|context|resolve|state <ticket>}" >&2
+    echo "usage: probe.sh {topology|remote|spec|config|context|resolve|state <ticket>|branch <ticket> [<submodule>]}" >&2
     exit 2
     ;;
 esac

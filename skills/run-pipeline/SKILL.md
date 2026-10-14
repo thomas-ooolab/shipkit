@@ -125,7 +125,8 @@ re-confirm success from ground truth and append the result + timestamp to the st
   this stage entirely (no question).
 
 - **Stage 2 — branches** (if any affected branch missing): create from each submodule's tracking
-  branch using config `suffix`; parent branch from `main`. Skip unaffected; flag `staging_only`.
+  branch, named by `probe.sh branch <ticket> <submodule>` (config `suffix`); parent branch from `main`,
+  named by `probe.sh branch <ticket>`. Skip unaffected; flag `staging_only`.
   Success = `probe.sh state` shows the branches.
 - **Stage 3 — implement** *(human gate)*: if no changes detected on the affected branches, **stop**:
   "Spec + branches ready. Implement the tasks in the submodule branches, then re-run

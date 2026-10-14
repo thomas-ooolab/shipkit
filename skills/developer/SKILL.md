@@ -169,7 +169,10 @@ fails → tell the user and stop. Never `ORCA open`.
    the ticket's feature branch and where the fix belongs.
 2. **Worktree + planner.** First `kiro-cli whoami` (kiro implements later): "Not logged in" → stop, create nothing,
    tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại." No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
-   `--prompt`, the planner takes several commands; keep `startupTerminal.handle`). Reused worktree →
+   `--prompt`, the planner takes several commands; keep `startupTerminal.handle`), then rename the branch Orca
+   gave it (`<user>/<key>`, which `probe.sh state` can't see) to the convention:
+   `git -C <worktree path> branch -m feat/<KEY>-<slug>` — `<slug>` from `probe.sh branch <KEY>` when the spec
+   exists, else the Jira summary in kebab-case (≤5 words). Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
    whether or not that worktree has an active terminal; always new terminals, never type into an existing one.
    **Claude plans, kiro only implements:** no kiro terminal exists yet. Once the plan is written, `/assign`

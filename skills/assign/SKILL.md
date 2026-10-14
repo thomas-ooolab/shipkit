@@ -100,7 +100,7 @@ Per submodule, `PATH` = its path,
 `NAME` = its name, and `BRIEF` is composed of (free-form mode: Step 1's `BRIEF` as-is, `NAME` = repo dir name):
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md` first; reuse existing
   patterns, don't invent structure.
-- **Branch:** create `feat/<ticket>-<slug><suffix>` (config `suffix`) from the submodule's tracking
+- **Branch:** create the name `probe.sh branch <ticket> <submodule>` prints (`feat/<ticket>-<slug><suffix>`, config `suffix`) from the submodule's tracking
   `branch` (config) if missing; else continue on the existing one.
 - **Objective + tasks:** only this submodule's checkbox items from `## Tasks`, each with its
   `REQ-NNN`, plus the absolute path of `spec.md`.

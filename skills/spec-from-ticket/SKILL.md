@@ -222,7 +222,8 @@ text). If nothing is residual, skip to Step 5. Wait for answers before drafting.
 
 ## Step 5 — Write the spec
 Assign the next spec number (probe `spec` → `NEXT_SPEC`, honor `ZERO_PAD`); derive a 2–4 word
-kebab-case `{slug}`. If `specs/NNN-slug/spec.md` exists, AskUserQuestion: `["Overwrite?", "Overwrite",
+kebab-case `{slug}` — when a `feat/<ticket>-<slug>…` branch already exists, reuse its slug so the spec and
+the branch agree. If `specs/NNN-slug/spec.md` exists, AskUserQuestion: `["Overwrite?", "Overwrite",
 "Write -v2", "Cancel"]`.
 
 Populate **every** field of `${CLAUDE_PLUGIN_ROOT}/templates/spec.md`:
