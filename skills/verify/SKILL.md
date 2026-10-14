@@ -94,12 +94,15 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   given) the Jira comment that concern restates, found via `getJiraIssue` with comments (the PO's / tester's
   comment, not just the one-line concern) — and list every **variant dimension it names**: roles (who sees/can do
   what), data states (empty, many, boundary), failure/undo paths ("on save error, revert"), permissions
-  ("only X can"). Only dimensions the text names; don't invent. Each variant is its own check (id `<n>.<variant>`)
-  or is recorded `not checked: <concrete reason>` (e.g. `no learner login`, never "n/a"). A named variant with
-  no passing check makes the check — and the gate — `INCOMPLETE`, whatever the other variants did. Missing
-  account, role or seed data for a variant → AskUserQuestion for it (or a fixture, per Running targets below);
-  don't skip it quietly. Only the user, interactively and explicitly, may waive a variant, and the waiver is
-  stated in the report. A check with no named dimensions has one variant — itself.
+  ("only X can"), value boundaries. Only dimensions the text names; don't invent. Each variant is its own check
+  (id `<n>.<variant>`) with **its own evidence file**. **A named variant ends only two ways: `PASS` with
+  evidence, or `FAIL`.** `UNVERIFIED` is a temporary state of the run — the gate is `INCOMPLETE` — never a final
+  row, and never a "not checked" line in the table or in a Jira comment: build the variant (Step 3, "Building a
+  variant") before reporting. A unit test is not e2e and does not stand in for it. Count the variants the text
+  names against those with evidence; fewer → `INCOMPLETE` and you carry on, you don't stop. Missing account,
+  role or seed data → seed it (on the user's yes, per Running targets below) or AskUserQuestion; don't skip it.
+  Only the user, interactively and explicitly, may waive a variant — stated in the report **to the user**, never
+  in the Jira comment. A check with no named dimensions has one variant — itself.
 - **Design contract (Part A):** `--contract <path>`, else `specs/NNN/design-contract.md`. None, or no FE in
   scope → Part A is skipped; say so in the report. Its `fidelity:` field selects the diff method (A2).
 - **Running targets:** FE `--url <route>`, BE `--api <base-url>`. Absent → probe for a running dev server /
@@ -163,11 +166,24 @@ for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`
   value is right (plus the wrong value from before, for a bug). Then Read the file back and confirm it holds no
   token, credential or real personal data (redact to `[REDACTED]`).
 - **Both** → both kinds, ideally through the FE flow.
-Run it once per variant from the matrix (Step 1) — e.g. the Manager login, then the Admin login — each with its
-own evidence file (`<id>-<variant>-after.png`). Result per check: `PASS` (evidence path; **every** named variant
-passed) · `FAIL` (expected → actual, with the evidence that shows the failure)
-· `UNVERIFIED` (the exact blocker, or a variant marked `not checked`). A requirement whose behavior this change did not touch is still checked if
-it is in scope — "not changed" is not a result.
+Run it once per variant from the matrix (Step 1), each with its own evidence file (`<id>-<variant>-after.png|txt`).
+Result per check: `PASS` (evidence path; **every** named variant passed) · `FAIL` (expected → actual, with the
+evidence that shows the failure) · `UNVERIFIED` (the exact blocker — temporary: act on it, don't report it as an
+end state). A requirement whose behavior this change did not touch is still checked if it is in scope — "not
+changed" is not a result.
+
+**Building a variant** — every named variant is checkable on the running app:
+
+| Variant | How |
+|---|---|
+| **Failure / undo path** (a save fails, optimistic UI must revert) | Playwright: `page.route('**/api/<resource>/**', r => r.request().method()==='PUT' ? r.fulfill({status:500, contentType:'application/json', body: JSON.stringify({error:'simulated'})}) : r.continue())`, do the action in the UI, then check 3 things: the error toast shows, the field is back to its old value, and the BE state is unchanged (GET it again). |
+| **Role** (admin / manager / learner …) | Seed a test user per role in the local DB (Step 2, Browser tool); log each in in its own browser context. Check the positive side (sees exactly its scope) **and** the negative side for a role without the right: menu entry hidden, the direct URL blocked or redirected, the API answers 401/403, no data leaks. |
+| **Data state** (empty, one, many, deleted) | Create the data through the API or local DB, then check each state. |
+| **Boundary** | Try the value just inside and just outside the limit. |
+
+*Example (AR-374):* "a failed save reverts" was left as "only covered by an automated test" and "the learner
+role" as "not checked" — both are checkable: the route-stub row above, and a seeded learner who gets no menu
+entry, a blocked URL and a 403.
 
 ## Part A — UI fidelity (only when a design contract exists)
 
@@ -218,8 +234,9 @@ REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
 2-fe     FE  ⚠️ UNVERIFIED  changed ai-roleplay/src/…/BuilderStep2Audience.tsx, no check exercised it
 ```
-Under each check with named variants, at most one matrix line — `roles: admin ✅ manager ✅ learner ⏸ not checked:
-no learner login` · `save: ok ✅ error→reverts ✅`. A `⏸ not checked` variant counts as `UNVERIFIED` for the gate.
+Under each check with named variants, at most one matrix line, each variant with its evidence file —
+`roles: admin ✅ manager ✅ learner ⚠️ UNVERIFIED (seeding)` · `save: ok ✅ error→reverts ✅` — and `variants:
+named N, with evidence M`. `M < N` → the gate is `INCOMPLETE` and the run continues; it is not an end state.
 Under it, one line per changed surface: `surface coverage: FE <files> → check <id>` (or `→ none`), same for BE.
 UI fidelity (Part A), blocking first, each as expected → actual → fix:
 ```
@@ -236,13 +253,15 @@ verify: FAILED: <n> blocking (<k> logic, <u> ui, <b> responsive) (<m> advisory)
 verify: INCOMPLETE: <n> unverified — <blockers>
 ```
 Then: `<PASS ⇒ ready for /review-changes | fix the ❌ and re-run /verify | unblock the ⚠️ (or tell me to waive that check) and re-run>`.
-`INCOMPLETE` is **not** a pass: only the user, interactively and explicitly, may waive an `UNVERIFIED` check, and
-the waiver is stated in the report. Show the evidence, not just the table: for each `PASS`, open the PNG for the
+`INCOMPLETE` is **not** a pass, and not a place to stop: build what is missing (Step 3) and re-run first. Only the
+user, interactively and explicitly, may waive an `UNVERIFIED` check; the waiver is stated in the report to them,
+never in a Jira comment. Show the evidence, not just the table: for each `PASS`, open the PNG for the
 user (Read) and quote the key lines of the data file.
 
 ## Step 6 — Post the evidence to Jira (feature runs only)
 Applies when the checks came from the spec (no `--concern`), `--no-jira` is absent and the gate is `PASS`.
-`FAILED` / `INCOMPLETE` post nothing — fix or unblock first. Bugfix runs (`--concern`) skip this step: the
+`FAILED` / `INCOMPLETE` post nothing — fix or unblock first. The comment lists every named variant with its
+evidence and never a "not checked / chưa kiểm / only covered by a unit test" row. Bugfix runs (`--concern`) skip this step: the
 verification proof rides in `/bugfix`'s own Jira comment.
 1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
    sit inside the table, in the evidence cells — never below it). One row per check, in this shape:
