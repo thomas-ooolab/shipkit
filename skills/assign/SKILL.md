@@ -118,7 +118,21 @@ Per submodule, `PATH` = its path,
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
 `Agent`. **`--agent kiro`: run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
 error) → stop, create nothing, tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
-/assign." For every submodule in the wave, do 1–3 before waiting on any of them:
+/assign."
+
+**Reuse before create.** One terminal per submodule is for *parallel* work — a wave with several submodules.
+A submodule that runs *after* another (a later wave, or one at a time) first tries an idle terminal of the **same
+agent kind** (kiro for kiro, claude for claude) that this run already used — its handle and kind are in
+`.shipkit/assign-<ticket>.md`; `ORCA terminal list --worktree active --json` must still list it. Reuse it only if
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --timeout-s 30 --poll-s 3 --git <prev PATH> <prev branch>`
+returns `STATE=done PUSHED=yes CLEAN=yes` — the agent's own prompt, nothing working, no login/model error or bare
+shell, and git (not the agent's last line) confirms its previous task is finished. Anything else (working,
+`attention`, `login`, `shell`, `gone`, `PUSHED=no`/`CLEAN=no`, another agent kind, not in the list) → not reusable,
+create a new terminal. A reused terminal skips 1 and 2 (no `terminal create`, no `whoami`, no startup wait) and gets
+step 3 with its `BRIEF` opening: "Your previous task (<prev NAME>) is finished. From now on work ONLY in `<PATH>`,
+on branch `<branch>`, with the allowlist below; do not touch <prev NAME> again." A terminal serves one submodule at
+a time and never receives the same brief as another terminal. Then for every submodule in the wave, do 1–3 before
+waiting on any of them:
 1. `ORCA terminal create --worktree active --title <NAME> --command <AGENT command> --json` → keep the `handle`
    (`claude` → `claude`, `kiro` → `"kiro-cli chat --tui --trust-all-tools --v3"`). The agent shares this checkout and owns only its `PATH`, as in
    Agent mode — never `worktree create` (a second checkout `probe.sh` can't see) or `orchestration task-create`.
@@ -131,12 +145,19 @@ error) → stop, create nothing, tell the user (Vietnamese): "kiro chưa đăng 
    receipt that only says `input_accepted` — it proves nothing about which program got the text: `terminal read`
    and confirm the agent is working (e.g. "Thinking") before counting it started. Text landed in a shell → close
    that terminal, `❌ brief landed in a shell`.
-4. Then per handle `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 1800000 --json` and
-   `ORCA terminal read --terminal <handle> --json` for the agent's final `✅`/`❌` line. No such line (idle on
-   a permission prompt, or timed out) → `❌ needs attention — terminal <handle>`: tell the user, and never
-   answer a prompt on their behalf.
+4. Then per handle, in one message with `run_in_background: true`: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
+   <handle> --git <PATH> <branch>` (`<branch>` = what `probe.sh branch <ticket> <submodule>` printed; add
+   `--timeout-s` to change the 30-minute default). It decides from the screen, not from a final line — the agent
+   may finish in plain prose — and one notification arrives per handle. Read its `STATE` / `PUSHED` / `CLEAN`
+   lines (the screen tail follows them): `done` + `PUSHED=yes` + `CLEAN=yes` → the agent finished; show the
+   screen tail and take its `✅ implemented <path> (N/M tasks)` line as a hint for the task count, not as the
+   trigger (no such line → count from the commit and the spec's tasks). `done` with `PUSHED=no` or `CLEAN=no` →
+   `❌ not pushed` / `❌ dirty tree`. `timeout` → still working: relaunch the same command. `gone` / `login` /
+   `shell` → `❌ agent did not finish — <state>`. `attention` (stopped on a permission prompt) → `❌ needs
+   attention — terminal <handle>`: tell the user, and never answer a prompt on their behalf.
 Leave terminals open so the user can read them; record the handles in the state file. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
+Step 3's "confirm the agent is working" rule applies to a reused terminal too.
 
 Wait for the whole wave to finish (a completion notification from every agent in it; Orca mode: step 4 for
 every handle) before starting the next wave — a later wave may depend on what an earlier one just pushed (e.g. FE reading BE's freshly
@@ -149,10 +170,12 @@ the rest of that submodule's tasks are done because one succeeded). Any `❌` �
 results — one failure doesn't roll back siblings. Write `.shipkit/assign-<ticket>.md`:
 ```
 # Assign state — <ticket>
-Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be
-        ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice
-Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md
+Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be     terminal=term_a1 (kiro)
+        ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice  terminal=term_b2 (kiro)
+Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md  terminal=term_a1 (kiro, reused from wave 1)
 ```
+(Orca mode only: write each handle and agent kind as soon as its terminal is created or reused — Step 5's reuse
+check reads them from here.)
 Report the same table to the user, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
@@ -164,6 +187,10 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
   dependency = one wave, everything parallel. Only split waves on a note that's actually there.
 - **Don't reuse a stale wave plan across retries.** A submodule fixed since the last failure may now
   be `dirty=yes` from that fix — re-probe (Step 2/4) every run, never cache wave membership.
+- **Reuse an idle same-kind terminal for sequential waves; spawn only for parallel work or when nothing idle
+  exists.** A fresh kiro spends minutes loading before it accepts input and knows nothing of the earlier wave's
+  output; a finished one at its prompt is ready now and has that context. Never reuse a terminal that is working,
+  on a permission prompt, or of another kind.
 - **Trust git, not the agent's last line.** Before checking off tasks, confirm via `probe.sh state` that
   the feature branch exists and is pushed (`unpushed=0`); otherwise record `❌ not pushed`.
 - **This is not `/pr --implement`.** That flag lives inside `/pr`'s own PR-opening flow and only
