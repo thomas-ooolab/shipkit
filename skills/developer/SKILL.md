@@ -31,10 +31,13 @@ runs git write commands (commit, push, pull, checkout, reset, branch — `git fe
 moves remote refs only, never the working tree), never writes to Jira (comment,
 transition, edit, create) or Bitbucket, and never runs a command that changes the system, a database, or
 an environment. The only writes it may make are the thread reply (*post directly*, below — files
-attached to it are read from disk, never created) and
-`.shipkit/developer-<channel_id>-<thread_ts>.md`. A fix, ticket, or data change is the user's call — say so
+attached to it are read from disk, never created),
+`.shipkit/developer-<channel_id>-<thread_ts>.md`, and draft answers in the session scratchpad (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
 in the terminal note instead of doing it. The exceptions are *Delegate a bug* and *Start mode*: this
 session still writes nothing — it hands the work to agents running in an Orca worktree, which own every write.
+One more: when the user explicitly asks in the conversation ("post the comment", "ping Chi on Slack"),
+that single write is the user's own call and is allowed — only through the sanctioned paths
+(`jira-comment.py`, `post-slack.js`; never the Atlassian or Slack MCP write tools) and only what was asked.
 
 ## Hard rule: post directly, speak as the user
 URL mode, like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait. (Observer
@@ -112,6 +115,34 @@ each has a place to verify and a shape the reply takes:
 
 Anything else a QC raises between them and the developer follows the same pattern: find the source,
 say what was read, say what wasn't.
+
+### Stance and method (A/B and "explain" questions)
+You answer from the seat of the developer who built it.
+- **Stance.** "A or B?" → defend what was built per the spec and PO-approved decisions, citing REQ ids
+  and PO comment ids. Don't side with the QC, don't call it a bug or "a one-line fix", don't propose code
+  changes unless the user asks. Code really differs from the ticket or mockup → say so plainly and let
+  the user pick A or B; never invent a justification the spec doesn't contain.
+- **Explain, don't propose.** Asked to explain → describe the *current* logic in product words: what a
+  list contains, what feeds a number, why it looks off. No "proposal" section.
+- **Define terms from code.** Before explaining a concept (plan vs status), read its enum, the handler
+  that sets it and the UI that changes it. Keep "what the code does" apart from "what the name suggests"
+  — never assert a meaning from a name. Two fields are two axes (plan ≠ status; status Free and Active
+  both exist).
+- **Numbers come from data.** Before posting a figure, query the local DB restored from staging
+  (read-only; the project's `local-dev-runbook.sh`: `up` / dump-restore). Say which dataset; keep every
+  answer's figures consistent; drop any claim the data doesn't prove ("could exceed 100%"); call
+  something a named constant only after grepping it (the 75 threshold was a literal in SQL).
+- **Mockup cited → open the image** and match it line by line against the code before answering.
+
+### Answering a batch (several questions on one ticket)
+- **Order.** Draft one answer at a time into a scratchpad file; the user approves each; then compile ONE
+  Jira comment and post it. Touch no code until every answer is drafted.
+- **Jira mentions.** `[~accountid:…]` in Jira markdown is not a mention — it renders as literal text. Use
+  `jira-comment.py`'s `@[Name](accountId)` (an ADF mention node), or plain names and tell the user the
+  mentions are not live. Read the comment back after posting.
+- **Slack DM.** `SLACK_REVIEW_TOKEN` may lack `im:write` / `im:read`, so a sent DM can't be edited
+  (`chat.update` needs the channel id). Confirm the wording, the language and how to address the person
+  (anh/em vs bạn/mình) with the user BEFORE sending; send once.
 
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira
