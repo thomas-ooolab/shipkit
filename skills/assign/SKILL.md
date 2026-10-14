@@ -117,8 +117,8 @@ Per submodule, `PATH` = its path,
 **Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
 `Agent`. **`--agent kiro`: run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
-error) → stop, create nothing, tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
-/assign."
+error) → create nothing and tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
+/assign", then offer the claude fallback (below) for the whole run instead of stopping dead.
 
 **Reuse before create.** One terminal per submodule is for *parallel* work — a wave with several submodules.
 A submodule that runs *after* another (a later wave, or one at a time) first tries an idle terminal of the **same
@@ -162,8 +162,22 @@ waiting on any of them:
    - `done` with `PUSHED=no` or `CLEAN=no` → report "agent finished but not pushed" / "…not clean" (`❌ not
      pushed` / `❌ dirty tree`), never success.
    - Any other `STATE` — `timeout`, `gone`, `login`, `shell`, `attention` (a permission prompt) — is reported to the
-     user once, with the terminal handle (`❌ agent did not finish — <state>`); `timeout` also relaunches the same
-     command. Never answer a prompt on their behalf.
+     user once, with the terminal handle (`❌ agent did not finish — <state>`). `timeout` relaunches the same
+     command **at most twice** (3 × the timeout in all; count them as `relaunches=n` beside the handle in the
+     state file); a third `timeout` → `❌ still working after <total> — terminal <handle>`, no further relaunch, and
+     the user decides: keep waiting, or the fallback below. Never answer a prompt on their behalf.
+
+**kiro fallback → claude (always asked, never automatic).** A kiro submodule that ends `❌ agent did not start`,
+`❌ brief landed in a shell`, `❌ agent did not finish — gone|login|shell`, or hit the relaunch cap (and the
+`whoami` failure above) → AskUserQuestion naming the submodule, the state and the terminal handle: "Run `<NAME>`
+with claude instead?" (`whoami` failure: the whole run) — `["Switch this submodule to claude", "Leave it ❌",
+"Retry kiro"]`. Non-interactive →
+leave it `❌`. On a switch: close the failed kiro terminal (`ORCA terminal close`, unless the user wants to read
+it), create a **claude** terminal for that submodule (steps 1–4 with `AGENT=claude`; no `whoami`), and open its
+`BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
+continue from it; don't redo or discard it." Mark it `kiro → claude` in the state file; the other submodules stay
+on kiro. `attention`, `PUSHED=no` and `CLEAN=no` are not offered a switch: the agent did run, so those go to the
+user as they are.
 Leave terminals open so the user can read them; record the handles in the state file. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
 Step 3's "confirm the agent is working" rule applies to a reused terminal too.
