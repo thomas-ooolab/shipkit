@@ -88,6 +88,17 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   picker lists/hides …"); id `<n>-fe` / `<n>-be`, tagged with the changed files. No scenario you can state →
   `UNVERIFIED — FE changed (<files>), no check exercises it`, which makes the gate `INCOMPLETE`. A changed surface
   with no exercising check never ends in `PASS`; vitest/tsc/eslint do not count as exercising it.
+- **Variant matrix (per check).** Reaching a surface once is not covering it. For each check, read the text it
+  came from — the REQ and its Contracts entry, or the `--concern` plus (`--concern` runs, when `--ticket` is
+  given) the Jira comment that concern restates, found via `getJiraIssue` with comments (the PO's / tester's
+  comment, not just the one-line concern) — and list every **variant dimension it names**: roles (who sees/can do
+  what), data states (empty, many, boundary), failure/undo paths ("on save error, revert"), permissions
+  ("only X can"). Only dimensions the text names; don't invent. Each variant is its own check (id `<n>.<variant>`)
+  or is recorded `not checked: <concrete reason>` (e.g. `no learner login`, never "n/a"). A named variant with
+  no passing check makes the check — and the gate — `INCOMPLETE`, whatever the other variants did. Missing
+  account, role or seed data for a variant → AskUserQuestion for it (or a fixture, per Running targets below);
+  don't skip it quietly. Only the user, interactively and explicitly, may waive a variant, and the waiver is
+  stated in the report. A check with no named dimensions has one variant — itself.
 - **Design contract (Part A):** `--contract <path>`, else `specs/NNN/design-contract.md`. None, or no FE in
   scope → Part A is skipped; say so in the report. Its `fidelity:` field selects the diff method (A2).
 - **Running targets:** FE `--url <route>`, BE `--api <base-url>`. Absent → probe for a running dev server /
@@ -119,8 +130,10 @@ for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`
   value is right (plus the wrong value from before, for a bug). Then Read the file back and confirm it holds no
   token, credential or real personal data (redact to `[REDACTED]`).
 - **Both** → both kinds, ideally through the FE flow.
-Result per check: `PASS` (evidence path) · `FAIL` (expected → actual, with the evidence that shows the failure)
-· `UNVERIFIED` (the exact blocker). A requirement whose behavior this change did not touch is still checked if
+Run it once per variant from the matrix (Step 1) — e.g. the Manager login, then the Admin login — each with its
+own evidence file (`<id>-<variant>-after.png`). Result per check: `PASS` (evidence path; **every** named variant
+passed) · `FAIL` (expected → actual, with the evidence that shows the failure)
+· `UNVERIFIED` (the exact blocker, or a variant marked `not checked`). A requirement whose behavior this change did not touch is still checked if
 it is in scope — "not changed" is not a result.
 
 ## Part A — UI fidelity (only when a design contract exists)
@@ -172,6 +185,8 @@ REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
 2-fe     FE  ⚠️ UNVERIFIED  changed ai-roleplay/src/…/BuilderStep2Audience.tsx, no check exercised it
 ```
+Under each check with named variants, at most one matrix line — `roles: admin ✅ manager ✅ learner ⏸ not checked:
+no learner login` · `save: ok ✅ error→reverts ✅`. A `⏸ not checked` variant counts as `UNVERIFIED` for the gate.
 Under it, one line per changed surface: `surface coverage: FE <files> → check <id>` (or `→ none`), same for BE.
 UI fidelity (Part A), blocking first, each as expected → actual → fix:
 ```
@@ -245,6 +260,9 @@ until PASS) and `/review-changes` (either order) → `/pr`. `/bugfix` calls it w
 - **The caller's concern is not the scope.** `/bugfix` hands in the bug it just fixed; a later fix on another
   surface (a BE fix, then an FE picker change) is only caught by the diff — and only if `/verify` runs after the
   last code change.
+- **One variant is not the check.** A picker driven only as Admin, when the requirement says Manager sees only
+  their groups and only Manager/Admin may use it, proves one row of the matrix. The unrun variants are
+  `INCOMPLETE`, not a note under a `PASS`.
 - **Open the screenshot.** The evidence is what the PNG shows, not that a file exists.
 - **Non-production only.** Driving a scenario creates test data; do it on local/dev/staging and never against prod.
 - **Business words stay out of this file's reach:** raw requests, endpoints and table names are fine in evidence
