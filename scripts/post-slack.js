@@ -2,6 +2,7 @@
 // post-slack.js — post ONE Slack message as the user, optionally with files/images attached.
 //
 //   usage: node post-slack.js <channel_id> <thread_ts|-> [file ...]   < message text on stdin
+//          node post-slack.js edit <channel_id> <ts>                  < new message text on stdin
 //          node post-slack.js --self-test
 //
 // <thread_ts> is the ROOT; `-` only for a top-level DM. No files -> chat.postMessage. With files ->
@@ -12,6 +13,10 @@
 //   exit 3  $SLACK_REVIEW_TOKEN unset (user token; files need the files:write scope).
 //   exit 4  Slack rejected a call — prints `SLACK_ERROR: <error>` (msg_too_long, missing_scope, …).
 //   exit 5  a file is unusable (missing, not a regular file, empty, or looks like a secret) — nothing posted.
+//
+// `edit` replaces the text of a message the token's owner posted (chat.update, scope chat:write — nothing new):
+// prints `OK ts=<ts>`; someone else's message -> `SLACK_ERROR: cant_update_message`; a closed edit window or a
+// wrong ts -> `edit_window_closed` / `message_not_found` (exit 4). Text only: a message's attachments stay as they are.
 //
 // Text goes via stdin and the token via env, so neither lands in argv / shell history. Never prints the token.
 // SLACK_API_BASE exists only so --self-test can point at a local mock.
@@ -90,15 +95,25 @@ async function post({ api = API, token, channel, thread, text, files = [] }) {
   return shares?.[0]?.ts ?? '-';
 }
 
+async function edit({ api = API, token, channel, ts, text }) {
+  return (await slack(api, token, 'chat.update', { channel, ts, text })).ts;
+}
+
 async function main() {
-  const [channel, thread, ...files] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const editing = args[0] === 'edit';
+  const [channel, thread, ...files] = editing ? args.slice(1) : args;
   const token = process.env.SLACK_REVIEW_TOKEN;
   if (!token) { console.error('SLACK_REVIEW_TOKEN is not set — export the user token (xoxp-…, scopes chat:write, files:write).'); process.exit(3); }
-  if (!channel || !thread) { console.error('usage: post-slack.js <channel_id> <thread_ts|-> [file ...] < text'); process.exit(2); }
+  if (!channel || !thread || (editing && files.length)) {
+    console.error('usage: post-slack.js <channel_id> <thread_ts|-> [file ...] < text\n       post-slack.js edit <channel_id> <ts> < new text');
+    process.exit(2);
+  }
   const text = fs.readFileSync(0, 'utf8').trim();
-  if (!text && !files.length) { console.error('nothing to post: empty text and no files'); process.exit(2); }
+  if (!text && (editing || !files.length)) { console.error(editing ? 'nothing to edit in: empty text' : 'nothing to post: empty text and no files'); process.exit(2); }
   try {
-    const ts = await post({ token, channel, thread: thread === '-' ? '' : thread, text, files });
+    const ts = editing ? await edit({ token, channel, ts: thread, text })
+                       : await post({ token, channel, thread: thread === '-' ? '' : thread, text, files });
     console.log(`OK ts=${ts}`);
   } catch (e) {
     if (!(e instanceof Fail)) throw e;
@@ -120,6 +135,7 @@ async function selfTest() {
       if (m === 'upload') return res.end('OK');
       const out = {
         'chat.postMessage': { ok: true, ts: '1.000001' },
+        'chat.update': m === 'chat.update' && JSON.parse(b).ts === 'locked' ? { ok: false, error: 'cant_update_message' } : { ok: true, ts: '9.000009' },
         'files.getUploadURLExternal': { ok: true, file_id: 'F1', upload_url: `http://127.0.0.1:${srv.address().port}/upload` },
         'files.completeUploadExternal': { ok: true, files: [{ id: 'F1', shares: { public: { C1: [{ ts: '2.000002' }] } } }] },
       }[m] ?? { ok: false, error: 'unknown_method' };
@@ -160,6 +176,13 @@ async function selfTest() {
   for (const ok of [keynote, secretPng]) await post({ ...base, files: [ok] }); // false positives of the old basename check
 
   await assert.rejects(post({ ...base, api: api + '/x' }), (e) => e.code === 4, 'Slack error -> exit 4');
+
+  calls.length = 0;
+  assert.strictEqual(await edit({ api, token: 't', channel: 'C1', ts: '9.000009', text: 'new' }), '9.000009', 'edit -> chat.update');
+  assert.deepStrictEqual(calls.map((c) => c.m), ['chat.update']);
+  assert.deepStrictEqual(JSON.parse(calls[0].b), { channel: 'C1', ts: '9.000009', text: 'new' });
+  await assert.rejects(edit({ api, token: 't', channel: 'C1', ts: 'locked', text: 'x' }),
+    (e) => e.code === 4 && /cant_update_message/.test(e.message), "someone else's message -> exit 4");
   srv.close(); fs.rmSync(dir, { recursive: true });
   console.log('self-test ok');
 }

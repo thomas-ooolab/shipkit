@@ -62,6 +62,11 @@ needs `files:write`, re-install it) · **5** a file is unusable or looks like a 
 After **4** or **5** on a send with attachments, never fall back to re-sending the text alone: the text
 refers to the attachment ("ảnh bên dưới"), so it would post a reply that points at nothing. Tell the user
 what failed and wait; they decide to fix the cause and re-run the same send, drop the file, or reword.
+**Correcting a message already sent** (a typo, a wrong fact) → edit it, don't post a second one: the same script
+with `edit <channel_id> <ts>` and the new text on stdin (`ts` = the `OK ts=` it printed, or the message's own ts).
+Same approval as any send — show the new text first. Text only; it edits only the user's own messages: **4**
+`cant_update_message` / `edit_window_closed` / `message_not_found` → say so, and offer a short correcting reply in
+the thread instead (never silently re-post the whole message).
 Over-long text → split at point boundaries into sequential thread replies marked `(1/2)`, `(2/2)`;
 files go on part 1. Read the thread with `conversations.replies` (`channel`, `ts=<root>`) and resolve
 `my_account_id` with `auth.test`.

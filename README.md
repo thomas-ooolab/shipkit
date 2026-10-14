@@ -162,7 +162,9 @@ only — never message text. Both drop your own messages. Slack allows ~10 concu
 app: one per watched thread in URL mode, one in total for the observer. Observer gaps: messages posted
 while the socket reconnects (~2s) are not replayed. Check the scripts without Slack:
 `node scripts/wait-for-slack-event.js --self-test`, `node skills/developer/observe-slack.js --self-test`,
-`node scripts/post-slack.js --self-test`.
+`node scripts/post-slack.js --self-test`. `post-slack.js` also edits a message you already posted:
+`node scripts/post-slack.js edit <channel_id> <ts> < new-text` (`chat.update`; same `chat:write` scope, your own
+messages only, text only — attachments stay).
 
 ## Design fidelity loop (UI tickets with a mockup)
 
