@@ -128,13 +128,20 @@ AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIF
   one you seeded for a localhost app. **Tell the user before bringing Chrome to the foreground** — it takes over
   their screen.
 - **Evidence images come only from the browser tool** (`browser_take_screenshot` or the extension's screenshot).
-  Never OS-level `screencapture`, or any image the browser tool did not produce: it captures whatever sits on top
-  of the screen (it once caught the Orca window and a personal Google Sheet). Open every image (Read) before it is
-  attached; one showing anything outside the app is deleted, not attached.
-- **Native `<select>`:** the popup is drawn by the browser, and no tool captures it (headless has no window; the
-  extension's click doesn't open it). List the options from the DOM into the evidence `.txt`; if an image is
-  needed, set `select.size = <option count>` via `browser_evaluate` so it renders as a listbox, screenshot it,
-  and caption it "list shown expanded". Don't try a third way.
+  Never a full-screen `screencapture`, or `-R` on any region that isn't a window you opened yourself, nor any
+  other image the browser tool did not produce: it captures whatever sits on top of the screen (it once caught
+  the Orca window and a personal Google Sheet). The one exception is the script below. Open every image (Read)
+  before it is attached; one showing anything outside the app is deleted, not attached.
+- **A state the browser tool can't capture** (anything the browser draws outside the page: a native `<select>`
+  popup, a date picker — headless has no window, and an extension click doesn't open it). Always put what the
+  page's own state says (e.g. a select's options, read from the DOM) in the evidence `.txt`. For an image on
+  macOS run `node "${CLAUDE_PLUGIN_ROOT}/scripts/capture-native-popup.js" --fe <FE dir with node_modules/playwright>
+  --setup <login+goto module> --click <css> --out <png>`: a visible Chromium whose Playwright click opens the
+  popup; it captures that window by id and the popup by `-R` on its own layer-101 rectangle (the only `-R`
+  allowed), and composites them. Header of the script has the details; it needs Screen Recording permission and
+  the window on the visible display, so tell the user a Chromium window will appear. Where that can't run, render
+  the same content where the tool can capture it (e.g. `browser_evaluate` setting `select.size = <option count>`)
+  and caption it as altered ("list shown expanded"). Don't try any other capture.
 - **Local login: seed a dedicated test user** rather than using an account from a Jira comment — only on the
   user's yes, only in the local DB. Insert the user + membership rows with `psql -tAq` (with `RETURNING`, take
   the first line: it also prints `INSERT 0 1`); password random from Python `secrets`, hash
