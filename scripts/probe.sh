@@ -128,8 +128,8 @@ case "${1:-}" in
     if [ -z "$ticket" ]; then echo "STATE_ERROR=no-ticket" >&2; exit 2; fi
     echo "TICKET=$ticket"
     if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
-    # spec: match frontmatter `ticket:` first, then a dir name containing the ticket
-    specfile=$(grep -rl "ticket:[[:space:]]*$ticket" specs/*/spec.md 2>/dev/null | head -1)
+    # spec: match frontmatter `ticket:` (or `jira:`, older specs) first, then a dir name containing the ticket
+    specfile=$(grep -rlE "^(ticket|jira):[[:space:]]*\"?$ticket\"?[[:space:]]*$" specs/*/spec.md 2>/dev/null | head -1)
     if [ -n "$specfile" ]; then echo "SPEC=$(dirname "$specfile")"; else
       d=$(ls -d specs/*"$ticket"* 2>/dev/null | head -1); echo "SPEC=${d:-none}"; fi
     echo "BRANCHES:"

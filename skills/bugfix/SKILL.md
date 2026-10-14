@@ -82,8 +82,10 @@ A ticket can have concerns in different buckets at once — classify each on its
    requirement whose behavior is broken), then run `/assign <TICKET> --only <submodules> --agent kiro` and wait for its
    report: it opens a kiro terminal per submodule, which commits and pushes to the feature branch — so here the push
    comes before `/verify`; a `FAILED` verify means new tasks and another `/assign`, never a claim in Jira. If `/assign`
-   asks about a submodule already in progress, that is the user's answer, not yours. No `spec.md` for the ticket → say so
-   and fix inline as without the flag.
+   asks about a submodule already in progress, that is the user's answer, not yours. `probe.sh state` gives `SPEC=none`,
+   or `/assign` stops for any other reason → **stop and tell the user why** (Vietnamese, one line); never fall back to
+   fixing inline — the flag means kiro writes the fix, and an inline fix by claude is not what was asked. Inline is only
+   for a run without `--agent kiro`.
    **Then prove it with `/verify`** — a passing unit test is not a pass. Run `/verify --ticket <TICKET> --concern "<the reported scenario, in the tester's words>"` once per real-defect concern (repeat `--concern`). It owns the mechanics: it drives the report's exact steps on the running app, checks the adjacent happy path, and saves evidence under `.shipkit/evidence/<TICKET>/` — **FE → a screenshot** (opened and checked), **BE → request/response and data proof** (redacted) — then emits `verify: PASS | FAILED | INCOMPLETE`. Called with `--concern` it posts nothing to Jira; this skill's own tick comment (3.3) carries the proof.
    **A concern is `fixed` only when `/verify` returns PASS for it and its evidence file exists.** `FAILED` → keep fixing; `INCOMPLETE` (can't run: missing env, creds, data) → say exactly what blocked you and ask me. Not proven yet = not passed: don't push-and-announce it, don't check it off, don't claim it in the Jira comment. Push only after PASS (`--agent kiro`: kiro already pushed — still nothing is claimed or checked off before PASS).
 2. Leave not-a-defect and needs-decision concerns as comments only — no code changes yet.
