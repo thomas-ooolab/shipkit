@@ -119,6 +119,7 @@ auto-trigger it by description.
 
 | Skill | Role |
 |---|---|
+| `/shipkit:help [<use case>]` | **Lost? Start here** — prints the installed shipkit version and drafts step-by-step instructions (which skills, in what order, your ticket filled in, prerequisites, where you must approve) for a use case; `/shipkit:help <skill>` shows one skill. Read-only. |
 | `/fix-permissions` | One-time per-repo — allow the read-only probe so injected context can run |
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
 | `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
