@@ -154,7 +154,8 @@ The `screenshot` tier needs **no** browser and **no** extension.
 Same as 4a from step 2 on, but first resolve **auth**:
 - `browser_navigate` to the URL, then `browser_snapshot`. If the snapshot shows a login/sign-in wall
   (Claude design links require your session), the isolated Playwright browser can't see it — you need
-  **your** Chrome:
+  **your** Chrome (risks and rules: `/verify` Step 2 → "Browser tool"; tell the user before taking Chrome to the
+  foreground):
   - Interactive → AskUserQuestion `["This design link needs your login. Connect Playwright to your
     Chrome (via the Playwright Chrome extension) and open the design tab, then retry?", "I've enabled
     the extension + opened the tab — retry", "Cancel"]`. On retry, re-`browser_snapshot`; only a

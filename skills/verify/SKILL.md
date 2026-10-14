@@ -49,7 +49,8 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
    and `--no-jira` never post — the caller's own comment carries the evidence. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
-   click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only.
+   click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
+   except seeding a local test login on the user's yes (Step 2, Browser tool).
    The Part A fidelity measurement stays read-only (navigate + computed styles + screenshot, no form submits).
    Start no server on your own: when the app isn't running, ask (Step 1) and start it only on the user's yes,
    through the project's runbook.
@@ -115,13 +116,38 @@ FE checks and Part A need Playwright MCP browser tools (as in `/design-recon` St
 AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIFIED` and the gate line says
 `verify: INCOMPLETE — Playwright MCP required`. BE checks need only `curl`/the service's own client.
 
+### Browser tool — Playwright first, claude-in-chrome only when it must be the user's Chrome
+- **Default: Playwright MCP** (`browser_*`). It is its own browser with its own profile and never touches the
+  user's tabs or sessions. Use it for every FE check on a local/dev/staging app with a test account: read the DOM
+  (`browser_evaluate`, e.g. list a select's options), `browser_take_screenshot`, drive the flow.
+- **claude-in-chrome only when the user's real Chrome is required:** the page opens only for a logged-in user
+  (an auth-walled design link in `/design-recon`, SSO, an extension) or needs the user's own session or cookies.
+  Say these risks to the user first: the window also holds their other tabs and bookmarks (private data can leak
+  into a read or a screenshot); Chrome autofills their real accounts into login forms; the agent's tab runs in the
+  background, not the one on screen; it cannot type a password except a test account the user typed in chat or
+  one you seeded for a localhost app. **Tell the user before bringing Chrome to the foreground** — it takes over
+  their screen.
+- **Evidence images come only from the browser tool** (`browser_take_screenshot` or the extension's screenshot).
+  Never OS-level `screencapture`, or any image the browser tool did not produce: it captures whatever sits on top
+  of the screen (it once caught the Orca window and a personal Google Sheet). Open every image (Read) before it is
+  attached; one showing anything outside the app is deleted, not attached.
+- **Native `<select>`:** the popup is drawn by the browser, and no tool captures it (headless has no window; the
+  extension's click doesn't open it). List the options from the DOM into the evidence `.txt`; if an image is
+  needed, set `select.size = <option count>` via `browser_evaluate` so it renders as a listbox, screenshot it,
+  and caption it "list shown expanded". Don't try a third way.
+- **Local login: seed a dedicated test user** rather than using an account from a Jira comment — only on the
+  user's yes, only in the local DB. Insert the user + membership rows with `psql -tAq` (with `RETURNING`, take
+  the first line: it also prints `INSERT 0 1`); password random from Python `secrets`, hash
+  `htpasswd -bnBC 10 x <pw> | cut -d: -f2` with the `$2y$` prefix changed to `$2a$` (the BE's bcrypt accepts it);
+  keep the password in a `0600` file in the scratchpad and never print it in chat.
+
 ## Part B — Behavior checks (every ticket)
 
 ### Step 3 — Exercise each check and capture evidence
 For each check, reproduce its scenario end to end on the running system, then also run the **adjacent happy
 path** (the neighbouring flow it could have broken) and watch the console/network (FE) or logs/status codes (BE)
 for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`:
-- **FE → a screenshot (PNG)** of the page in the state the requirement expects, after driving the exact steps
+- **FE → a screenshot (PNG)** from the browser tool (Step 2) of the page in the state the requirement expects, after driving the exact steps
   (plus a `-before.png` of the bug when you reproduced one first). **Open the PNG yourself (Read) and confirm it
   shows the expected behavior** — a screenshot of the login page, the wrong screen, or an unchanged bug is not
   evidence; discard it and retake.
