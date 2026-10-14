@@ -93,7 +93,6 @@ remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 jira:
   base_url: <asked>          # e.g. https://ooolab.atlassian.net
   project_key: <asked>       # e.g. AR
-  done_transition: "Done"    # Bitbucket has no labels; pipeline state lives in Jira transitions
   # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"
@@ -119,7 +118,6 @@ remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 jira:
   base_url: <asked>
   project_key: <asked>
-  done_transition: "Done"
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"              # optional, used by /merge
   # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
