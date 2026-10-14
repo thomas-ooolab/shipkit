@@ -145,16 +145,25 @@ waiting on any of them:
    receipt that only says `input_accepted` — it proves nothing about which program got the text: `terminal read`
    and confirm the agent is working (e.g. "Thinking") before counting it started. Text landed in a shell → close
    that terminal, `❌ brief landed in a shell`.
-4. Then per handle, in one message with `run_in_background: true`: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
-   <handle> --git <PATH> <branch>` (`<branch>` = what `probe.sh branch <ticket> <submodule>` printed; add
-   `--timeout-s` to change the 30-minute default). It decides from the screen, not from a final line — the agent
-   may finish in plain prose — and one notification arrives per handle. Read its `STATE` / `PUSHED` / `CLEAN`
-   lines (the screen tail follows them): `done` + `PUSHED=yes` + `CLEAN=yes` → the agent finished; show the
-   screen tail and take its `✅ implemented <path> (N/M tasks)` line as a hint for the task count, not as the
-   trigger (no such line → count from the commit and the spec's tasks). `done` with `PUSHED=no` or `CLEAN=no` →
-   `❌ not pushed` / `❌ dirty tree`. `timeout` → still working: relaunch the same command. `gone` / `login` /
-   `shell` → `❌ agent did not finish — <state>`. `attention` (stopped on a permission prompt) → `❌ needs
-   attention — terminal <handle>`: tell the user, and never answer a prompt on their behalf.
+4. **Arm the watcher — part of the send, not a later step.** In the *same message* that confirms the agent is
+   working, start per handle with `run_in_background: true`: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
+   <handle> --git <PATH> <branch>` (`<branch>` = what `probe.sh branch <ticket> <submodule>` printed; `--timeout-s`
+   changes the 30-minute default). This holds for **every** brief sent to a terminal: a new one, a reused or
+   already-open one, and a later follow-up or fix brief to the same terminal. A parallel wave arms all its
+   watchers together, one per handle; if one is already running for that handle, don't start a second. **No brief
+   is delivered until its watcher runs**, and a turn never ends after a send with none armed. The script decides
+   from the screen, not a final line (the agent may finish in plain prose) and sends one notification per handle.
+   When it arrives, act without asking the user: read `STATE` / `PUSHED` / `CLEAN` (the screen tail follows),
+   confirm with git — never the agent's last line — then report, start the next wave, or hand the result to review.
+   Never answer "is it done?" from memory: read the watcher's output, or run the script once.
+   - `done` + `PUSHED=yes` + `CLEAN=yes` → finished; show the screen tail, and take its `✅ implemented <path>
+     (N/M tasks)` line as a hint for the task count, not the trigger (no such line → count from the commit and the
+     spec's tasks).
+   - `done` with `PUSHED=no` or `CLEAN=no` → report "agent finished but not pushed" / "…not clean" (`❌ not
+     pushed` / `❌ dirty tree`), never success.
+   - Any other `STATE` — `timeout`, `gone`, `login`, `shell`, `attention` (a permission prompt) — is reported to the
+     user once, with the terminal handle (`❌ agent did not finish — <state>`); `timeout` also relaunches the same
+     command. Never answer a prompt on their behalf.
 Leave terminals open so the user can read them; record the handles in the state file. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
 Step 3's "confirm the agent is working" rule applies to a reused terminal too.
@@ -191,6 +200,8 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
   exists.** A fresh kiro spends minutes loading before it accepts input and knows nothing of the earlier wave's
   output; a finished one at its prompt is ready now and has that context. Never reuse a terminal that is working,
   on a permission prompt, or of another kind.
+- **Sending a brief without arming `wait-for-agent.sh` is an unfinished delivery.** No watcher, no notification —
+  the user ends up asking whether the agent is done.
 - **Trust git, not the agent's last line.** Before checking off tasks, confirm via `probe.sh state` that
   the feature branch exists and is pushed (`unpushed=0`); otherwise record `❌ not pushed`.
 - **This is not `/pr --implement`.** That flag lives inside `/pr`'s own PR-opening flow and only
