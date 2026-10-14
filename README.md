@@ -246,7 +246,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" delete AR-526 <comment-i
 | `[text](https://url)` | link |
 | `- item` / `1. item` | bullet / numbered list |
 | `# Heading` | heading |
-| `![caption](/abs/path.png)` on its own line, or `--image path[:caption]` | inline image (uploaded as an attachment, caption in italics) |
+| `![caption](/abs/path.png)` on its own line, or `--image path[:caption]` | inline image below the text (uploaded as an attachment, caption in italics) |
+| `![caption](/abs/path.png)` inside a table cell | the image in that cell (wide table, wide last column); an already-attached same-name file is reused |
 | blank line / single newline | new paragraph / line break |
 
 Exit codes: 0 ok · 2 bad usage · 3 env vars missing (skills fall back to MCP; mentions won't notify) ·

@@ -245,17 +245,17 @@ Applies when the checks came from the spec (no `--concern`), `--no-jira` is abse
 `FAILED` / `INCOMPLETE` post nothing — fix or unblock first. Bugfix runs (`--concern`) skip this step: the
 verification proof rides in `/bugfix`'s own Jira comment.
 1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
-   attach below it). One row per check, in this shape:
+   sit inside the table, in the evidence cells — never below it). One row per check, in this shape:
    ```
    | /verify | Yêu cầu | FE/BE | Kiểm tra | Kết quả | Bằng chứng |
    |---|---|---|---|---|---|
-   | REQ-001 | <the requirement in business words> | FE | <what was done> | ✅ PASS | Screenshot 1 bên dưới |
+   | REQ-001 | <the requirement in business words> | FE | <what was done> | ✅ PASS | ![Screenshot 1 — REQ-001](/abs/path/REQ-001-after.png) |
    | REQ-002 | <…> | BE | <what was done> | ✅ PASS | `GET /…/digest/weekly` → 200, `calls_total` = 1; truy vấn dữ liệu: 1 |
-   | UI | Khớp design-contract.md | FE | desktop / tablet / mobile | ✅ PASS | Screenshot 2 bên dưới |
+   | UI | Khớp design-contract.md | FE | desktop / tablet / mobile | ✅ PASS | ![Screenshot 2 — UI](/abs/path/ui-desktop.png) |
    ```
-   The `UI` row appears only when Part A ran. Every FE screenshot is attached via `--image <png>:<caption>`
-   with a caption naming its REQ (`Screenshot 1 — REQ-001`); the table cell cites it as "Screenshot n bên
-   dưới". The BE cell holds a **redacted** excerpt (method + path, status, the key fields that show the
+   The `UI` row appears only when Part A ran. Every FE screenshot is a `![caption](path)` token in its row's
+   evidence cell (several per cell, space-separated), the caption naming its REQ; `jira-comment.py` uploads
+   it (reusing one already attached) and embeds it in the cell — no `--image`. The BE cell holds a **redacted** excerpt (method + path, status, the key fields that show the
    requirement holds) — never a token, credential, real personal data or raw database dump; the full file
    stays in `.shipkit/evidence/`. Write the cells in the language of the ticket's comments. A pipe inside a
    cell is written `\|`.
@@ -268,12 +268,15 @@ verification proof rides in `/bugfix`'s own Jira comment.
    → don't post: ask the user whether to create it anew.
 3. Show the user the exact text and the attachment list, labelled **"will EDIT comment <id>"** or **"will POST
    the first evidence comment"**; **wait for explicit approval** ("post it" / "change X" / "skip"). Unapproved =
-   not posted; say so in the report.
-4. Send it (PNG only; one `--image` per screenshot):
-   - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md> --image <png>:<caption> ...`
+   not posted; say so in the report. Once the user approved the exact text, a change of **layout only** (where
+   images sit, column widths) needs no new approval; a change of **wording** is shown again first.
+4. Send it (PNG only, each opened and checked before it is embedded):
+   - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`
      then save the printed comment id to `.shipkit/evidence/<TICKET>/jira-comment-id`;
-   - re-run: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit <TICKET> <COMMENT_ID> --file <draft.md> --image <png>:<caption> ...`
+   - re-run: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit <TICKET> <COMMENT_ID> --file <draft.md>`
      — the body is replaced in place; the table always shows the **latest** result of every row.
+   The script reads the saved comment back and prints `"images": {"in_table": n, "outside_table": m}`: `in_table`
+   must equal the screenshots you embedded and `outside_table` must be `0` — otherwise say so, don't report it done.
    **Never run `post` when an evidence comment exists, not even if `edit` fails** — an edit that errors (exit 4,
    e.g. the comment belongs to someone else) → stop, tell the user the evidence was **not** updated and why.
    Exit 3 (Jira env unset) → don't skip silently and don't fall back to a mention-less MCP comment: tell the user

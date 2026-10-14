@@ -15,10 +15,14 @@ Exit: 0 ok, 2 bad usage, 3 env missing, 4 Jira rejected (incl. failed upload / m
 Markdown subset: @[Name](accountId)  @[](accountId) (name looked up)  **bold**  `code`
 [text](https://url)  "- " bullets  "1. " ordered  "# " headings  blank line = paragraph,
 single newline = hard break  pipe tables ("| a | b |" + "|---|---|" + rows; first row = header,
-"\\|" = a literal pipe; images go below the table, not in cells).
+"\\|" = a literal pipe).
 Images: a line `![caption](/abs/path.png)` becomes an inline image (italic caption paragraph above
-it); `--image PATH[:CAPTION]` appends images at the end. Each file is uploaded once as an issue
-attachment, then embedded. --dry-run uploads nothing: it prints the ADF and lists the files.
+it); `--image PATH[:CAPTION]` appends images at the end (outside any table). The same token inside a
+table cell (several allowed, space-separated) puts the images IN that cell, and a table with images
+gets layout "wide" and a wide last column. A file is uploaded once as an issue attachment, then
+embedded; one already attached to the ticket (same filename and size) is reused, so `edit` never
+duplicates uploads. --dry-run uploads nothing: it prints the ADF and lists the files. After a post/edit
+the printed JSON has "images": {"in_table": n, "outside_table": m} counted from the saved comment.
 `edit` replaces the comment body in place without re-notifying (notifyUsers=false).
 """
 import base64, json, os, re, struct, sys, urllib.error, urllib.parse, urllib.request, uuid
@@ -92,14 +96,38 @@ def table_cells(line):
     return [c.strip().replace("\\|", "|") for c in parts]
 
 
-def table_block(ls, names):
-    rows = []
+def cell_blocks(c, names, images):
+    """-> (blocks, image count). `![cap](path)` tokens become caption + mediaSingle blocks after the cell's text."""
+    ims = list(IMG_LINE.finditer(c))
+    if not ims:
+        return [{"type": "paragraph", "content": inline(c, names)}], 0
+    if images is None:
+        die(2, f"image {ims[0].group('path')!r} found but no image resolver")
+    rest = IMG_LINE.sub("", c).strip()
+    out = [{"type": "paragraph", "content": inline(rest, names)}] if rest else []
+    for m in ims:
+        out += image_blocks(m.group("cap"), images(m.group("path")))
+    return out, len(ims)
+
+
+def table_block(ls, names, images=None):
+    rows, n_img = [], 0
     for i, ln in enumerate([ls[0]] + ls[2:]):
         kind = "tableHeader" if i == 0 else "tableCell"
-        rows.append({"type": "tableRow", "content": [
-            {"type": kind, "attrs": {}, "content": [{"type": "paragraph", "content": inline(c, names)}]}
-            for c in table_cells(ln)]})
-    return {"type": "table", "attrs": {"isNumberColumnEnabled": False, "layout": "default"}, "content": rows}
+        cells = []
+        for c in table_cells(ln):
+            content, k = cell_blocks(c, names, images)
+            n_img += k
+            cells.append({"type": kind, "attrs": {}, "content": content})
+        rows.append({"type": "tableRow", "content": cells})
+    layout = "default"
+    if n_img:  # a 1280px screenshot shrinks to nothing in a narrow column: wide table, wide last column
+        layout, n = "wide", max(len(r["content"]) for r in rows)
+        widths = [max(110, 470 // (n - 1))] * (n - 1) + [500] if n > 1 else [970]
+        for r in rows:
+            for j, cell in enumerate(r["content"]):
+                cell["attrs"] = {"colwidth": [widths[j]]}
+    return {"type": "table", "attrs": {"isNumberColumnEnabled": False, "layout": layout}, "content": rows}
 
 
 def build_adf(md, names, images=None):
@@ -116,7 +144,7 @@ def build_adf(md, names, images=None):
             blocks += image_blocks(im.group("cap"), images(im.group("path")))
             continue
         if len(ls) >= 3 and all(l.lstrip().startswith("|") for l in ls) and SEP_ROW.fullmatch(ls[1].strip()):
-            blocks.append(table_block(ls, names))
+            blocks.append(table_block(ls, names, images))
             continue
         kind = pat = None
         if all(re.match(r"- ", l) for l in ls):
@@ -146,6 +174,18 @@ def mention_ids(node):
     elif isinstance(node, list):
         for v in node:
             yield from mention_ids(v)
+
+
+def media_counts(node, in_table=False):
+    n = {"in_table": 0, "outside_table": 0}
+    if isinstance(node, dict):
+        if node.get("type") == "mediaSingle":
+            n["in_table" if in_table else "outside_table"] += 1
+        inside = in_table or node.get("type") in ("tableCell", "tableHeader")
+        for c in node.get("content") or []:
+            for k, v in media_counts(c, inside).items():
+                n[k] += v
+    return n
 
 
 def die(code, msg):
@@ -250,7 +290,15 @@ def media_uuid(att_id):
 
 
 def make_resolver(ticket, dry):
-    seen = {}
+    seen, attached = {}, []
+
+    def existing(path):
+        """id of the newest attachment already on the ticket with this filename AND size (a retaken
+        screenshot under the same name has another size, so it is uploaded, not silently reused)."""
+        if not attached:
+            attached.append(call("GET", f"/rest/api/3/issue/{ticket}?fields=attachment")["fields"].get("attachment") or [])
+        same = [a for a in attached[0] if a.get("filename") == os.path.basename(path) and a.get("size") == os.path.getsize(path)]
+        return max(same, key=lambda a: int(a["id"]))["id"] if same else None
 
     def resolve(path):
         path = os.path.expanduser(path)
@@ -261,7 +309,7 @@ def make_resolver(ticket, dry):
                 print(f"[dry-run] would upload {path} to {ticket}", file=sys.stderr)
                 seen[path] = ("<uuid-after-upload>", *png_size(path))
             else:
-                seen[path] = (media_uuid(upload_attachment(ticket, path)), *png_size(path))
+                seen[path] = (media_uuid(existing(path) or upload_attachment(ticket, path)), *png_size(path))
         return seen[path]
     return resolve
 
@@ -346,7 +394,10 @@ def cmd_edit(args):
 def report(ticket, res, want):
     got = set(mention_ids(res.get("body")))
     cid = res.get("id")
-    print(json.dumps({"id": cid, "url": f"{env()['JIRA_URL']}/browse/{ticket}?focusedCommentId={cid}", "mentions": sorted(got)}))
+    out = {"id": cid, "url": f"{env()['JIRA_URL']}/browse/{ticket}?focusedCommentId={cid}", "mentions": sorted(got)}
+    if "mediaSingle" in json.dumps(res.get("body")):  # read the comment back: where did the images end up?
+        out["images"] = media_counts(call("GET", f"/rest/api/3/issue/{ticket}/comment/{cid}")["body"])
+    print(json.dumps(out))
     missing = [i for i in want if i not in got]
     if missing:
         die(5, f"comment {cid} saved but mention(s) did not come back as mention nodes: {', '.join(missing)}")
@@ -398,6 +449,19 @@ def self_test():
     assert [c["type"] for c in t["content"][0]["content"]] == ["tableHeader", "tableHeader"]
     assert t["content"][1]["content"][1]["content"][0]["content"][-1]["text"] == " a | b"
     assert list(mention_ids(d)) == ["a:1"]
+    d = build_adf("Intro\n\n| REQ | Kết quả | Bằng chứng |\n|---|---|---|\n| REQ-1 | ✅ | ![Shot 1](/x/a.png) ![Shot 2](/x/b.png) |\n| REQ-2 | ✅ | n/a |",
+                  lambda i: i, lambda p: ("uuid-" + p[-5:], 640, 480))
+    t = d["content"][1]
+    assert t["attrs"]["layout"] == "wide", t["attrs"]
+    cell = t["content"][1]["content"][2]
+    assert [b["type"] for b in cell["content"]] == ["paragraph", "mediaSingle", "paragraph", "mediaSingle"], cell
+    assert cell["content"][0]["content"][0]["marks"] == [{"type": "em"}]  # caption above its image
+    assert cell["content"][1]["content"][0]["attrs"]["id"] == "uuid-a.png" and cell["content"][3]["content"][0]["attrs"]["id"] == "uuid-b.png"
+    assert [c["attrs"]["colwidth"] for c in t["content"][0]["content"]] == [[235], [235], [500]]
+    assert t["content"][2]["content"][2]["content"][0]["content"][0]["text"] == "n/a"  # image-less cell untouched
+    assert media_counts(d) == {"in_table": 2, "outside_table": 0}
+    d2 = build_adf("![Out](/x/c.png)\n\n" + "| a |\n|---|\n| b |", lambda i: i, lambda p: ("u", 1, 1))
+    assert media_counts(d2) == {"in_table": 0, "outside_table": 1} and d2["content"][2]["attrs"]["layout"] == "default"
     print("self-test ok")
 
 
