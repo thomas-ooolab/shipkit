@@ -1,7 +1,7 @@
 ---
 name: assign
 description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (same kind as the running agent) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /assign <jira-ticket | task>. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
-argument-hint: "<jira-ticket | task text> [--only <submodule,...>]"
+argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent claude|kiro]"
 ---
 
 # shipkit · assign
@@ -46,7 +46,8 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 
 ## Step 1 — Parse + pick mode
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
-`submodules[].name`, else stop: "`<name>` isn't a configured submodule.").
+`submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--agent claude|kiro` →
+`AGENT` (default `claude`, the running agent's own CLI; `kiro` runs `kiro-cli chat` and needs Orca mode).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
@@ -88,7 +89,7 @@ there, or skip?" (`--only <name>` alone does not imply force.)
 **Transport — pick once, before the first wave.** Resolve `ORCA` the way the `orca-cli` skill's stub says,
 then run `ORCA worktree current --json`. It succeeds (the session is inside an Orca-managed worktree)
 → **Orca mode** (below). Anything else — no CLI, Orca not running, not an Orca worktree — → **Agent
-mode**. Never `ORCA open` just to get Orca mode.
+mode**, except `--agent kiro`, which stops: "kiro runs only as an Orca terminal." Never `ORCA open` just to get Orca mode.
 
 **Agent mode.** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
 `general-purpose` (the running agent's own kind), `run_in_background: true`, no model override, no
@@ -114,8 +115,8 @@ Per submodule, `PATH` = its path,
 **Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
 `Agent`. For every submodule in the wave, do 1–3 before waiting on any of them:
-1. `ORCA terminal create --worktree active --title <NAME> --command claude --json` → keep the `handle`
-   (`claude` = the running agent's own CLI). The agent shares this checkout and owns only its `PATH`, as in
+1. `ORCA terminal create --worktree active --title <NAME> --command <AGENT command> --json` → keep the `handle`
+   (`claude` → `claude`, `kiro` → `"kiro-cli chat"`; never `--trust-all-tools`). The agent shares this checkout and owns only its `PATH`, as in
    Agent mode — never `worktree create` (a second checkout `probe.sh` can't see) or `orchestration task-create`.
 2. `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json`; send only when
    `wait.satisfied` is true, else that submodule is `❌ agent did not start`.
