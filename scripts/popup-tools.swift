@@ -33,7 +33,11 @@ if a[1] == "list" {
   ctx.draw(main, in: CGRect(x: 0, y: 0, width: main.width, height: main.height))
   // CoreGraphics' origin is bottom-left; window coordinates are top-left
   let dy = Double(main.height) - (py - my) * scale - Double(pop.height)
-  ctx.draw(pop, in: CGRect(x: (px - mx) * scale, y: dy, width: Double(pop.width), height: Double(pop.height)))
+  let popRect = CGRect(x: (px - mx) * scale, y: dy, width: Double(pop.width), height: Double(pop.height))
+  ctx.draw(pop, in: popRect)
+  // ring the popup so it is the first thing the eye finds in the window-sized image
+  ctx.setStrokeColor(CGColor(red: 0.88, green: 0.11, blue: 0.28, alpha: 1)); ctx.setLineWidth(4)
+  ctx.stroke(popRect.insetBy(dx: -4, dy: -4))
   let dest = CGImageDestinationCreateWithURL(URL(fileURLWithPath: a[4]) as CFURL, "public.png" as CFString, 1, nil)!
   CGImageDestinationAddImage(dest, ctx.makeImage()!, nil)
   CGImageDestinationFinalize(dest)

@@ -133,7 +133,9 @@ AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIF
 - **Evidence images come only from the browser tool** (`browser_take_screenshot` or the extension's screenshot).
   Never a full-screen `screencapture`, or `-R` on any region that isn't a window you opened yourself, nor any
   other image the browser tool did not produce: it captures whatever sits on top of the screen (it once caught
-  the Orca window and a personal Google Sheet). The one exception is the script below. Open every image (Read)
+  the Orca window and a personal Google Sheet). The one exception is the script below. Playwright MCP writes
+  relative to the repo root, so pass `filename` as `.shipkit/evidence/<TICKET>/<id>-<slug>-after.png`, or the
+  image (and a `.playwright-mcp/` log folder) lands in the repo — never commit that folder. Open every image (Read)
   before it is attached; one showing anything outside the app is deleted, not attached.
 - **A state the browser tool can't capture** (anything the browser draws outside the page: a native `<select>`
   popup, a date picker — headless has no window, and an extension click doesn't open it). Always put what the
@@ -160,7 +162,17 @@ for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`
 - **FE → a screenshot (PNG)** from the browser tool (Step 2) of the page in the state the requirement expects, after driving the exact steps
   (plus a `-before.png` of the bug when you reproduced one first). **Open the PNG yourself (Read) and confirm it
   shows the expected behavior** — a screenshot of the login page, the wrong screen, or an unchanged bug is not
-  evidence; discard it and retake.
+  evidence; discard it and retake. **Make the proof the obvious thing in the image.** A reader who wasn't there
+  must see in two seconds what you are proving, so: ① scroll the proving element into view and **ring it** — with
+  the page script of whichever tool takes the shot — Playwright MCP `browser_evaluate` then
+  `browser_take_screenshot`; a Playwright script `locator.evaluate(…)` then `page.screenshot()`; the extension's JS
+  tool — set `el.style.outline = '3px solid #e11d48'; el.style.outlineOffset = '3px'` on it (the value, the error,
+  the option, the missing button), only for the shot; reload or clear it before the next check
+  (`capture-native-popup.js` rings the popup itself; ring anything else from its `--setup` module); ② keep the
+  **whole screen** in the image (the viewer sees where it sits on the page) — no cropping to the ring, just make
+  sure the ringed element is in the viewport; ③ one claim per image (two things → two images, each with its own
+  ring), and its caption says what to look at ("the Replacement group list shows only the manager's 2 groups").
+  Read the PNG back: if you can't find the ring and the proof in it at a glance, retake it.
 - **BE → data or response proof** in a `.txt`/`.md`: the request (method, URL, payload), response status and
   body, and — when the requirement is about stored or computed data — the `SELECT` and its result showing the
   value is right (plus the wrong value from before, for a bug). Then Read the file back and confirm it holds no
