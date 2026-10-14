@@ -167,7 +167,8 @@ fails → tell the user and stop. Never `ORCA open`.
    already matches the key: **feature** → tell the user its path and terminal titles
    (`ORCA terminal list --worktree <id> --json`) and stop, never a second set; **bug** → reuse it, that is
    the ticket's feature branch and where the fix belongs.
-2. **Worktree + planner.** No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
+2. **Worktree + planner.** First `kiro-cli whoami` (kiro implements later): "Not logged in" → stop, create nothing,
+   tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại." No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
    `--prompt`, the planner takes several commands; keep `startupTerminal.handle`). Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
    whether or not that worktree has an active terminal; always new terminals, never type into an existing one.
@@ -180,8 +181,12 @@ fails → tell the user and stop. Never `ORCA open`.
    user typed → `Bug report from the developer: <their text, verbatim>`. Nothing else is ever sent — never Jira
    or Slack content. For each message:
    - **Ready:** `terminal wait --for tui-idle --timeout-ms 60000`; `wait.satisfied` false → once more with
-     `--timeout-ms 120000`; still false → `❌ agent did not start`, send nothing, tell the user.
-   - **Send:** `terminal send --text "<message>" --enter --wait-submit 10`; never resend on a receipt that only says `input_accepted`.
+     `--timeout-ms 120000`. Then `terminal read` until claude's own prompt box is on screen — `tui-idle` alone is not
+     enough, a bare shell is idle too. Still false, or a shell prompt on screen → `❌ agent did not start`, close that
+     terminal (`terminal close --terminal <handle>`), send nothing, tell the user.
+   - **Send:** `terminal send --text "<message>" --enter --wait-submit 10`; never resend on a receipt that only says
+     `input_accepted` — it is unconfirmed: `terminal read` and confirm the agent is working before the next step. Text
+     landed in a shell → close that terminal, `❌`, tell the user.
    - **Finished:** `terminal wait --for tui-idle --timeout-ms 600000`, then `terminal read`. Next message only
      when the screen shows it done, not waiting on a question. `/bugfix` and `/assign` are last messages and run
      their own loop: stop after the send is submitted, no finished-wait.

@@ -47,7 +47,7 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 ## Step 1 — Parse + pick mode
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
 `submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--agent claude|kiro` →
-`AGENT` (default `claude`, the running agent's own CLI; `kiro` runs `kiro-cli chat` and needs Orca mode).
+`AGENT` (default `claude`, the running agent's own CLI; `kiro` runs `kiro-cli chat --tui --trust-all-tools --v3` and needs Orca mode).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
@@ -106,6 +106,8 @@ Per submodule, `PATH` = its path,
   `REQ-NNN`, plus the absolute path of `spec.md`.
 - **Allowlist:** only the file paths those tasks name — never write outside it; if a needed file
   isn't listed, **stop** and report the gap (don't widen the allowlist itself).
+- **Guard:** work only inside `PATH` and that allowlist; never push to `staging` or `main` (the feature
+  branch only); never touch a database or docker. (kiro runs with every tool trusted — this is its only brake.)
 - **Discipline:** BE → OpenAPI-first (`api/api.yml` → `make gen` → domain → repo → handler); FE →
   BFF proxy + TanStack; Voice → Pipecat, staging-only.
 - **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
@@ -114,14 +116,21 @@ Per submodule, `PATH` = its path,
 
 **Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
-`Agent`. For every submodule in the wave, do 1–3 before waiting on any of them:
+`Agent`. **`--agent kiro`: run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
+error) → stop, create nothing, tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
+/assign." For every submodule in the wave, do 1–3 before waiting on any of them:
 1. `ORCA terminal create --worktree active --title <NAME> --command <AGENT command> --json` → keep the `handle`
-   (`claude` → `claude`, `kiro` → `"kiro-cli chat"`; never `--trust-all-tools`). The agent shares this checkout and owns only its `PATH`, as in
+   (`claude` → `claude`, `kiro` → `"kiro-cli chat --tui --trust-all-tools --v3"`). The agent shares this checkout and owns only its `PATH`, as in
    Agent mode — never `worktree create` (a second checkout `probe.sh` can't see) or `orchestration task-create`.
-2. `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json`; send only when
-   `wait.satisfied` is true, else that submodule is `❌ agent did not start`.
+2. `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json`, then `ORCA terminal read
+   --terminal <handle> --json` until the agent's own prompt is on screen (kiro: "ask a question or describe a task";
+   claude: its prompt box) — `tui-idle` alone is not enough, a bare shell is idle too. Send only then. Not
+   satisfied, or a shell prompt / login or model error on screen → `ORCA terminal close --terminal <handle> --json`;
+   that submodule is `❌ agent did not start`.
 3. `ORCA terminal send --terminal <handle> --text "<BRIEF>" --enter --wait-submit 10 --json`. Never resend on a
-   receipt that only says `input_accepted`.
+   receipt that only says `input_accepted` — it proves nothing about which program got the text: `terminal read`
+   and confirm the agent is working (e.g. "Thinking") before counting it started. Text landed in a shell → close
+   that terminal, `❌ brief landed in a shell`.
 4. Then per handle `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 1800000 --json` and
    `ORCA terminal read --terminal <handle> --json` for the agent's final `✅`/`❌` line. No such line (idle on
    a permission prompt, or timed out) → `❌ needs attention — terminal <handle>`: tell the user, and never
