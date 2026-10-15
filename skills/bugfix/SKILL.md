@@ -55,8 +55,17 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 | "Confirming breaks the autonomous loop" | It doesn't — it pauses posting, not the whole skill. Polling and rescheduling resume normally once posted. |
 | "The state file doesn't exist, so this bug report hasn't been triaged yet" | The file's absence proves nothing — check the ticket's comments after the bug report first (Step 1.4). A missing file plus an existing response means resume, not re-triage. |
 
+## Dynamic context (injected)
+```
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" resolve`
+```
+
 ## Step 1 — Resolve inputs & investigate
 
+0. **Bootstrap is a precondition, not a step of this skill.** A new worktree gets `/bootstrap` automatically when
+   it is created, so this normally just passes. If `SHIPKIT_CONFIG_EXISTS=0` anyway (worktree made by hand,
+   config removed), stop: "Run `/bootstrap` first." — don't guess the submodules, branch names or Jira config:
+   `probe.sh state/branch`, `/assign` and `/verify` all read `.shipkit/config.yml`.
 1. Ticket ID from args (strip `--agent kiro` first — it only changes *who writes the fix*, Step 3.1). If missing, recommend candidates instead of asking blank: check `.shipkit/bugfix-*.md` for existing state files (in-progress `/bugfix` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly. The ticket is an existing feature ticket already being built — the bug report is a **comment** on it, not the ticket's own description (that's the feature spec, unrelated to what's being triaged here).
 2. Find the comment(s) to triage: if the invocation points at a specific comment, use that. Otherwise take the latest tester/QA comment that reports unexpected behavior (skip status updates, unrelated remarks) — if more than one recent comment could qualify, ask the user which one. If it lists multiple distinct problems (e.g. a numbered list), treat each as a separate concern.
 3. The person to reply to is the **author of that comment** — not the ticket's Jira "Reporter" field, which is usually whoever filed the original feature ticket, not the tester who found the bug. If the comment author is ambiguous (shared/bot account), ask the user once and remember for this ticket only.

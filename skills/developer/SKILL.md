@@ -164,7 +164,7 @@ fails → tell the user and stop. Never `ORCA open`.
 
    | Intent | Observable | Planner runs |
    |---|---|---|
-   | feature | issue type Story / New Feature / Improvement, or it asks for a new capability | `/bootstrap`, `/spec-from-ticket <KEY>`, `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` |
+   | feature | issue type Story / New Feature / Improvement, or it asks for a new capability | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (if Open Qs), `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` |
    | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/bugfix <KEY> [<commentId>] --agent kiro` |
    | other | Task, chore, spike, sub-task, epic, a plain question, unclear | tell the user the intent and why, ask what to do (Vietnamese); create nothing |
 

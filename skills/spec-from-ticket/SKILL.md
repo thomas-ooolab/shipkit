@@ -279,8 +279,8 @@ Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specifie
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
 Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (specs/NNN-<slug>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
 Reporter: <displayName> (<accountId>) → jira.reporter_account_id   (or: unchanged — <reason>)
-Next:    /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
-         (run /clarify <ticket> first if Open Qs > 0 — those block a sound plan)
+Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those block a sound plan)
+         then /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
 ```
 
 ## Gotchas

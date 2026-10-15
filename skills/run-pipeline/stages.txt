@@ -1,0 +1,10 @@
+# Canonical order of the feature flow — the one place to change it. One group per line;
+# skills on the same line are unordered (verify / review-changes: either order).
+# After editing, update every file scripts/check-pipeline.py lists, then run it.
+spec-from-ticket
+clarify
+plan-deep
+verify review-changes
+pr
+merge
+bump-submodule

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Blocks a commit when a file that restates the pipeline order drifts from skills/run-pipeline/stages.txt.
+# Enable once per clone: git config core.hooksPath .githooks
+exec python3 -I "$(git rev-parse --show-toplevel)/scripts/check-pipeline.py"
