@@ -1,12 +1,12 @@
 ---
 name: assign
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (same kind as the running agent) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /assign <jira-ticket | task>. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (kiro terminals by default, claude as fallback) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /assign <jira-ticket | task>. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
 argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent claude|kiro]"
 ---
 
 # shipkit · assign
 
-Fans out a ticket's per-submodule implementation tasks to parallel background agents (spawned like the running agent) instead of
+Fans out a ticket's per-submodule implementation tasks to parallel background agents (kiro terminals by default, claude as fallback) instead of
 working through submodules one at a time. Reads the tasks `/plan-deep` already wrote and grouped
 per submodule; adds nothing to the plan itself.
 
@@ -47,7 +47,7 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 ## Step 1 — Parse + pick mode
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
 `submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--agent claude|kiro` →
-`AGENT` (default `claude`, the running agent's own CLI; `kiro` runs `kiro-cli chat --tui --trust-all-tools --v3` and needs Orca mode).
+`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins. `kiro` runs `kiro-cli chat --tui --trust-all-tools --v3` and needs Orca mode).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
@@ -89,7 +89,7 @@ there, or skip?" (`--only <name>` alone does not imply force.)
 **Transport — pick once, before the first wave.** Resolve `ORCA` the way the `orca-cli` skill's stub says,
 then run `ORCA worktree current --json`. It succeeds (the session is inside an Orca-managed worktree)
 → **Orca mode** (below). Anything else — no CLI, Orca not running, not an Orca worktree — → **Agent
-mode**, except `--agent kiro`, which stops: "kiro runs only as an Orca terminal." Never `ORCA open` just to get Orca mode.
+mode** (`claude`), except an explicit `--agent kiro`, which stops: "kiro runs only as an Orca terminal." Never `ORCA open` just to get Orca mode.
 
 **Agent mode.** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
 `general-purpose` (the running agent's own kind), `run_in_background: true`, no model override, no
@@ -116,7 +116,7 @@ Per submodule, `PATH` = its path,
 
 **Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
-`Agent`. **`--agent kiro`: run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
+`Agent`. **`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
 error) → create nothing and tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
 /assign", then offer the claude fallback (below) for the whole run instead of stopping dead.
 
