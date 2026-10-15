@@ -207,8 +207,9 @@ fails → tell the user and stop. Never `ORCA open`.
    `/bootstrap` and `/plan-deep`: `Resuming: the feature branches already exist on origin. If they are behind origin/staging, rebase them onto it; if the spec number now collides on origin/main, renumber it to the next free number and update every reference. Do both without asking — ask only before a force-push.`
    Nothing else is ever sent — never Jira or Slack content. For each message:
    - **Ready:** `terminal wait --for tui-idle --timeout-ms 60000`; `wait.satisfied` false → once more with
-     `--timeout-ms 120000`. Then `terminal read` until claude's own prompt box is on screen — `tui-idle` alone is not
-     enough, a bare shell is idle too. Still false, or a shell prompt on screen → `❌ agent did not start`, close that
+     `--timeout-ms 120000`. Then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` until `SCREEN=agent` (an input box is up;
+     read again every 3 s, up to 10 times, while `unknown`) — `tui-idle` alone is not enough, a bare shell is idle too.
+     `shell` / `login` / `gone` on two reads, or still `unknown` → `❌ agent did not start`, close that
      terminal (`terminal close --terminal <handle>`), send nothing, tell the user (re-running `/developer <KEY>` reuses
      the worktree and opens a fresh planner).
    - **Send:** `terminal send --text "<message>" --enter --wait-submit 10`; never resend on a receipt that only says

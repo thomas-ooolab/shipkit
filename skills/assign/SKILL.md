@@ -30,7 +30,7 @@ Implements code only (ticket mode reads the plan; free-form mode takes the task 
 3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the agent confirmed done (and git verifies).
 4. `.shipkit/assign-<ticket>.md` — per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
 5. `.shipkit/assign-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
-6. Orca mode only: one Orca terminal per submodule (`terminal create` / `send`) — never an Orca worktree or orchestration task.
+6. Orca mode, `AGENT=kiro` only: one Orca terminal per submodule (`terminal create` / `send`) — never an Orca worktree or orchestration task, and never a new **claude** terminal (see Step 5).
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
 a submodule's own task allowlist; no force-push unless that submodule's branch was rebased.
 
@@ -47,7 +47,7 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 ## Step 1 — Parse + pick mode
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
 `submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--agent claude|kiro` →
-`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins. `kiro` runs `kiro-cli chat --tui --trust-all-tools --v3` and needs Orca mode).
+`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins; `claude` is always spawned as background `Agent` calls from the running claude session, never as a terminal. `kiro` runs `kiro-cli chat --tui --trust-all-tools --v3` and needs Orca mode).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
@@ -114,37 +114,68 @@ Per submodule, `PATH` = its path,
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't push red.
 - **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch.
 
+**`AGENT=claude` never gets a terminal — not even in Orca mode.** `/assign` itself runs inside a claude session (in Orca
+mode that is the planner's terminal), so the claude agents are that session's own background `Agent` calls — dispatch
+them exactly as **Agent mode** above (one message, `run_in_background: true`), whether `AGENT=claude` came from the flag
+or from the kiro fallback. Never `terminal create` another claude terminal to run a submodule: a second claude session
+adds nothing the planner can't spawn, and leaves a stray terminal. The terminal steps below are for kiro only; a
+run mixing both (kiro terminals plus fallback claude `Agent` calls) arms the kiro watchers and waits for the `Agent`
+notifications together.
+
 **Orca mode** (REQUIRED: load the `orca-cli` skill first). Same `BRIEF`, one agent per submodule, same
 wave order — only the agent's home changes: a visible terminal in the current worktree instead of a hidden
 `Agent`. **`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before creating any terminal — "Not logged in" (or an
 error) → create nothing and tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
 /assign", then offer the claude fallback (below) for the whole run instead of stopping dead.
 
-**Reuse before create.** One terminal per submodule is for *parallel* work — a wave with several submodules.
-A submodule that runs *after* another (a later wave, or one at a time) first tries an idle terminal of the **same
-agent kind** (kiro for kiro, claude for claude) that this run already used — its handle and kind are in
-`.shipkit/assign-<ticket>.md`; `ORCA terminal list --worktree active --json` must still list it. Reuse it only if
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --timeout-s 30 --poll-s 3 --git <prev PATH> <prev branch>`
-returns `STATE=done PUSHED=yes CLEAN=yes` — the agent's own prompt, nothing working, no login/model error or bare
-shell, and git (not the agent's last line) confirms its previous task is finished. Anything else (working,
-`attention`, `login`, `shell`, `gone`, `PUSHED=no`/`CLEAN=no`, another agent kind, not in the list) → not reusable,
-create a new terminal. A reused terminal skips 1 and 2 (no `terminal create`, no `whoami`, no startup wait) and gets
-step 3 with its `BRIEF` opening: "Your previous task (<prev NAME>) is finished. From now on work ONLY in `<PATH>`,
-on branch `<branch>`, with the allowlist below; do not touch <prev NAME> again." A terminal serves one submodule at
-a time and never receives the same brief as another terminal. Then for every submodule in the wave, do 1–3 before
-waiting on any of them:
+**Reuse before create — find first, `terminal create` last.** Before opening any terminal, look for one that already
+belongs to this job, in this order (`ORCA terminal list --worktree active --json` is the ground truth; the handle, the
+agent kind and the submodule each terminal serves are in `.shipkit/assign-<ticket>.md`, which also survives an earlier
+`/assign` run of the same ticket — a terminal from that run counts, not only one from this run):
+1. **Same job:** a terminal already serving this submodule (same `PATH` and branch — a follow-up task, a later wave, a
+   fix after `/verify`, a retry). It has the context; reuse it.
+2. **Never briefed:** a terminal opened by this ticket's run that received no brief yet (state file: `unassigned` —
+   a start that was slow or interrupted). It holds no work, so any submodule may take it.
+
+A terminal that has worked on one submodule is **never** handed another — a BE terminal does not become the FE one, and
+a different submodule always gets its own (that is the only reason to open a new one besides "nothing found").
+Kiro terminals only (claude has none). A candidate is reused iff
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --timeout-s 30 --poll-s 3 --git <PATH> <branch>`
+returns `STATE=done` (the agent's own prompt, nothing working, no login/model error or bare shell; `PUSHED`/`CLEAN`
+need not be `yes` — it is the same agent continuing its own work); an `unassigned` one only needs `--once` →
+`SCREEN=agent`. `STATE=timeout` (still working) on a same-job terminal → **do not open a second agent on the same
+`PATH`**: arm the watcher on it (step 4) and send the new brief when it is done. `attention`, `login`, `shell`, `gone`,
+another kind, or not in the list → not reusable: close it if dead (`shell`/`login`/`gone`), then create a new one. A
+reused terminal skips 1 and 2 (no `terminal create`, no `whoami`, no startup wait) and gets step 3, its `BRIEF` opening
+for same-job reuse: "New task on the same submodule (`<PATH>`, branch `<branch>`) — the allowlist below replaces the
+previous one." A terminal serves one submodule and never receives the same brief as another terminal. A terminal that
+fails the ready check as `unknown` is **kept open** and recorded `unassigned` — the next try reuses it instead of
+opening another. Then for every submodule in the wave, do 1–3 before waiting on any of them:
 1. `ORCA terminal create --worktree active --title <NAME> --command <AGENT command> --json` → keep the `handle`
    (`claude` → `claude`, `kiro` → `"kiro-cli chat --tui --trust-all-tools --v3"`). The agent shares this checkout and owns only its `PATH`, as in
    Agent mode — never `worktree create` (a second checkout `probe.sh` can't see) or `orchestration task-create`.
-2. `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json`, then `ORCA terminal read
-   --terminal <handle> --json` until the agent's own prompt is on screen (kiro: "ask a question or describe a task";
-   claude: its prompt box) — `tui-idle` alone is not enough, a bare shell is idle too. Send only then. Not
-   satisfied, or a shell prompt / login or model error on screen → `ORCA terminal close --terminal <handle> --json`;
-   that submodule is `❌ agent did not start`.
-3. `ORCA terminal send --terminal <handle> --text "<BRIEF>" --enter --wait-submit 10 --json`. Never resend on a
-   receipt that only says `input_accepted` — it proves nothing about which program got the text: `terminal read`
-   and confirm the agent is working (e.g. "Thinking") before counting it started. Text landed in a shell → close
-   that terminal, `❌ brief landed in a shell`.
+2. **Ready = behaviour, not a banner string** (kiro's v3 TUI never prints "ask a question or describe a task").
+   `ORCA terminal wait --terminal <handle> --for tui-idle --timeout-ms 60000 --json` (not satisfied: don't conclude,
+   carry on to the read), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` → `SCREEN=` and
+   `HASH=` (keep the HASH as *before*). Read-only; it sends nothing.
+   - `agent` (an input box is up, nothing working) → go to 3. Background status lines — "What's new", "Fetching your
+     cloud config", a model/credits load — are not a reason to wait: the agent already takes input.
+   - `shell` / `login` / `gone` on two reads 3 s apart → `ORCA terminal close --terminal <handle> --json`, send
+     nothing, `❌ agent did not start`. **A brief is never sent while the screen reads `shell`:** in a shell it would
+     run as commands. That is why the check is "no shell/login/error", decided on the screen's structure (input box
+     vs. a prompt line), before the send, and the *proof* the agent took the brief comes after it.
+   - `unknown` (TUI still drawing, unfamiliar screen) → read again every 3 s, up to 10 times; still `unknown` →
+     `❌ agent did not start` with the screen tail shown to the user, terminal left open and recorded `unassigned` (a
+     retry reuses it); never send blind. `attention` → `❌`, show it,
+     answer nothing.
+3. `ORCA terminal send --terminal <handle> --text "<BRIEF>" --enter --wait-submit 10 --json`. `input_accepted` proves
+   nothing about which program got the text, so confirm by what the screen *does*: `wait-for-agent.sh <handle> --once`
+   up to 5 times, 5 s apart. Started = `SCREEN=working`, **or** `HASH` differs from the one before the send while the
+   screen is not `shell`/`login` (the brief is now in the transcript; a brief only typed into the input box leaves
+   `HASH` unchanged). `shell` → close the terminal, `❌ brief landed in a shell`; `login` → `❌ agent did not start`.
+   No change and not working after 5 reads → press Enter once (`terminal send --text "" --enter`: it submits a brief
+   left unsubmitted in the input box and does nothing on an empty one — never resend the brief) and read 3 more times;
+   still nothing → `❌ brief not received`, show the screen tail. Never resend the brief itself.
 4. **Arm the watcher — part of the send, not a later step.** In the *same message* that confirms the agent is
    working, start per handle with `run_in_background: true`: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
    <handle> --git <PATH> <branch>` (`<branch>` = what `probe.sh branch <ticket> <submodule>` printed; `--timeout-s`
@@ -173,8 +204,8 @@ waiting on any of them:
 with claude instead?" (`whoami` failure: the whole run) — `["Switch this submodule to claude", "Leave it ❌",
 "Retry kiro"]`. Non-interactive →
 leave it `❌`. On a switch: close the failed kiro terminal (`ORCA terminal close`, unless the user wants to read
-it), create a **claude** terminal for that submodule (steps 1–4 with `AGENT=claude`; no `whoami`), and open its
-`BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
+it), spawn a background **claude `Agent`** for that submodule (Agent-mode dispatch from this session — **no** claude terminal; no
+`whoami`), and open its `BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
 continue from it; don't redo or discard it." Mark it `kiro → claude` in the state file; the other submodules stay
 on kiro. `attention`, `PUSHED=no` and `CLEAN=no` are not offered a switch: the agent did run, so those go to the
 user as they are.
@@ -195,10 +226,10 @@ results — one failure doesn't roll back siblings. Write `.shipkit/assign-<tick
 # Assign state — <ticket>
 Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be     terminal=term_a1 (kiro)
         ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice  terminal=term_b2 (kiro)
-Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md  terminal=term_a1 (kiro, reused from wave 1)
+Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md  terminal=term_c3 (kiro, new — a different submodule gets its own)
 ```
-(Orca mode only: write each handle and agent kind as soon as its terminal is created or reused — Step 5's reuse
-check reads them from here.)
+(Orca mode only: write each handle, agent kind and submodule as soon as its terminal is created or reused — `unassigned`
+until its brief is sent — Step 5's reuse check reads them from here.)
 Report the same table to the user, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
@@ -210,10 +241,10 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
   dependency = one wave, everything parallel. Only split waves on a note that's actually there.
 - **Don't reuse a stale wave plan across retries.** A submodule fixed since the last failure may now
   be `dirty=yes` from that fix — re-probe (Step 2/4) every run, never cache wave membership.
-- **Reuse an idle same-kind terminal for sequential waves; spawn only for parallel work or when nothing idle
-  exists.** A fresh kiro spends minutes loading before it accepts input and knows nothing of the earlier wave's
-  output; a finished one at its prompt is ready now and has that context. Never reuse a terminal that is working,
-  on a permission prompt, or of another kind.
+- **Find before you create: reuse the terminal that already has the job, never one that worked on another
+  submodule.** A fresh kiro spends minutes loading and knows nothing of the work; a same-job one at its prompt is ready
+  now with that context, and a never-briefed one is simply free. Never reuse a terminal that is on a permission prompt
+  or of another kind, and never put a second agent on a `PATH` an agent is still working in.
 - **Sending a brief without arming `wait-for-agent.sh` is an unfinished delivery.** No watcher, no notification —
   the user ends up asking whether the agent is done.
 - **Trust git, not the agent's last line.** Before checking off tasks, confirm via `probe.sh state` that
