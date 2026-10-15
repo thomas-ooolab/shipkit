@@ -77,6 +77,15 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
 
 ## Step 2 — Classify each concern into exactly one bucket
 
+**Gate first — a concern about a rule, not a malfunction.** If the tester's/QC's comment says who may see or do what (a
+role, permission, data scope), or a threshold, limit, state or notification, should differ from what the spec or the
+ticket's other discussion says, it is a point raised in a discussion — run `/cross-check <TICKET> --stage post` on it,
+naming the comment (link or id), **before** choosing a bucket: the comment alone proves neither that the code is wrong
+nor that the spec is. Then: verdict `fix first` → Real defect; `ask PO` or any `[ticket-conflict]` → Needs a product
+decision (its draft PO question goes through the confirm-before-post rule above; `/cross-check` itself posts nothing);
+a later dated decision that backs the code → Not a defect, citing that comment. A plain malfunction (crash, wrong
+total, broken layout) skips the gate. Cross-check is not run just because a fix was implemented.
+
 - **Real defect** — the code contradicts its own stated/implied intent, or produces an outcome nothing about the design supports → fix it. No explanatory comment for this concern (Step 3 posts a status note instead, not a "why").
 - **Not a defect** — the code does exactly what it was deliberately built to do, and the reasoning holds up → business-language comment explaining why.
 - **Needs a product decision** — the behavior could be intentional or wrong depending on unstated business intent, or multiple valid fixes exist and choosing between them is a product call → business-language comment with lettered options.
