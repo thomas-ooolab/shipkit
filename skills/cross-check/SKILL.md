@@ -1,6 +1,6 @@
 ---
 name: cross-check
-description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope), set a threshold, limit, state or notification, or otherwise change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Also REQUIRED after implementing (bugfix or feature) whenever the change touches the existing system — it alters who may read/write an entity, changes or consumes a contract other features use, or was rebased onto commits in the same domain: checks that code, API flags and client logic still agree. Trigger: /cross-check <ticket> [--stage spec|plan|post]. Examples: \"/cross-check AR-526\", \"/cross-check AR-488 --stage post\", \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
+description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope), set a threshold, limit, state or notification, or otherwise change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Also for reconciling a point raised in a discussion with QC, PO or others (a tester comment or bug report, a PO answer, a later dated decision) against the spec, the other Jira discussion and the code — never merely because code was implemented. Trigger: /cross-check <ticket> [--stage spec|plan|post]. Examples: \"/cross-check AR-526\", \"/cross-check AR-488 --stage post\" (reconcile a tester or PO comment), \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
 argument-hint: "<jira-ticket> [--stage spec|plan|post]"
 ---
 
@@ -66,7 +66,7 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 ## Step 1 — Locate
 Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default), `plan` or `post`. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC`. `post` → after Step 1b skip
-Steps 2–7: follow **Post-implementation mode** below (`SPEC=none` is fine there). Otherwise
+Steps 2–7: follow **Discussion mode** below (`SPEC=none` is fine there). Otherwise
 `SPEC=none` → stop: "No spec for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the whole `spec.md`. The Jira project key
 is the part of `TICKET` before the dash.
 
@@ -233,27 +233,31 @@ Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to a
 ```
 The `Findings:` line is exact: callers parse it.
 
-## Post-implementation mode (`--stage post`)
-The spec-time check reads what people *wrote*; this one checks what the change *does* once it sits in the
-real system. Spec- and plan-time checks do not replace it: a branch can compile, pass its tests and still
-disagree with staging, the PO's later decisions, or the clients that consume its contract.
+## Discussion mode (`--stage post`)
+The spec-time check reads what the *spec* says; this one reconciles a point someone **raised in a discussion** —
+a tester's comment or bug report, a QC finding, a PO answer, a later dated decision — against the spec, the other
+Jira discussion about the same entity, and what the code does today. It exists because such a point can be
+right, wrong, or already overtaken by a later decision, and nobody can tell from the comment alone.
 
-**When it MUST run** — a required step, not an option:
-- after the implement stage of `/bugfix` and `/run-pipeline`, before `/verify` and `/review-changes`;
-- after `/assign` hands code back;
-- after any rebase or merge onto a target that changed the same domain.
+**When it runs** — only to reconcile a raised point with QC, PO or other people:
+- a QC/tester comment or bug report that says the product should (or should not) let a role do something, or that a
+  rule differs from the spec;
+- a PO answer or other later dated decision that may contradict the spec, an earlier decision or the code;
+- a point from a reviewer, support or a teammate that contradicts what the ticket or spec says.
 
-It is **mandatory** when the change (a) alters who may read or write an entity (role, permission,
-visibility, nav item), (b) changes or consumes a contract other features also use (API flags/fields, shared
-types, shared hooks/components), or (c) was rebased or merged onto commits that touch the same files or
-concepts. A pure-local change with no consumers may skip it — say so in one line
-(`cross-check post: skipped — <why no consumers>`), never silently.
+It does **not** run because code was implemented, a wave finished, a branch was rebased or a pipeline stage was
+reached — none of those is a discussion. It is not a step of `/run-pipeline`, `/assign`, `/verify` or
+`/review-changes`; the user (or a skill that triages such comments) calls it with the ticket, naming the point (comment
+link or id) if there is one.
 
-**Inputs.** Per affected submodule (`probe.sh state`): `git diff <tracking branch>...HEAD`, plus the log of
-what the target gained since the branch point. Read the spec if there is one; its absence does not skip this.
+**Inputs.** The raised point first: key, comment id, date, author, link and the claim it makes (quoted). Then the
+sources that discuss the same entity — the ticket's comments and replies, the parent epic and sibling tickets
+(order every decision by date; cite comment id + date), the spec — and the code's behaviour today per role
+(`file:line`; per affected submodule, a `git diff <tracking branch>...HEAD` only to see what the branch already
+changes, never as the trigger). The spec may be absent; that does not skip this.
 
 **Checks** — each lesson is a check; the example is the case it came from (AR-488):
-1. **Textual merge ≠ semantic merge.** List every authorization / eligibility rule the change touches and
+1. **Textual merge ≠ semantic merge.** List every authorization / eligibility rule the raised point touches and
    find ALL places that implement it: BE handler, DTO flag, FE local logic. One server source of truth;
    clients read the flag, never re-derive it. Grep the client for role/identity comparisons next to action
    buttons. *Staging replaced self-approve with a Roster model; the branch compiled, but `can_approve` /
