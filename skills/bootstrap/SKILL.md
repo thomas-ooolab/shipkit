@@ -1,6 +1,6 @@
 ---
 name: bootstrap
-description: One-time per-project setup for shipkit. Detects submodule topology, remote host/workspace, and spec layout from real files, then proposes .shipkit/config.yml as a diff and writes only on confirmation. Has an audit/--dry-run mode. Defers to existing CLAUDE.md; never touches app code or dependencies.
+description: One-time per-project setup for shipkit. Detects submodule topology, remote host/workspace, and spec layout from real files, then writes .shipkit/config.yml directly (backing up an existing one) and prints what it wrote. Asks only when a value has no candidate anywhere. Has an audit/--dry-run mode. Defers to existing CLAUDE.md; never touches app code or dependencies.
 argument-hint: "[--dry-run | audit]"
 ---
 
@@ -11,10 +11,11 @@ Set up shipkit for **this** project by writing one file — `.shipkit/config.yml
 
 > **Never-guess rule.** Detection traces only to files confirmed present in the probe output below
 > (`.gitmodules`, manifests, `specs/`). Never infer a stack or submodule from the repo name or
-> README. If something isn't in the probe output, it isn't detected — ask via AskUserQuestion.
+> README. If something isn't in the probe output, it isn't detected — take it from the *Candidate
+> sources* in Step 3 (name the source in the report); ask via AskUserQuestion only when none has it.
 >
-> **Verify-before-write rule.** Show the proposed `.shipkit/config.yml` and confirm via
-> AskUserQuestion before writing. Never write without explicit confirmation.
+> **No confirmation gate.** Write `.shipkit/config.yml` directly, then print what was written
+> (Step 7). The backup in Step 6 is the safety net.
 >
 > **Forbidden language.** Don't say "I think / probably / looks like." Say "detected via
 > `.gitmodules`", "confirmed in probe output", or "user confirmed."
@@ -49,7 +50,9 @@ From the probe output, establish:
 - **Existing config** — if `SHIPKIT_CONFIG_EXISTS=1`, this is a re-run: diff against the shown
   contents, don't blindly replace.
 
-If the probe shows `unknown` for a submodule's stack, ask the user which stack it is — don't guess.
+If the probe shows `unknown` for a submodule's stack (e.g. its dir is empty in a fresh worktree), use
+the stack the *Candidate sources* (Step 3) name for that submodule — no question. Ask only when
+none does.
 
 ## Step 2 — Derive scope-detection signals per stack
 
@@ -71,18 +74,36 @@ Map each submodule → its signals. The user can edit these after.
 ## Step 3 — Infer per-submodule defaults
 - **suffix** — derive from the submodule name's trailing token (`…-be`→`-be`, `…-voice`→`-voice`,
   `…-fe` or a `nextjs` frontend→`-fe`). If ambiguous, ask.
-- **branch** — default `staging` (matches `pr_target: staging`). Use the probe's branch only if the
-  user says a submodule tracks something else.
-- **staging_only** — default `true` for every submodule (nothing PRs to `main` until the user flips
-  it). Ask which submodules, if any, are production-ready and set those to `false`.
-- **Jira** — ask for base URL + project key (can't be detected). Offer a guess only if `CLAUDE.md`
-  states it; otherwise ask.
+- **branch** — default `staging` (matches `pr_target: staging`). An earlier config's `branch` for that
+  submodule (Candidate sources, below) wins over the default; use the probe's branch only if the user
+  says a submodule tracks something else.
+- **staging_only** — always `true` for every submodule (nothing PRs to `main` until the user flips it).
+  No question, and no candidate source overrides it — an earlier config's `false` is not reused.
+- **Jira** — base URL + project key can't be probed: take them from the *Candidate sources*, no
+  confirmation. Ask only when none has them.
 
-## Step 4 — Propose `.shipkit/config.yml` (show, don't write yet)
+**Candidate sources** — for any value the probe can't give (Jira `base_url` / `project_key`, an
+undetected stack). Always read **all four**, even when an earlier config already has the value —
+never stop at the first hit — and count how often each candidate appears; the **most frequent** wins,
+a tie goes to the most recent (file mtime, commit date, memory/observation date). Report every source's
+count, not just the winner's, as `Sourced:` in Step 7.
+Everything is keyed to the **primary worktree** (`git worktree list --porcelain`, first
+entry), not the current one — a fresh worktree has none of this:
+1. **Repo** — root `CLAUDE.md`, `docs/`; the ticket-key prefix most common in `git branch -r`
+   (`origin/feat/<KEY>-*`; spec dir names next; `git log` subjects last — they also carry `REQ-`/`SDD-`
+   ids) for `project_key`; an `https://<x>.atlassian.net` URL in docs, log or PR text for `base_url`.
+2. **Earlier configs** — the primary worktree's own `.shipkit/config.yml` (a fresh worktree lacks it)
+   and its `.shipkit/config.yml.bak-*`, then sibling projects' `.shipkit/config.yml` next to it.
+   Reuse `jira`, and each submodule's `stack` and `branch` from there (not `staging_only`).
+3. **Auto-memory** — `~/.claude/projects/<primary path, `/` and `.` → `-`>/memory/` (read `MEMORY.md`,
+   then the files it points to).
+4. **claude-mem** — `mem_search` with `project` = the primary worktree's directory name; skip silently
+   if the tool isn't available. (Data lives in `~/.claude-mem/`; use the tool, don't open the DB.)
 
-Render the full proposed file and show it. For a re-run (`SHIPKIT_CONFIG_EXISTS=1`), show a unified
-diff vs the existing contents instead. **Always set `topology_mode`** from the probe — every skill
-branches on it.
+## Step 4 — Render `.shipkit/config.yml`
+
+Render the full file. For a re-run (`SHIPKIT_CONFIG_EXISTS=1`), also compute a unified diff vs the
+existing contents. **Always set `topology_mode`** from the probe — every skill branches on it.
 
 **Multi-repo** (`TOPOLOGY_MODE=meta-with-submodules`):
 ```yaml
@@ -91,8 +112,8 @@ topology_mode: meta-with-submodules
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 jira:
-  base_url: <asked>          # e.g. https://ooolab.atlassian.net
-  project_key: <asked>       # e.g. AR
+  base_url: <from sources>   # e.g. https://ooolab.atlassian.net
+  project_key: <from sources> # e.g. AR
   # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"
@@ -116,8 +137,8 @@ topology_mode: single-repo
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 jira:
-  base_url: <asked>
-  project_key: <asked>
+  base_url: <from sources>
+  project_key: <from sources>
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"              # optional, used by /merge
   # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
@@ -135,25 +156,25 @@ scope_detection:
 
 ## Step 5 — Audit / dry-run early exit
 
-If `$ARGUMENTS` contains `audit` or `--dry-run`: stop after Step 4. Report "Audit complete — no
-files written. Run `/bootstrap` to write." Do not call AskUserQuestion to write.
+If `$ARGUMENTS` contains `audit` or `--dry-run`: show the rendered file (or diff) and stop after Step 4.
+Report "Audit complete — no files written. Run `/bootstrap` to write." 
 
-## Step 6 — Confirm and write
+## Step 6 — Write
 
-AskUserQuestion: `["Write .shipkit/config.yml?", "Write it", "Let me edit a value first", "Cancel"]`.
-- **Write it** — if a config already exists, first back it up to `.shipkit/config.yml.bak-<ISO-timestamp>`,
-  then write. Create `.shipkit/` if absent.
-- **Edit a value** — ask which field, update the proposal, re-show, re-confirm.
-- **Cancel** — "Cancelled. No file written." Stop.
+If a config already exists, first back it up to `.shipkit/config.yml.bak-<ISO-timestamp>`, then write.
+Create `.shipkit/` if absent. No confirmation.
 
 After writing, verify with `test -f .shipkit/config.yml`; if missing, report the failure and stop.
 
 ## Step 7 — Report
+Print the written file (or the diff on a re-run), then:
 ```
 ✅ shipkit ready for <project>.
    Config:     .shipkit/config.yml  (<N> submodules: <names>)
    Spec dir:   <SPEC_DIR>  (next: <NEXT_SPEC>)
    Jira:       <project_key> @ <base_url>
+   Sourced:    <value = winner (repo n, config n, memory n, claude-mem n), for project_key, base_url and
+               any stack not probed — a source with no hit shows 0>
    Backed up:  <bak file or "none">
 
    Tip: commit .shipkit/config.yml so the whole team shares one config.
