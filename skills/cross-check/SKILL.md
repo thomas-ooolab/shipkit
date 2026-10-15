@@ -15,6 +15,13 @@ it into a question for the PO. It never decides which side is right.
 > sides → not a finding. Each quote must be an exact substring of the text fetched for that key (or
 > comment id); a sentence in one ticket that quotes another ticket is not that other ticket's quote.
 >
+> **Link rule.** Every Jira quote carries the link to where it was written: `<base_url>/browse/<KEY>` for a
+> ticket, `<base_url>/browse/<KEY>?focusedCommentId=<id>` for a comment (`base_url` from `.shipkit/config.yml`
+> `jira`). No link → not a finding, in `cross-check.md`, `open-question.md`, drafts and the report alike.
+>
+> **Highlight rule.** A screenshot of a quote is attached only when the quote is highlighted in it. A plain
+> or unmarked screenshot is never attached.
+>
 > **Never-pick-a-winner rule.** Not the later ticket, not the code, not the side the user prefers. Both
 > rules go to the PO.
 >
@@ -158,8 +165,8 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
    - cut: <what was dropped by the caps>
    ## Findings
    ### [ticket-conflict] OQ-N — <REQ-ID> — <actor/action/scope in one line>
-   - <KEY-A> (<created date>)<, comment <id>>: "<verbatim>"
-   - <KEY-B> (<created date>)<, comment <id>>: "<verbatim>"
+   - <KEY-A> (<created date>)<, comment <id>>: "<verbatim>" — <link>
+   - <KEY-B> (<created date>)<, comment <id>>: "<verbatim>" — <link>
    - Code: <file:line> — <what it does for each role>
    - Question for the PO (business words): "<…>"
    ## Dev notes
@@ -173,8 +180,8 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
    - [ ] **OQ-N** [ticket-conflict] — <question in plain business words: the two rules, where each came
      from, what the product does today, and "which applies, or do both apply to different people?"> —
      blocks: REQ-NNN
-     - <KEY-A>: "<verbatim quote>"
-     - <KEY-B>: "<verbatim quote>"
+     - <KEY-A>: "<verbatim quote>" — <link>
+     - <KEY-B>: "<verbatim quote>" — <link>
    ```
    The question names no table, endpoint, field, role-as-code or file; the two quoted lines are the
    tickets' own words, copied exactly with their keys. Never say which side is right.
@@ -184,7 +191,7 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
 Needs the Claude in Chrome tools; load them with ToolSearch first. Read-only — never click, submit or
 type into Jira.
 1. `tabs_context_mcp`, then `tabs_create_mcp`; `navigate` to
-   `<jira-site>/browse/<KEY>` (add `?focusedCommentId=<id>` for a comment quote).
+   `<base_url>/browse/<KEY>` (add `?focusedCommentId=<id>` for a comment quote).
 2. `javascript_tool`, with a fragment of the quote as the argument — at most 80 chars, inside one
    sentence, copied from the fetched text, taken from a stretch made only of letters, digits, spaces and
    `. , ; : ' ( ) -`. Never a backslash, double quote, backtick, `<`, `>`, `$` or newline: the fragment
@@ -203,8 +210,9 @@ type into Jira.
      return 'not-found'; })("<fragment>")
    ```
    `not-found` (formatting can split the text across nodes) → retry once with a shorter fragment.
-3. `computer` action `screenshot` with `save_to_disk: true`; copy the saved path to
-   `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `mkdir -p` + `cp`. `tabs_close_mcp` the tab.
+3. `computer` action `screenshot` with `save_to_disk: true`; open the saved image and confirm the yellow
+   mark with the quote is in view — no visible mark → retake once, else treat as no image (step 4). Only then
+   copy it to `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `mkdir -p` + `cp`. `tabs_close_mcp` the tab.
 4. Chrome not connected, not logged in, or still `not-found` → no image: keep the quote and the Jira
    link in `cross-check.md` and tell the user "take this screenshot by hand: <link>, highlight: <quote>".
    Still `not-found` with Chrome working → first re-check that the quote is an exact substring of the
@@ -280,7 +288,7 @@ with the **In-flight inventory** table (Step 1b), then:
 1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
 2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,
    with what the role sees (data, empty state, error).
-3. **Decision conflicts** — Jira/spec findings with ticket key, comment id and date, verbatim quote on
+3. **Decision conflicts** — Jira/spec findings with ticket key, comment id, date and link, verbatim quote on
    both sides (the Cite-sources rule applies; the same-subject comparison of Step 4 applies).
 4. **Open questions for the PO** — DRAFT comments only, in business words, for the user to approve; this
    skill posts nothing and never edits a PO ticket.
