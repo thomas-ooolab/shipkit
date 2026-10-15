@@ -1,7 +1,7 @@
 ---
 name: verify
-description: "Use after a ticket's feature work is implemented, or after /bugfix fixes a defect, to prove the change really works before review or PR — drives the running app and service and checks each spec requirement (REQ-NNN) or reported concern with evidence: a screenshot for FE, request/response and data for BE. Also diffs the built UI against specs/NNN/design-contract.md at every breakpoint when a design contract exists. Emits a grep-stable PASS | FAILED | INCOMPLETE gate and, for a feature ticket, posts the evidence to Jira after the user approves; reports only, never edits code. Trigger: /verify [--ticket <t>] [--concern \"<scenario>\"]... [--url <fe-route>] [--api <be-base-url>]. Examples: \"/verify --ticket AR-450\", \"/verify --ticket AR-460 --concern 'digest counts a call once per attendee'\""
-argument-hint: "[--ticket <jira-ticket>] [--concern \"<scenario>\"]... [--url <running-route>] [--api <be-base-url>] [--selector <css>] [--contract <path>] [--no-jira] [--auto]"
+description: "Use after a ticket's feature work is implemented, or after /bugfix fixes a defect, to prove the change really works before review or PR — drives the running app and service and checks each spec requirement (REQ-NNN) or reported concern with evidence: a screenshot for FE, request/response and data for BE. Also diffs the built UI against specs/NNN/design-contract.md at every breakpoint when a design contract exists. Emits a grep-stable PASS | FAILED | INCOMPLETE gate and, for a feature ticket, prepares the evidence comment locally — it reaches Jira only when /merge is about to move the ticket's status; reports only, never edits code. Trigger: /verify [--ticket <t>] [--concern \"<scenario>\"]... [--url <fe-route>] [--api <be-base-url>]. Examples: \"/verify --ticket AR-450\", \"/verify --ticket AR-460 --concern 'digest counts a call once per attendee'\""
+argument-hint: "[--ticket <jira-ticket>] [--concern \"<scenario>\"]... [--url <running-route>] [--api <be-base-url>] [--selector <css>] [--contract <path>] [--no-jira] [--send-evidence] [--auto]"
 ---
 
 # shipkit · verify
@@ -43,10 +43,12 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 ## Write surface
 1. **Evidence files:** `.shipkit/evidence/<TICKET>/<id>-<slug>-after.png|txt` (and `-before` when a
    bug was reproduced first). `<id>` = `REQ-NNN` or the concern number. No code, no git/Bitbucket call.
-2. **The one evidence comment on the ticket** (Step 6) — **feature runs only** (spec-driven, no `--concern`),
-   only on `PASS`, only after the user approves the exact text. It is created once; every later run **edits that
-   same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
-   and `--no-jira` never post — the caller's own comment carries the evidence. (Optional: with `--ticket` and
+2. **The one evidence comment on the ticket** — **feature runs only** (spec-driven, no `--concern`), only on
+   `PASS`. A normal run only **drafts** it into `.shipkit/evidence/<TICKET>/jira-comment.md` (Step 6) and sends
+   nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right before
+   it changes the ticket's status, after the user approves the exact text. It is created once; every later send
+   **edits that same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
+   and `--no-jira` never draft or send — the caller's own comment carries the evidence. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
@@ -65,6 +67,7 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
 `SHIPKIT_ROOT`; `SHIPKIT_ROOT_MOVED` means the shell stood elsewhere — `cd` to the root before using them.
 
 ## Step 1 — Resolve what to verify, and where
+- **`--send-evidence`** (only `/merge` passes it) → skip Steps 1–6: go straight to Step 7 with `--ticket`.
 - **Checks list**, first match:
   1. `--concern "<scenario>"` (repeatable) — the caller states what must be true (this is how `/bugfix` calls
      it). Each is one check, id = its number.
@@ -120,9 +123,14 @@ AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIF
 `verify: INCOMPLETE — Playwright MCP required`. BE checks need only `curl`/the service's own client.
 
 ### Browser tool — Playwright first, claude-in-chrome only when it must be the user's Chrome
-- **Default: Playwright MCP** (`browser_*`). It is its own browser with its own profile and never touches the
-  user's tabs or sessions. Use it for every FE check on a local/dev/staging app with a test account: read the DOM
-  (`browser_evaluate`, e.g. list a select's options), `browser_take_screenshot`, drive the flow.
+- **Default: Playwright MCP in its isolated mode** (`browser_*`, server run as `npx @playwright/mcp@latest
+  --isolated` — tools named `mcp__playwright__browser_*`). It is its own browser with its own empty, in-memory
+  profile and never touches the user's tabs or sessions. Use it for every FE check on a local/dev/staging app with
+  a test account: read the DOM (`browser_evaluate`, e.g. list a select's options), `browser_take_screenshot`, drive
+  the flow. **Not every Playwright MCP is isolated:** one started with `--extension` (the `ecc` plugin's
+  `mcp__plugin_ecc_playwright__*` is) attaches to the user's real Chrome — same risks as claude-in-chrome below.
+  Prefer the isolated server; if only the `--extension` one is connected, say so and get the user's yes first. Not
+  installed → `claude mcp add --scope user playwright -- npx @playwright/mcp@latest --isolated`, then a new session.
 - **claude-in-chrome only when the user's real Chrome is required:** the page opens only for a logged-in user
   (an auth-walled design link in `/design-recon`, SSO, an extension) or needs the user's own session or cookies.
   Say these risks to the user first: the window also holds their other tabs and bookmarks (private data can leak
@@ -270,9 +278,11 @@ user, interactively and explicitly, may waive an `UNVERIFIED` check; the waiver 
 never in a Jira comment. Show the evidence, not just the table: for each `PASS`, open the PNG for the
 user (Read) and quote the key lines of the data file.
 
-## Step 6 — Post the evidence to Jira (feature runs only)
+## Step 6 — Prepare the evidence comment (feature runs only — nothing goes to Jira here)
 Applies when the checks came from the spec (no `--concern`), `--no-jira` is absent and the gate is `PASS`.
-`FAILED` / `INCOMPLETE` post nothing — fix or unblock first. The comment lists every named variant with its
+`FAILED` / `INCOMPLETE` draft nothing and **delete** any older `jira-comment.md`, so `/merge` never sends proof
+of code that has since changed — fix or unblock first. **Verify never posts or edits a Jira comment in a normal
+run:** the evidence reaches the ticket only at the moment its status is changed (Step 7). The comment lists every named variant with its
 evidence and never a "not checked / chưa kiểm / only covered by a unit test" row. Bugfix runs (`--concern`) skip this step: the
 verification proof rides in `/bugfix`'s own Jira comment.
 1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
@@ -291,17 +301,24 @@ verification proof rides in `/bugfix`'s own Jira comment.
    stays in `.shipkit/evidence/`. Write the cells in the language of the ticket's comments. A pipe inside a
    cell is written `\|`.
    The header's first cell is the literal `/verify` — it is the marker that identifies this comment later.
-2. **Find the existing evidence comment first — there is only ever one.** Look up its id:
+2. Save the draft to `.shipkit/evidence/<TICKET>/jira-comment.md` (the PNGs are already beside it) and report
+   `verify: evidence for <TICKET> ready — it will be sent by /merge just before the status change`. Stop there.
+
+## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` before it changes the status)
+Reads the saved draft; drives no app and re-checks nothing. No `jira-comment.md` → send nothing and say
+`no evidence draft — run /verify --ticket <TICKET> first`. A person running it by hand outside `/merge` is the
+only other case; never send at any other point of a verify run.
+1. **Find the existing evidence comment first — there is only ever one.** Look up its id:
    (a) `.shipkit/evidence/<TICKET>/jira-comment-id`, if present; else (b) scan the ticket's comments
    (`getJiraIssue` with comments) for one whose body is a table with `/verify` as its first header cell. Found
    (a) or (b) → this run is an **edit**. Several found → edit the newest and tell the user about the extras.
    None found, and no id file → this is the **first post**. An id file exists but its comment is gone (deleted)
    → don't post: ask the user whether to create it anew.
-3. Show the user the exact text and the attachment list, labelled **"will EDIT comment <id>"** or **"will POST
+2. Show the user the exact text and the attachment list, labelled **"will EDIT comment <id>"** or **"will POST
    the first evidence comment"**; **wait for explicit approval** ("post it" / "change X" / "skip"). Unapproved =
    not posted; say so in the report. Once the user approved the exact text, a change of **layout only** (where
    images sit, column widths) needs no new approval; a change of **wording** is shown again first.
-4. Send it (PNG only, each opened and checked before it is embedded):
+3. Send it (PNG only, each opened and checked before it is embedded):
    - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`
      then save the printed comment id to `.shipkit/evidence/<TICKET>/jira-comment-id`;
    - re-run: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit <TICKET> <COMMENT_ID> --file <draft.md>`
@@ -313,12 +330,12 @@ verification proof rides in `/bugfix`'s own Jira comment.
    Exit 3 (Jira env unset) → don't skip silently and don't fall back to a mention-less MCP comment: tell the user
    the evidence was **not** posted/updated, why, and that the files are in `.shipkit/evidence/<TICKET>/`.
    Exit 5 = sent but a mention didn't land — say so.
-5. Report: `Jira <TICKET>: evidence comment <posted|edited> <permalink>` or
+4. Report (this line is what `/merge` reads back): `Jira <TICKET>: evidence comment <posted|edited> <permalink>` or
    `Jira <TICKET>: evidence NOT <posted|updated> — <reason>`.
 
 ## How it fits the pipeline
 `/design-recon` (UI tickets, opt-in) → implement (`/assign`, by hand, `/pr --implement`) → **`/verify`** (fix → re-run
-until PASS) and `/review-changes` (either order) → `/pr`. `/bugfix` calls it with `--concern` for each fixed defect. In
+until PASS; drafts the evidence locally) and `/review-changes` (either order) → `/pr` → `/merge` (sends the evidence, then moves the status). `/bugfix` calls it with `--concern` for each fixed defect. In
 `/run-pipeline` it is a stage after implement: Part B runs for every ticket, Part A only when the design gate is on.
 `FAILED` or `INCOMPLETE` halts before PRs the same way a review blocker does.
 
@@ -330,6 +347,8 @@ until PASS) and `/review-changes` (either order) → `/pr`. `/bugfix` calls it w
 - **One variant is not the check.** A picker driven only as Admin, when the requirement says Manager sees only
   their groups and only Manager/Admin may use it, proves one row of the matrix. The unrun variants are
   `INCOMPLETE`, not a note under a `PASS`.
+- **Evidence is sent once, at the status change.** Not after a PASS, not when `/pr` opens, not on a re-run: those
+  only refresh the local draft. The comment on the ticket is the proof the status change rests on.
 - **Open the screenshot.** The evidence is what the PNG shows, not that a file exists.
 - **Non-production only.** Driving a scenario creates test data; do it on local/dev/staging and never against prod.
 - **Business words stay out of this file's reach:** raw requests, endpoints and table names are fine in evidence

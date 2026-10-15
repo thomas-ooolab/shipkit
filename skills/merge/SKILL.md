@@ -1,6 +1,6 @@
 ---
 name: merge
-description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
+description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee, sending the saved /verify evidence just before the status change. Requires explicit user confirmation before merging anything. Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
 argument-hint: "<jira-ticket>"
 ---
 
@@ -35,8 +35,9 @@ pointer logic. The root PR is **never merged while any child pipeline is FAILED 
 3. Root repo: a pointer-bump commit on the ticket's parent branch, pushed; if that branch conflicts
    with the default branch, a rebase and `--force-with-lease` push of **that branch only**; then the
    root PR merge (Step 9, gated).
-4. Jira: transition + assignee from `.shipkit/config.yml` (Step 10). **No Jira comment** without
-   explicit approval.
+4. Jira: the `/verify` evidence comment (sent just before the transition, only when a transition will
+   happen — Step 10.1), then transition + assignee from `.shipkit/config.yml` (Step 10). **No other Jira
+   comment** without explicit approval.
 **Forbidden side-effects:** never merge without confirmed sign-off, or a PR with a git-detected
 conflict; never merge without
 explicit user confirmation; never merge the root PR unless every child pipeline is SUCCESSFUL; never
@@ -169,13 +170,24 @@ Read `jira.after_merge_transition` from `.shipkit/config.yml` (never hardcode a 
 remembered transition id — ids differ per project). `jira.qc_account_id` is optional: the *suggested
 default* in 10.4; when unset, the built-in default is `642a9e7922330bdf97ab2aa8` (Tung's pick for QC).
 Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
+**Evidence goes out first, and only when a transition will happen.** The `/verify` evidence is sent to the
+ticket right before the status changes — never earlier (not after verify, not at `/pr`), never when the user
+chose not to transition. Once the target transition is settled (config name found, or the user picked one),
+and **before** calling `transitionJiraIssue`, run `/verify --ticket <TICKET> --send-evidence` (its Step 7: shows
+the exact text, waits for approval, posts or edits the one comment).
+- Sent (`evidence comment posted|edited`) → go on to `transitionJiraIssue`.
+- No `.shipkit/evidence/<TICKET>/jira-comment.md` (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
+  evidence draft", transition anyway.
+- The user answered "skip" → `JIRA_NOTE` = "evidence skipped by user", transition anyway.
+- The send errored (Jira env unset, edit rejected) → **don't transition**; `JIRA_NOTE` = the reason; Step 11 says
+  evidence was not sent and the ticket stays where it is.
 1. **Transition.** `getTransitionsForJiraIssue` for the ticket, and read its current `status.name`.
-   - Config value set and found **by name** → `transitionJiraIssue` with that id.
+   - Config value set and found **by name** → send the evidence (above), then `transitionJiraIssue` with that id.
    - Config value **unset, or not found among the ticket's transitions** → don't skip. `AskUserQuestion`
      "Move <TICKET> (now: <status.name>) to which status?" with options = the ticket's real transition
      names (long list → the ~4 most relevant; "Other" lets the user type one, resolved against the
      list) **plus** "Không chuyển trạng thái lần này". Mention in the question why it's asking
-     (config key unset / `<name>` not available). Picked a transition → `transitionJiraIssue` with its id.
+     (config key unset / `<name>` not available). Picked a transition → send the evidence (above), then `transitionJiraIssue` with its id.
      Picked "Không…" → no transition; `JIRA_NOTE` = "user chose not to transition". Continue to 10.3 either way.
    - `transitionJiraIssue` errors → `JIRA_NOTE` = the error verbatim; continue to 10.3.
 2. **Offer to save** — only if the transition just done came from the prompt above (config was unset)
@@ -196,7 +208,7 @@ Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
 6. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
    what was requested; report a mismatch as a failure, not a success. Record the final `status.name`
    and assignee for Step 11.
-No Jira comment unless the user approves the exact text first.
+No Jira comment other than the evidence comment unless the user approves the exact text first.
 
 ## Step 11 — Report
 ```
@@ -206,7 +218,7 @@ ai-roleplay-be  #123   <sha8>      ✅ SUCCESSFUL (#456)
 ai-roleplay     #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
-Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>)
+Jira <TICKET>: evidence <posted|edited <permalink> | none — <why>> · status <status.name> · assignee <displayName> (<accountId>)
          — or, when anything wasn't done: Jira KHÔNG được cập nhật (or: chỉ cập nhật một phần) — <JIRA_NOTE: reason>; ticket vẫn ở <current status.name>, assignee <current>
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | chuyển <TICKET> sang <status> và gán QC thủ công trên Jira (hoặc chạy lại /merge) — if Jira wasn't fully updated>
 ```
