@@ -154,7 +154,7 @@ waiting on any of them:
    is delivered until its watcher runs**, and a turn never ends after a send with none armed. The script decides
    from the screen, not a final line (the agent may finish in plain prose) and sends one notification per handle.
    When it arrives, act without asking the user: read `STATE` / `PUSHED` / `CLEAN` (the screen tail follows),
-   confirm with git — never the agent's last line — then report, start the next wave, or hand the result to review.
+   confirm with git — never the agent's last line — then report, start the next wave, or hand the result to review — after the last wave, `/cross-check <ticket> --stage post` is required first when the change touches the existing system.
    Never answer "is it done?" from memory: read the watcher's output, or run the script once.
    - `done` + `PUSHED=yes` + `CLEAN=yes` → finished; show the screen tail, and take its `✅ implemented <path>
      (N/M tasks)` line as a hint for the task count, not the trigger (no such line → count from the commit and the

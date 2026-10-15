@@ -1,7 +1,7 @@
 ---
 name: cross-check
-description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope), set a threshold, limit, state or notification, or otherwise change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Trigger: /cross-check <ticket> [--stage spec|plan]. Examples: \"/cross-check AR-526\", \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
-argument-hint: "<jira-ticket> [--stage spec|plan]"
+description: "Use when a ticket's requirements say who may see or do what (role, permission, data scope), set a threshold, limit, state or notification, or otherwise change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. Searches related tickets, specs and code, compares them, and raises [ticket-conflict] questions for the PO with verbatim quotes and a highlighted Jira screenshot. Also REQUIRED after implementing (bugfix or feature) whenever the change touches the existing system — it alters who may read/write an entity, changes or consumes a contract other features use, or was rebased onto commits in the same domain: checks that code, API flags and client logic still agree. Trigger: /cross-check <ticket> [--stage spec|plan|post]. Examples: \"/cross-check AR-526\", \"/cross-check AR-488 --stage post\", \"does this ticket contradict an older one?\", \"why does Call Library show recordings Team Call Detail doesn't?\""
+argument-hint: "<jira-ticket> [--stage spec|plan|post]"
 ---
 
 # shipkit · cross-check
@@ -35,7 +35,7 @@ it into a question for the PO. It never decides which side is right.
 > | "These sound like the same rule" | Same rule = same subject, same attribute (for access: same actor, action, data scope). Differ on any one, or on the value → quote both and ask. |
 
 ## Bounded scope
-Read-only research. Does **not**: edit code, edit `spec.md`, write to Jira, decide a conflict, or contact
+Read-only research (`--stage post` also runs the app, never edits it). Does **not**: edit code, edit `spec.md`, write to Jira, decide a conflict, or contact
 the PO (that is `/clarify`).
 
 ## Write surface (the ONLY things written)
@@ -43,6 +43,8 @@ the PO (that is `/clarify`).
 2. `specs/NNN-slug/open-question.md` — appended `[ticket-conflict]` items; create the file with the same
    header `spec-from-ticket` writes if it does not exist.
 3. `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` — Jira screenshots (Step 6).
+4. `--stage post` only: `cross-check-post.md` in the spec dir (no spec → `.shipkit/evidence/<TICKET>/`) and its
+   run evidence under `.shipkit/evidence/<TICKET>/`. Never `open-question.md`; PO questions stay DRAFTS in that file.
 **Forbidden side-effects:** no git mutation; no Jira/Bitbucket mutation (reads only); no code/test edits.
 
 ---
@@ -55,10 +57,36 @@ the PO (that is `/clarify`).
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 ## Step 1 — Locate
-Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default) or `plan`. Run
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC`. `SPEC=none` → stop: "No spec
-for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the whole `spec.md`. The Jira project key
+Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default), `plan` or `post`. Run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC`. `post` → after Step 1b skip
+Steps 2–7: follow **Post-implementation mode** below (`SPEC=none` is fine there). Otherwise
+`SPEC=none` → stop: "No spec for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the whole `spec.md`. The Jira project key
 is the part of `TICKET` before the dash.
+
+## Step 1b — In-flight inventory (every stage, including `post`)
+Reads of `origin/<target>` cannot see work that was never pushed or merged, so a "no conflict" from them
+proves nothing about it. Scan first, and say what was and was not scanned. `<target>` = the config's
+tracking branch (`staging`/`main`). Reads only (`git fetch` is the one allowed refresh; if it fails, say so).
+- `probe.sh state <TICKET>` gives the ticket's own branch / dirty / unpushed. Add only what it lacks, for the
+  parent repo and each checked-out submodule (`git -C <path>`):
+  `git worktree list` · `git branch -vv` (no upstream = local-only; `[ahead n]` = unpushed) ·
+  `git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads` ·
+  `git log --oneline origin/<target>..<branch>` for each hit ·
+  `git branch -r --no-merged origin/<target>` · open PRs against `<target>` (the host's API/CLI; not reachable → `unchecked`).
+- Spec dirs that exist only on unmerged branches: `git ls-tree -d --name-only <branch> specs/` for each
+  unmerged branch, diffed against `specs/` on `<target>`; plus anything the project's `CLAUDE.md` flags as "not on
+  main". Note number collisions.
+- Jira (reads): tickets In Progress / Testing / In Review under the same epic, or whose text names the same
+  entity, including follow-ups split out of this ticket (same JQL rules as Step 3a).
+
+Per hit record **ticket/branch · where the code lives** (`local-only` / `pushed branch` / `open PR` / `merged to
+staging` / `on main`) **· what overlaps** (files, endpoints, entities, roles; `git diff --name-only
+origin/<target>...<branch>` against the change under review). Then:
+- Local-only or unpushed → label **`NOT VISIBLE TO OTHERS — not pushed`**. Highest-risk class.
+- A related ticket whose code cannot be found (no branch, no PR) → `cannot evaluate: code not found`, add it to
+  the PO/dev questions; never assume compatible.
+- Never read the absence of a conflict as proof when the other side's code was not scanned: list it `unscanned`.
+Overlapping hits become counter-sources for Step 3c / Step 4 and, in `post`, rows in the rule inventory.
 
 ## Step 2 — Select claims
 From `## Requirements` keep only requirements that (a) say who may see or do what — a role, a
@@ -125,6 +153,7 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
    - checked: <KEY> "<summary>" · <spec path> · <file:line> …
    - searched: JQL `<exact query>` → <n> hits, read <m>
    - superseded: …
+   - in-flight: <ticket/branch> · <location> · <overlap> — or `unscanned: <what>`
    - unchecked: <source> — <reason>
    - cut: <what was dropped by the caps>
    ## Findings
@@ -185,16 +214,88 @@ type into Jira.
 ## Step 7 — Report
 ```
 shipkit · cross-check <TICKET> (<stage>)
+In-flight inventory:   (table first: ticket/branch | where the code lives | overlap | NOT VISIBLE TO OTHERS?)
+  <rows — or "none found; scanned: <what>; unscanned: <what>">
 Claims:   <n> checked (<c> cut)   Sources: <j> Jira · <s> specs · <f> code files
 Findings: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked
 <one line per ticket-conflict: OQ-N · REQ-ID · KEY-A vs KEY-B · screenshots: yes/no>
 Written:  specs/NNN-slug/cross-check.md  (+ open-question.md, conflicts/*.png)
 Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to ask" only when 0 unchecked;
-          any unchecked source → "incomplete: <sources>; not a 'no conflict' result"
+          any unchecked source, unscanned or unpushed in-flight work → "incomplete: <sources>; not a 'no conflict' result"
 ```
 The `Findings:` line is exact: callers parse it.
 
+## Post-implementation mode (`--stage post`)
+The spec-time check reads what people *wrote*; this one checks what the change *does* once it sits in the
+real system. Spec- and plan-time checks do not replace it: a branch can compile, pass its tests and still
+disagree with staging, the PO's later decisions, or the clients that consume its contract.
+
+**When it MUST run** — a required step, not an option:
+- after the implement stage of `/bugfix` and `/run-pipeline`, before `/verify` and `/review-changes`;
+- after `/assign` hands code back;
+- after any rebase or merge onto a target that changed the same domain.
+
+It is **mandatory** when the change (a) alters who may read or write an entity (role, permission,
+visibility, nav item), (b) changes or consumes a contract other features also use (API flags/fields, shared
+types, shared hooks/components), or (c) was rebased or merged onto commits that touch the same files or
+concepts. A pure-local change with no consumers may skip it — say so in one line
+(`cross-check post: skipped — <why no consumers>`), never silently.
+
+**Inputs.** Per affected submodule (`probe.sh state`): `git diff <tracking branch>...HEAD`, plus the log of
+what the target gained since the branch point. Read the spec if there is one; its absence does not skip this.
+
+**Checks** — each lesson is a check; the example is the case it came from (AR-488):
+1. **Textual merge ≠ semantic merge.** List every authorization / eligibility rule the change touches and
+   find ALL places that implement it: BE handler, DTO flag, FE local logic. One server source of truth;
+   clients read the flag, never re-derive it. Grep the client for role/identity comparisons next to action
+   buttons. *Staging replaced self-approve with a Roster model; the branch compiled, but `can_approve` /
+   `can_reject` / `can_withdraw` were false for a pending revision and the FE still computed `canReview`
+   with the OLD rule — the owner (the only person allowed to approve) saw no Approve button, a third admin
+   saw one the server refused (409).*
+2. **A later PO decision on the same entity beats the spec and code comments.** Before building or keeping
+   any access rule, search the Jira comments of the parent epic **and sibling tickets** (not only this
+   ticket) for decisions about that entity; order them by date; cite comment id + date. A spec clause with
+   no source citation is a suspicion, not a requirement. *AR-487 comment 46648 item 6 (13 Oct): "Admin and
+   Super admin only, page and API return 403 for Managers and Learners" contradicted spec 062 REQ-026
+   "managers view", which cited no source.* Never edit PO tickets; the conflict becomes a draft comment.
+3. **Blocking a role from an entity breaks every consumer of it for that role.** Build a consumer × role
+   matrix for each endpoint whose permission changed: pickers, chips, editors, notifications, nav items,
+   BE handlers that hand out raw vs resolved data. Check the BE policy is one policy, not split per
+   handler. *Manager got 403 on `GET /api/canonical-facts`, yet the editor still showed "Link a fact", the
+   course page showed raw `{{fact:uuid}}` tokens, and factrefs / call-prep-facts still allowed managers.*
+4. **A permission failure is never rendered as empty data or a misleading hint.** For each consumer of a
+   newly restricted endpoint, check how it renders 401/403. *The picker showed "No canonical facts yet —
+   type the value as plain text" for a 403.*
+5. **Evidence standard.** Run it as each affected role on the real running stack (owner, sender-not-owner,
+   third admin, sole admin, manager, learner — whichever exist) and label every finding **ran it** or
+   **inferred from code**. A screenshot or console/network 403 is evidence; reading code alone is not.
+   Needs the app running — ask the user to start it, else the finding stays `inferred from code` and the
+   verdict cannot be `ship`.
+6. **Verification hygiene while rebasing.** Do not mask exit codes (`cmd | head` inside an `&&` chain hides
+   build failures); in zsh write `"${ref}:path"` — `"$ref:path"` is a path modifier; pin the project's
+   toolchain when a generator fails on a newer local one.
+
+**Output** — write `cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`), then report, starting
+with the **In-flight inventory** table (Step 1b), then:
+1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
+2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,
+   with what the role sees (data, empty state, error).
+3. **Decision conflicts** — Jira/spec findings with ticket key, comment id and date, verbatim quote on
+   both sides (the Cite-sources rule applies; the same-subject comparison of Step 4 applies).
+4. **Open questions for the PO** — DRAFT comments only, in business words, for the user to approve; this
+   skill posts nothing and never edits a PO ticket.
+5. **Verdict** — exactly one of: `ship` (every rule consistent, every matrix cell `ran it`, no conflict,
+   and no unscanned in-flight work that could change it),
+   `fix first` (an inconsistency or a code-vs-dated-PO-decision gap the code can close), `ask PO` (the
+   sources contradict each other and only the PO can settle it). The verdict names any unscanned or unpushed in-flight work that could change it
+   (`ship` is not available while a local-only overlapping branch is unread). Same exact line for callers to parse:
+   `Cross-check post: verdict <ship|fix first|ask PO> — <n> inconsistent rules, <m> conflicts, <k> inferred cells`.
+
 ## Gotchas
+- **Origin-only checks are blind to unpushed work.** *AR-488 sat local-only after a rebase (force-push pending):
+  spec, FE/BE changes and notification types on no remote — a check of `origin/staging` alone says "no
+  conflict".* Same for specs the project's `CLAUDE.md` marks "not on main — lives on `origin/feat/…`" (e.g. usage
+  limits, learner self-enroll). Run Step 1b; label what it could not see.
 - **Different words, same rule.** Compare actor × action × scope (or subject × attribute × value), not wording. A paraphrase you cannot
   quote on both sides is not a finding.
 - **A conflict can be real and already built.** State what the product does today when both rules are

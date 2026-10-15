@@ -132,6 +132,7 @@ re-confirm success from ground truth and append the result + timestamp to the st
   "Spec + branches ready. Implement the tasks in the submodule branches, then re-run
   `/run-pipeline <ticket>` to continue." In `AUTO=true`, still stop here — the orchestrator never
   writes app code.
+- **Post-implement cross-check** *(required, before review and verify)*: once changes are present, run `/cross-check <ticket> --stage post` when the change alters who may read/write an entity, changes or consumes a shared contract, or was rebased onto same-domain commits; otherwise note `cross-check post: skipped — <why>`. Verdict `fix first` / `ask PO` stops the run here.
 - **Stage 4 — review** (changes present, review not done): dispatch `/review-changes --ticket <ticket>`.
   Success = output reports per-submodule ✅/⚠️ and checks off tasks. On ⚠️ blocking issues in strict
   mode, stop and report; in `AUTO=true`, surface them but continue only if non-blocking.
