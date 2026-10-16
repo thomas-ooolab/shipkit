@@ -154,7 +154,7 @@ You answer from the seat of the developer who built it.
 
 ## Daily briefing (first run of the day, every mode)
 Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks whether
-today continues it or starts something new. Read-only — its one write is the marker below.
+today continues it or starts something new. Read-only — its one write is the marker below; resuming the unfinished tickets it lists is the separate *Continue* procedure.
 
 **First run of the day** = `.shipkit/developer-daily.md` at the SDD root does not say today. Read it as
 `last_briefing: <YYYY-MM-DD>`; `today` = `TZ=Asia/Ho_Chi_Minh date +%F` (the day turns at 00:00 GMT+7). Equal → skip
@@ -167,7 +167,7 @@ evidence only — a line with nothing behind it is not written; git history is *
    source is `not checked`): one `ORCA worktree ps --json`, keep the worktrees whose `lastActivityAt` (epoch ms) is **at or after
    yesterday 00:00** — it is the *latest* activity, so a worktree touched again today no longer falls "within
    yesterday"; the evidence below decides what happened yesterday — and whose branch, `displayName` or `comment` carries a
-   ticket key (`feat/<KEY>-…`, `AA-48 …`; others are only counted). Per
+   ticket key (`feat/<KEY>-…`, or a key written in the card text; others are only counted). Per
    worktree read `path`, `branch`, `workspaceStatus` (Orca's card: todo / in-progress / in-review / completed),
    `comment` (the card's status line, e.g. `assign <KEY>: wave 2 running`), `linkedPR`, `liveTerminalCount` and
    `agents[].state`.
@@ -187,20 +187,24 @@ running" after the state file records the merge) — the state file wins and the
 evidence of a stage → say `stage unknown`, never infer one.
 
 **Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (PR
-opened/merged, review loop running, wave running) and where it stands (Jira status, open PR, unpushed work). Nothing found → "no activity found
-yesterday (Orca worktrees, state files)". **Last line = one short question** that lets the user choose: continue one of the
-unfinished tickets (open PR, a wave or review still running, Jira not yet past testing — name them) or start a new task;
-never decide for them (nothing unfinished to name → just ask what they start today). Merged and handed-over tickets are listed but not offered.
+opened/merged, review loop running, wave running) and where it stands (Jira status, open PR). Nothing found → "no activity found
+yesterday (Orca worktrees, state files)". **Unfinished** = stage mid-pipeline (implement unfinished, verify, review, PR loop), or every PR merged while Jira has not moved
+on. Each unfinished ticket is **continued automatically — no question**: the work is the user's, and *Continue* itself
+stops at any blocker. Start those procedures in the background right after printing (one per ticket, each in its own
+worktree). **Last line** = what was started (`đang chạy tiếp <KEY>, <KEY>`, in the user's language) and an open invitation for new work; a
+ticket whose *Continue* found a blocker is named there with the blocker in one line and the one decision it needs. **Only
+when no ticket is unfinished** the last line is a short question about what they start today. Merged and handed-over tickets with nothing
+pending are listed, not continued.
 
 **Don't slow the other modes.** Run the local reads in parallel with at most one Jira search; past ~20 s, print what is
-ready and mark the rest `not checked`. Observer mode starts watching right after printing — the question is plain
-text, never blocks it, and the user's answer arrives as an ordinary message. When the run already names its target (a
-ticket, URL or description), print the summary but skip the question: the user has chosen.
+ready and mark the rest `not checked`. Observer mode starts watching right after printing — the continuations run in the
+background and the closing line never blocks it; a reply arrives as an ordinary message. When the run already names its target (a
+ticket, URL or description), print the summary only — no question, and nothing is continued (the user chose another job).
 
 ### Continue a ticket from the briefing
-When the user answers the briefing's question with a ticket whose stage is mid-pipeline (implement unfinished, verify,
-review, PR loop — not merged/done), resume it **in that ticket's own worktree, with its own claude** — no new
-worktree. The answer goes here, never back into *Start mode* (whose "worktree already matches → tell the user and stop"
+For each unfinished ticket the briefing lists (and for any ticket the user names later), resume it **in that
+ticket's own worktree, with its own claude** — no new
+worktree. A resume goes here, never into *Start mode* (whose "worktree already matches → tell the user and stop"
 would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
 `ORCA open`. The messages below are fixed text — never Jira or Slack content.
 1. **Find the planner.** `ORCA terminal list --worktree id:<repoId>::<path> --json` (id and path from the Orca row).
@@ -218,8 +222,11 @@ would only bounce it). Run it as a background task so the observer is not blocke
 5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
    one; `open-question.md` has an unchecked item; `assign-failure-<KEY>.md` or a `❌` line exists; a PR concern is open in
    `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen follows *Start mode*'s *Question on screen* rule.
-6. **No blocker → tell it to carry on to the end:** `Tiếp tục <KEY> từ stage hiện tại tới hết pipeline: chạy /assign cho
-   phần implement còn dở (nếu có), rồi /run-pipeline <KEY> auto. Dừng và báo lại khi gặp blocker hoặc cần quyết định.`
+6. **No blocker → tell it to carry on to the end, judged from the situation, not from a fixed next command:**
+   `Tiếp tục <KEY> từ trạng thái hiện tại tới hết pipeline: làm đúng bước kế tiếp mà tình hình thực tế đòi hỏi — đánh giá từ
+   state file và trạng thái thật (git, PR, Jira), rồi dùng skill phù hợp (ví dụ /assign cho phần implement còn dở,
+   /run-pipeline <KEY> auto cho các stage sau, hoặc bước còn thiếu sau merge). Dừng và báo lại khi gặp blocker hoặc cần
+   quyết định.`
    It runs there; confirm by what the screen does, as in *Start mode*. **Blocker →** send nothing more; tell the user the
    blocker in one line and let them decide.
 7. **Report** one line: `<KEY>: pinged <handle> (idle|new planner) — stage <s>, <no blocker → running to the end | blocker: …>`;

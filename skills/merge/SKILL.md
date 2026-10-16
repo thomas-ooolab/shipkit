@@ -196,8 +196,8 @@ Take the most frequent value per field. It is **usable** only with at least 3 sa
 of the runner-up; the chosen status must also be among this ticket's transitions (`getTransitionsForJiraIssue`, by
 name) and the chosen assignee in its assignable users (10.2). Anything unusable → the question in 10.1 / 10.3 with the
 top candidates (never more than ~4); never guess.
-**Always say what was decided and why**, in `JIRA_NOTE` and the Step 11 line, e.g. `status TESTING (7 of 10),
-assignee chi.ttk (6 of 9)` (n of the usable samples for that field) — or `(config)` — so the user can correct it afterwards.
+**Always say what was decided and why**, in `JIRA_NOTE` and the Step 11 line, e.g. `status <name> (n of m),
+assignee <displayName> (n of m)` (m = the usable samples for that field) — or `(config)` — so the user can correct it afterwards.
 Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
 **Evidence goes out first, and only when a transition will happen.** The `/verify` evidence is sent to the
 ticket right before the status changes — never earlier (not after verify, not at `/pr`), never when the user
