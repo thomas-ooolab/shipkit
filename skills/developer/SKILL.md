@@ -162,7 +162,7 @@ this whole section; missing or older → run it, then write `last_briefing: <tod
 dismissed briefing is not repeated. A lost marker (ephemeral worktree) only means one extra briefing.
 
 **Yesterday** = the previous GMT+7 day (`TZ=Asia/Ho_Chi_Minh date -v-1d +%F`; GNU: `date -d yesterday +%F`). Sources are
-evidence only — a line with nothing behind it is not written:
+evidence only — a line with nothing behind it is not written; git history is **not** read (no commits):
 1. **Orca worktrees** (load the `orca-cli` skill for the CLI; read-only, never `ORCA open` — Orca not running → this
    source is `not checked`): one `ORCA worktree ps --json`, keep the worktrees whose `lastActivityAt` (epoch ms) is **at or after
    yesterday 00:00** — it is the *latest* activity, so a worktree touched again today no longer falls "within
@@ -174,12 +174,7 @@ evidence only — a line with nothing behind it is not written:
 2. State files: `.shipkit/*.md` (`pipeline-`, `assign-`, `pr-`, `merge-`, `developer-`) modified **since yesterday 00:00**
    (a file edited again today still counts), in the root and every worktree (`git worktree list`, plus the Orca paths
    above). Read their *content* for the stage — the mtime only says the ticket was touched.
-3. The user's commits, **per ticket and per repo** — the code lives in the submodules, so `git log` on the root alone
-   finds nothing: in each checked-out submodule run `git log --all --grep=<KEY> --no-merges
-   --author=<that repo's user.name> --author=<its user.email> --since='<yesterday> 00:00 +0700' --until='<today> 00:00
-   +0700'`. Match by the repo's own name and email (the same person commits under several emails), and by `--grep=<KEY>`:
-   worktrees of one repo share its object store, so `--all` or `--branches` without the key mixes other tickets.
-4. For the ≤5 most recently touched tickets: Jira status (one `searchJiraIssuesUsingJql` on `key in (…)`) and the PR
+3. For the ≤5 most recently touched tickets: Jira status (one `searchJiraIssuesUsingJql` on `key in (…)`) and the PR
    state (the state files, else Bitbucket with the sibling skills' credentials). A lookup that fails is written
    `not checked`, never guessed.
 
@@ -191,10 +186,10 @@ the spec dir (`probe.sh state <KEY>`: `plan` when its `spec.md` has a Plan/Tasks
 running" after the state file records the merge) — the state file wins and the mismatch is worth a word. No
 evidence of a stage → say `stage unknown`, never infer one.
 
-**Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (commits, PR
-opened/merged, review loop running) and where it stands (Jira status, open PR, unpushed work). Nothing found → "no activity found
-yesterday (git, state files)". **Last line = one short question** that lets the user choose: continue one of the
-unfinished tickets (open PR, unpushed or dirty work, Jira not yet past testing — name them) or start a new task;
+**Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (PR
+opened/merged, review loop running, wave running) and where it stands (Jira status, open PR, unpushed work). Nothing found → "no activity found
+yesterday (Orca worktrees, state files)". **Last line = one short question** that lets the user choose: continue one of the
+unfinished tickets (open PR, a wave or review still running, Jira not yet past testing — name them) or start a new task;
 never decide for them (nothing unfinished to name → just ask what they start today). Merged and handed-over tickets are listed but not offered.
 
 **Don't slow the other modes.** Run the local reads in parallel with at most one Jira search; past ~20 s, print what is
