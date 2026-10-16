@@ -208,8 +208,10 @@ worktree. A resume goes here, never into *Start mode* (whose "worktree already m
 would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
 `ORCA open`. The messages below are fixed text — never Jira or Slack content.
 1. **Find the planner.** `ORCA terminal list --worktree id:<repoId>::<path> --json` (id and path from the Orca row).
-   The planner is the worktree's **claude** terminal. Exactly **one** claude terminal per worktree, ever: several
-   → use the idle one titled `<KEY>…` (several of those, or none: the most recent) and open nothing.
+   The planner is the worktree's **claude** terminal — tell kinds apart by the title, which the agent sets itself: a kiro
+   terminal is titled `kiro-cli`, a claude one carries claude's own task title (often prefixed `✳`), never the ticket
+   key — and by `worktree ps` `agents[].agentType` when the title is unclear. Exactly **one** claude terminal per
+   worktree, ever: several → use the idle one (several idle: the most recent) and open nothing.
 2. **Usable?** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once`: `agent` (idle) → ping it. `working` →
    don't interrupt it: say `claude is working in <handle>` and stop. `attention` → tell the user, answer nothing.
    `shell` / `login` / `gone` → it is dead: close it (`terminal close`) and treat the worktree as having none.
@@ -220,7 +222,8 @@ would only bounce it). Run it as a background task so the observer is not blocke
 4. **Ask the situation.** Send (*Send* of *Start mode* step 3): `Ticket <KEY> đang ở stage nào, có blocker không (câu hỏi chưa
    trả lời, test fail, conflict, chờ người duyệt)? Báo ngắn, chưa làm gì thêm.` Wait for idle, `terminal read` the reply.
 5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
-   one; `open-question.md` has an unchecked item; `assign-failure-<KEY>.md` or a `❌` line exists; a PR concern is open in
+   one; `open-question.md` has an unchecked item; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
+   supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in
    `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen follows *Start mode*'s *Question on screen* rule.
 6. **No blocker → tell it to carry on to the end, judged from the situation, not from a fixed next command:**
    `Tiếp tục <KEY> từ trạng thái hiện tại tới hết pipeline: làm đúng bước kế tiếp mà tình hình thực tế đòi hỏi — đánh giá từ
