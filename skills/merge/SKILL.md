@@ -101,11 +101,22 @@ mirrors `/pr`'s Jira-comment confirm pattern: draft the list → show it → wai
 merge, not that the user has *decided* to merge right now.
 
 ## Step 6 — Merge, in Part order, capture shas
-For each confirmed PR, in Part order: `POST /repositories/<workspace>/<repo>/pullrequests/<id>/merge`.
-Don't pass an explicit merge strategy — the repo's own configured Bitbucket default applies. Capture
-the response's merge commit sha; append it to `.shipkit/merge-<TICKET>.md`. A merge rejection (not
-approved, checks failing server-side, conflict) → stop, report the rejection verbatim, don't retry
-blindly.
+For each confirmed PR, in Part order, run the bundled script — never an inline `curl` / `python3 -c`, and never
+`echo` the JSON response:
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/merge/merge-pr.sh" <workspace> <repo> <pr_id>
+```
+It POSTs `.../pullrequests/<id>/merge` with `$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD` and no explicit merge
+strategy (the repo's own Bitbucket default applies), follows an async merge to its end, and prints one line,
+`<repo> #<id> MERGED <full merge sha>`, exit 0. Any rejection (not approved, server-side check, conflict), any state
+other than MERGED, or a body it cannot parse → non-zero with the verbatim error on stderr: **1** Bitbucket said no,
+**3** network/curl (or the async merge never finished), **4** bad usage or credentials unset.
+
+Make one call per PR and read **that call's own exit status** — run it on its own (or `bash ...; echo "exit=$?"`),
+never behind a pipe to `tee`/`grep`/`head`, never `|| break` after a pipe. **Stop at the first non-zero:** report the
+rejection verbatim, merge nothing later in Part order, don't retry blindly. Append each printed line to
+`.shipkit/merge-<TICKET>.md`; those are the shas Step 7 waits on.
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/merge/merge-pr.py" --self-test` checks the response judge.
 
 ## Step 7 — Wait for the pipelines (script, not inline)
 Run the bundled poller — never an inline `python3 -c '...'` or a `timeout` (nested quoting broke the
@@ -232,6 +243,12 @@ Never end a report with a bare "skipped" on the Jira line: say *what* wasn't don
   positional shell args). The skill loader substitutes them with the command's arguments — that turned
   awk's third-field print into `print AR-517`. Use a form without them (`git rev-parse HEAD:<path>`,
   `sed` with a backslash-digit group), or put the logic in a script file.
+- **zsh `echo` mangles JSON escapes.** `echo "$out" | python3 ...` turns the backslash-n inside a JSON error
+  message into a real control character and `json.load` fails (AR-573). Never pass an API response through
+  `echo`: write it to a file (curl `-o`) or use `printf '%s'` — `merge-pr.sh` does the former.
+- **A pipeline's exit status is its last command's.** `cmd | tee log || break` gates on `tee`, which is always 0,
+  so a failed merge step let the next PR merge anyway (AR-573: the FE PR merged although the BE step had errored).
+  Never gate on a pipeline; call the script, read its status directly, stop on non-zero.
 - **The Bash tool is zsh.** Unquoted variables aren't word-split and `for p in "a sha"; set -- $p`
   breaks — wrap loops in `bash -c '...'`. There is no `timeout` on macOS; scripts track their own
   deadline. Never nest `python3 -c '...'` in shell — use a `.py` file.
