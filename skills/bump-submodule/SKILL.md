@@ -98,8 +98,7 @@ Bumps:
 |---|---|---|
 | ai-roleplay-be | <before> | <sha> |
 ```
-Not opened as `[WIP]` — a bump PR is review-ready. (Bitbucket has no auto-close keyword; the ticket
-key in the title is the link.)
+(Bitbucket has no auto-close keyword; the ticket key in the title is the link.)
 
 ## Step 6 — Close the loop
 Report:

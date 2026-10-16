@@ -130,8 +130,8 @@ On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (submodule, error
 For each affected submodule not `already-open` (in **Part order** if the plan pinned one — e.g. BE before FE):
 1. Push its feature branch (`--force-with-lease` only if it was rebased).
 2. Open a Bitbucket PR via the API (`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`):
-   - **Title:** `<TICKET>: <feature title> (<submodule>)` — prefix `[WIP] ` (Bitbucket Cloud has no
-     native draft; `[WIP]` is the convention) unless the user asked for ready-for-review.
+   - **Title:** always `<TICKET>: <feature title> (<submodule>)` — no `[WIP]` or any other draft marker: these PRs go
+     straight to the reviewer and then get merged, so the title is what stays in the merge history.
    - **source** = feature branch · **destination** = `PR_TARGET` (skip `main` for `staging_only`).
    - **description:** link the Jira ticket (`<jira.base_url>/browse/<TICKET>`), the REQ-IDs covered,
      the spec path, and `Part i of N` for fan-out.
@@ -140,7 +140,7 @@ For each affected submodule not `already-open` (in **Part order** if the plan pi
 ## Step 6 — Open the parent-repo PR (the throughline)
 Skip if the parent is `already-open`. Otherwise push the parent branch and open the parent PR
 (destination: the parent repo's default branch — it has no staging tier):
-- **Title:** `<TICKET>: <feature title>`
+- **Title:** `<TICKET>: <feature title>` — no draft marker either.
 - **description:** the canonical summary + **links to every child PR grouped by submodule** + the
   spec path. This parent PR ties the child PRs to the ticket. Note: the submodule-ref **bump**
   happens after child PRs merge — `/bump-submodule`.
