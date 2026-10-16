@@ -164,16 +164,21 @@ dismissed briefing is not repeated. A lost marker (ephemeral worktree) only mean
 **Yesterday** = the previous GMT+7 day (`TZ=Asia/Ho_Chi_Minh date -v-1d +%F`; GNU: `date -d yesterday +%F`). Sources are
 evidence only — a line with nothing behind it is not written:
 1. **Orca worktrees** (load the `orca-cli` skill for the CLI; read-only, never `ORCA open` — Orca not running → this
-   source is `not checked`): one `ORCA worktree ps --json`, keep the worktrees whose `lastActivityAt` (epoch ms) falls
-   yesterday and whose branch or `displayName` carries a ticket key (`feat/<KEY>-…`; others are only counted). Per
+   source is `not checked`): one `ORCA worktree ps --json`, keep the worktrees whose `lastActivityAt` (epoch ms) is **at or after
+   yesterday 00:00** — it is the *latest* activity, so a worktree touched again today no longer falls "within
+   yesterday"; the evidence below decides what happened yesterday — and whose branch, `displayName` or `comment` carries a
+   ticket key (`feat/<KEY>-…`, `AA-48 …`; others are only counted). Per
    worktree read `path`, `branch`, `workspaceStatus` (Orca's card: todo / in-progress / in-review / completed),
    `comment` (the card's status line, e.g. `assign <KEY>: wave 2 running`), `linkedPR`, `liveTerminalCount` and
    `agents[].state`.
-2. State files: `.shipkit/*.md` (`pipeline-`, `assign-`, `pr-`, `merge-`, `developer-`) modified yesterday, in the root and
-   in every worktree (`git worktree list`, plus the Orca paths above) — their checked stage lines say how far each ticket got.
-3. The user's commits: `git log --author=<user.email> --since='<yesterday> 00:00 +0700' --until='<today> 00:00 +0700'`
-   on the root, each checked-out submodule and each worktree; the ticket key comes from the branch (`feat/<KEY>-…`),
-   the commit subject or the state file name.
+2. State files: `.shipkit/*.md` (`pipeline-`, `assign-`, `pr-`, `merge-`, `developer-`) modified **since yesterday 00:00**
+   (a file edited again today still counts), in the root and every worktree (`git worktree list`, plus the Orca paths
+   above). Read their *content* for the stage — the mtime only says the ticket was touched.
+3. The user's commits, **per ticket and per repo** — the code lives in the submodules, so `git log` on the root alone
+   finds nothing: in each checked-out submodule run `git log --all --grep=<KEY> --no-merges
+   --author=<that repo's user.name> --author=<its user.email> --since='<yesterday> 00:00 +0700' --until='<today> 00:00
+   +0700'`. Match by the repo's own name and email (the same person commits under several emails), and by `--grep=<KEY>`:
+   worktrees of one repo share its object store, so `--all` or `--branches` without the key mixes other tickets.
 4. For the ≤5 most recently touched tickets: Jira status (one `searchJiraIssuesUsingJql` on `key in (…)`) and the PR
    state (the state files, else Bitbucket with the sibling skills' credentials). A lookup that fails is written
    `not checked`, never guessed.
@@ -182,7 +187,8 @@ evidence only — a line with nothing behind it is not written:
 words: `spec` · `clarify` · `plan` · `implement` (add `wave n` from `assign-<KEY>.md`) · `verify` / `review` · `pr — review
 loop` (round n from `pr-<KEY>.md`) · `merge` · `bump` · `done`. Sources, in order: a stage checklist in
 `pipeline-<KEY>.md`; else `merge-<KEY>.md` (merged) → `pr-<KEY>.md` (PR / review loop) → `assign-<KEY>.md` (implement) →
-the spec dir (`probe.sh state <KEY>`: `plan` when its `spec.md` has a Plan/Tasks section, else `spec`) — with the Orca `workspaceStatus` / `comment` as a cross-check. No
+the spec dir (`probe.sh state <KEY>`: `plan` when its `spec.md` has a Plan/Tasks section, else `spec`) — with the Orca `workspaceStatus` / `comment` as a cross-check only: they go stale (a card still saying "review fixes
+running" after the state file records the merge) — the state file wins and the mismatch is worth a word. No
 evidence of a stage → say `stage unknown`, never infer one.
 
 **Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (commits, PR
