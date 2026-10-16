@@ -117,7 +117,7 @@ jira:
   # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"
-  # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
+  # qc_account_id: "<Jira accountId>"   # optional QC override — /merge otherwise derives it from your recent tickets
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   parent_prefix: "feat/{ticket}-{slug}"
@@ -141,7 +141,7 @@ jira:
   project_key: <from sources>
   # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"              # optional, used by /merge
-  # qc_account_id: "<Jira accountId>"   # optional suggested QC default — /merge still asks
+  # qc_account_id: "<Jira accountId>"   # optional QC override — /merge otherwise derives it from your recent tickets
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
 branching:
   feature_prefix: "feat/{ticket}-{slug}"
