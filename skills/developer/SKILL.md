@@ -220,7 +220,7 @@ would only bounce it). Run it as a background task so the observer is not blocke
    *Ready* check of *Start mode* step 3. A fresh claude has no context: its first message is
    `Đọc .shipkit/pipeline-<KEY>.md và các file .shipkit/*<KEY>* trong worktree này, rồi báo ngắn stage hiện tại.`
 4. **Ask the situation.** Send (*Send* of *Start mode* step 3): `Ticket <KEY> đang ở stage nào, có blocker không (câu hỏi chưa
-   trả lời, test fail, conflict, chờ người duyệt)? Báo ngắn, chưa làm gì thêm.` Wait for idle, `terminal read` the reply.
+   trả lời, test fail, conflict, chờ người duyệt)? Nhánh của ticket đang lệch bao nhiêu so với nhánh đích, có cần rebase hoặc nhánh mới trước khi code không? Báo ngắn, chưa làm gì thêm.` Wait for idle, `terminal read` the reply.
 5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
    one; `open-question.md` has an unchecked item; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
    supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in

@@ -85,6 +85,30 @@ To force a re-run anyway, the user must say so explicitly — AskUserQuestion: "
 has {dirty|unpushed} changes on its branch — re-run its agent anyway and let it continue from
 there, or skip?" (`--only <name>` alone does not imply force.)
 
+## Step 4b — Fresh enough to code on? (per submodule, before its wave runs)
+Coming back to an old branch or worktree, never hand out work on what the last `fetch` said: the branch may have been
+merged long ago, or the target may have moved under the files the tasks will touch (a returning worktree once had its
+agent coding on a branch hundreds of commits behind). Per submodule's branch — `git fetch origin` first (with the
+project's remote rewrite if it needs one), then read, don't guess:
+- **Position:** `git rev-list --left-right --count origin/<target>...HEAD` (behind / ahead); is the branch already
+  merged (`git merge-base --is-ancestor HEAD origin/<target>`, or its PR is `MERGED`)?
+- **Overlap:** do the commits the target gained since the merge-base touch the files the tasks list
+  (`git diff --name-only <merge-base>..origin/<target>` against the task paths)?
+- **Worth reusing for this context?** The branch belongs to the **same ticket** and carries unmerged work still wanted
+  (open PR, work in progress) → reuse. Already merged, or abandoned, or the new work is another ticket/context → it carries
+  nothing the new work needs: don't build on it as it is.
+Decide from those, not from a fixed number of commits:
+- Merged, no commit of its own, tree clean → bring it to the target's tip by fast-forward (nothing lost, no force-push); a
+  different ticket gets its own new branch (and worktree) from `origin/<target>` instead, never stacked on the old one.
+- Own unmerged commits and the target changed files the tasks touch, or it is far behind → **rebase onto
+  `origin/<target>` before any coding** (conflicts in the tasks' files are the user's to see; a force-push of an
+  already-pushed branch is asked about first, as everywhere).
+- Own commits, behind but no overlap, drift small → code on it; the rebase is for PR time.
+- Tree dirty → no fast-forward or rebase under uncommitted work: report it. (A re-run the user forced in Step 4 goes on
+  from the tree as it is; this check still reports the position.)
+Say what was decided and why in one line per submodule (`behind n, overlap: yes → rebased` / `merged → fast-forwarded` /
+`reuse as is`), in the report and the state file. Skipping this check is how an agent codes on a stale base.
+
 ## Step 5 — Delegate each wave (parallel)
 **Transport — pick once, before the first wave.** Resolve `ORCA` the way the `orca-cli` skill's stub says,
 then run `ORCA worktree current --json`. It succeeds (the session is inside an Orca-managed worktree)
