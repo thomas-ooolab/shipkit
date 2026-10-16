@@ -53,7 +53,7 @@ def self_test():
         ("merged", 200, json.dumps({"state": "MERGED", "merge_commit": {"hash": sha}}), 0),
         ("still open", 200, json.dumps({"state": "OPEN", "merge_commit": None}), 1),
         ("rejected", 409, json.dumps({"error": {"message": "Not approved", "detail": "needs 1 approval"}}), 1),
-        # the AR-573 case: JSON escapes that a zsh `echo` turns into real control characters
+        # JSON escapes that a zsh `echo` turns into real control characters
         ("escaped newline in message", 400, json.dumps({"error": {"message": "line1\nline2 \"quoted\""}}), 1),
         ("not json", 502, "<html>Bad gateway</html>", 1),
         ("async accepted", 202, "", 10),

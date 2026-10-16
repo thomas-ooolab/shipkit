@@ -428,7 +428,7 @@ approval unless `--auto` or a user-stated scope says so.
 Each stdout line is one notification, ids only: `EVENT <dm|mention|thread|post> channel=<C…> ts=<ts>
 thread_ts=<root|-> user=<U…|?>` — `dm` a DM to the user, `mention` an @mention, `thread` a reply in a
 thread the user started or posted in, `post` a top-level channel post by a person that names a ticket
-(how QC announces a report, e.g. "QC – AR-374 Reports … 2 still failing", with no @mention). For each, in
+(how QC announces a report, e.g. "QC – <KEY> Reports … n still failing", with no @mention). For each, in
 arrival order, one at a time:
 0. **`post` event:** the ticket is the first `[A-Z]+-\d+` in the message. Read the ticket's latest QC
    comments in Jira (`getJiraIssue`) — the post only announces; the findings are in the ticket. Then

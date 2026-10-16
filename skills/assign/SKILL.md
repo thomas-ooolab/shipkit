@@ -74,8 +74,8 @@ single-target run (no waves to print). Read the **Fan-out**/**Part order** note 
   relative to each other share a wave.
 - Print the wave plan before dispatching anything:
   ```
-  Wave 1 (parallel): ai-roleplay-be, ai-roleplay-voice
-  Wave 2 (parallel): ai-roleplay
+  Wave 1 (parallel): <submodule-a>, <submodule-b>
+  Wave 2 (parallel): <submodule-c>
   ```
 
 ## Step 4 — Ground-truth skip check (per submodule, before its wave runs)
@@ -224,9 +224,9 @@ the rest of that submodule's tasks are done because one succeeded). Any `❌` �
 results — one failure doesn't roll back siblings. Write `.shipkit/assign-<ticket>.md`:
 ```
 # Assign state — <ticket>
-Wave 1: ai-roleplay-be        ✅ 3/3 tasks   branch=feat/AR-450-rooms-be     terminal=term_a1 (kiro)
-        ai-roleplay-voice     ✅ 1/1 tasks   branch=feat/AR-450-rooms-voice  terminal=term_b2 (kiro)
-Wave 2: ai-roleplay           ❌ test failure — see assign-failure-AR-450.md  terminal=term_c3 (kiro, new — a different submodule gets its own)
+Wave 1: <submodule-a>          ✅ 3/3 tasks   branch=feat/<TICKET>-<slug>-a   terminal=<handle-1> (kiro)
+        <submodule-b>          ✅ 1/1 tasks   branch=feat/<TICKET>-<slug>-b   terminal=<handle-2> (kiro)
+Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.md  terminal=<handle-3> (kiro, new — a different submodule gets its own)
 ```
 (Orca mode only: write each handle, agent kind and submodule as soon as its terminal is created or reused — `unassigned`
 until its brief is sent — Step 5's reuse check reads them from here.)

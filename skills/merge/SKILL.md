@@ -125,7 +125,7 @@ rejection verbatim, merge nothing later in Part order, don't retry blindly. Appe
 
 ## Step 7 — Wait for the pipelines (script, not inline)
 Run the bundled poller — never an inline `python3 -c '...'` or a `timeout` (nested quoting broke the
-poll on AR-517, and macOS has no `timeout`); the Bash tool runs zsh, so call it with `bash`:
+poll on an earlier run, and macOS has no `timeout`); the Bash tool runs zsh, so call it with `bash`:
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/merge/wait-pipelines.sh" <workspace> <pr_target> <repo>=<merge_sha> [<repo>=<merge_sha> ...]
 ```
@@ -235,8 +235,7 @@ draft is complete against the agreed format and, when it is, posts or edits the 
 3. **Assignee (QC).** `jira.qc_account_id` when set and in the fetched list → that account. Else the history sample is
    usable and its most frequent accountId is in the fetched list → that account. Else (unusable history, or the account
    isn't assignable on this ticket) → `AskUserQuestion` "Who is the QC for <TICKET>?" with options from the fetched list
-   only — the top history candidates first, else the ~4 most relevant (e.g. recent reporter/commenters); the built-in
-   default `642a9e7922330bdf97ab2aa8` goes first as "(Recommended)" when it is in the list; "Other" resolves against
+   only — the top history candidates first, else the ~4 most relevant (e.g. recent reporter/commenters); "Other" resolves against
    the fetched list. Never assign an account absent from it.
 4. `editJiraIssue` with `fields: {"assignee": {"accountId": "<chosen accountId>"}}`.
 5. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
@@ -264,13 +263,13 @@ Never end a report with a bare "skipped" on the Jira line: say *what* wasn't don
   child pipeline not SUCCESSFUL blocks it.
 - **Never write a dollar sign followed by a digit in a SKILL.md command** (awk's field references,
   positional shell args). The skill loader substitutes them with the command's arguments — that turned
-  awk's third-field print into `print AR-517`. Use a form without them (`git rev-parse HEAD:<path>`,
+  awk's third-field print into `print <ticket>`. Use a form without them (`git rev-parse HEAD:<path>`,
   `sed` with a backslash-digit group), or put the logic in a script file.
 - **zsh `echo` mangles JSON escapes.** `echo "$out" | python3 ...` turns the backslash-n inside a JSON error
-  message into a real control character and `json.load` fails (AR-573). Never pass an API response through
+  message into a real control character and `json.load` fails. Never pass an API response through
   `echo`: write it to a file (curl `-o`) or use `printf '%s'` — `merge-pr.sh` does the former.
 - **A pipeline's exit status is its last command's.** `cmd | tee log || break` gates on `tee`, which is always 0,
-  so a failed merge step let the next PR merge anyway (AR-573: the FE PR merged although the BE step had errored).
+  so a failed merge step let the next PR merge anyway (a later PR merged although the earlier step had errored).
   Never gate on a pipeline; call the script, read its status directly, stop on non-zero.
 - **The Bash tool is zsh.** Unquoted variables aren't word-split and `for p in "a sha"; set -- $p`
   breaks — wrap loops in `bash -c '...'`. There is no `timeout` on macOS; scripts track their own
