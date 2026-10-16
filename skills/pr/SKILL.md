@@ -347,6 +347,6 @@ The local state file is not the source of truth for "has this been seeded" — S
   in that order so the FE PR doesn't reference an unmerged endpoint.
 - **staging_only submodules** (e.g. voice) never get a `main`-targeted PR.
 - **Re-running is safe.** Phase 1 reuses open PRs; Phase 2 adopts an existing Slack thread (Step 2.0). Never re-open a PR or re-seed a thread that already exists.
-- **One PR's LGTM is not every PR's LGTM.** The bot reviews the scope it picks and may read only one PR (AR-517: LGTM'd FE #458 while saying "I did not re-review the BE PR"; root got a skim). Approval is tracked per PR in `## PR approvals`, pinned to a head sha; new commits reset it to `pending`.
+- **One PR's LGTM is not every PR's LGTM.** The bot reviews the scope it picks and may read only one PR (it can LGTM one PR while saying it did not re-review another, and the parent PR may only get a skim). Approval is tracked per PR in `## PR approvals`, pinned to a head sha; new commits reset it to `pending`.
 - Fixing a concern doesn't end the loop if others are still open — check that one line off and keep polling for the rest.
 - "Not an issue" is a claim until the reviewer accepts it (or goes silent past the escalation threshold) — don't stop polling just because you're confident.

@@ -113,7 +113,7 @@ from this report.
 
 ## Gotchas
 - **No dollar-digit fields in this file's commands.** The skill loader substitutes them with the
-  command's arguments (an awk third-field print became `print AR-517`), so read a gitlink sha with
+  command's arguments (an awk third-field print turned into a print of the ticket key), so read a gitlink sha with
   `git rev-parse HEAD:<path>`. Loops over `path sha` pairs break on zsh (no word-splitting) — wrap
   them in `bash -c '...'`.
 - **Verify-merged is mandatory.** Bumping to an unmerged sha leaves the parent pointing at a commit

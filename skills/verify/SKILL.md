@@ -201,7 +201,7 @@ changed" is not a result.
 | **Data state** (empty, one, many, deleted) | Create the data through the API or local DB, then check each state. |
 | **Boundary** | Try the value just inside and just outside the limit. |
 
-*Example (AR-374):* "a failed save reverts" was left as "only covered by an automated test" and "the learner
+*Typical case:* "a failed save reverts" was left as "only covered by an automated test" and "the learner
 role" as "not checked" — both are checkable: the route-stub row above, and a seeded learner who gets no menu
 entry, a blocked URL and a 403.
 
@@ -248,7 +248,7 @@ A UI can match desktop pixel-for-pixel and still FAIL here — that's intended.
 ## Step 5 — Report + gate
 Group results by check, failures first. Behavior:
 ```
-REQ-003  BE  ✅ PASS        weekly digest counts a 3-person call once — .shipkit/evidence/AR-450/REQ-003-digest-after.txt
+REQ-003  BE  ✅ PASS        weekly digest counts a 3-person call once — .shipkit/evidence/<TICKET>/REQ-003-digest-after.txt
 REQ-005  FE  ❌ FAIL        Save stays disabled after editing the name (expected enabled) — …/REQ-005-save-after.png
 REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
