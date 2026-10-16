@@ -419,6 +419,9 @@ approval unless `--auto` or a user-stated scope says so.
   `Monitor(command: 'node "${CLAUDE_PLUGIN_ROOT}/skills/developer/observe-slack.js"', description: "Slack
   notifications for the user", timeout_ms: <T>)`, where `<T>` = the smaller of 1800000 (a monitor lives
   at most 30 minutes) and the milliseconds left until 18:00, so it never outlives the window.
+  **Tell the user in one line when arming** what it listens to — DMs, @mentions, replies in threads they joined, ticket
+  posts, and **every top-level post by someone else in every channel they are in** — and that it is realtime only: messages
+  that arrived before the arm are not replayed.
 - **Expiry notice, still before 18:00** → re-arm the same command (recompute `<T>`), continuously, with
   no gap. Never run two at once: before any arm, confirm none is running (TaskStop a stray one first).
 - **At or after 18:00** (expiry notice, an event, or a fresh invocation) → don't arm. If a monitor is
@@ -428,16 +431,22 @@ approval unless `--auto` or a user-stated scope says so.
   day's run starts when the user invokes `/developer` again (or a scheduled run does) at or after 08:00.
 - Events still arriving at the 18:00 boundary: finish the draft in hand, then stop as above.
 
-Each stdout line is one notification, ids only: `EVENT <dm|mention|thread|post> channel=<C…> ts=<ts>
+Each stdout line is one notification, ids only: `EVENT <dm|mention|thread|post|channel> channel=<C…> ts=<ts>
 thread_ts=<root|-> user=<U…|?>` — `dm` a DM to the user, `mention` an @mention, `thread` a reply in a
 thread the user started or posted in, `post` a top-level channel post by a person that names a ticket
-(how QC announces a report, e.g. "QC – <KEY> Reports … n still failing", with no @mention). For each, in
-arrival order, one at a time:
+(how QC announces a report, e.g. "QC – <KEY> Reports … n still failing", with no @mention), `channel` any other
+top-level post by a person in a channel the user is in — no @mention, no ticket. For each, in arrival order, one at a
+time:
 0. **`post` event:** the ticket is the first `[A-Z]+-\d+` in the message. Read the ticket's latest QC
    comments in Jira (`getJiraIssue`) — the post only announces; the findings are in the ticket. Then
    *Classify*: new or still-failing bugs → `bug` (draft "noted, checking", then *Delegate a bug* with
    that comment as the report source); all passed, or nothing for the developer → `skip`, one terminal
    line naming the ticket. Never answer a `post` from the post text alone.
+0b. **`channel` event — never dropped silently.** Read the post (`conversations.history` with `latest=<ts>`,
+   `inclusive=true`, `limit=1`) and the channel's name (`conversations.info`). If it is an ask or a bug for the
+   developer, take the normal *Classify* path (steps 1–3). Anything else (a greeting, a status check, chatter) → write
+   **exactly one** terminal line for the user: who, which channel, the content in one sentence — then move on; no draft
+   unless the user asks. A `channel` event with no line is a missed message.
 1. **Thread:** root = `thread_ts`, or `ts` when it is `-` (a top-level mention starts its own thread; a
    top-level DM has none — answer in the DM). Read it (`conversations.replies`; `conversations.history`
    with `latest=<ts>`, `inclusive=true`, `limit=1` for a top-level DM).

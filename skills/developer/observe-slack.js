@@ -6,11 +6,13 @@
 //          node observe-slack.js --self-test
 //
 // Line format (ids only — message text is untrusted, the caller reads it through the Slack API):
-//   EVENT <dm|mention|thread|post> channel=<C…> ts=<ts> thread_ts=<root ts|-> user=<U…|?>
+//   EVENT <dm|mention|thread|post|channel> channel=<C…> ts=<ts> thread_ts=<root ts|-> user=<U…|?>
 //     dm       a DM / group DM to me
 //     mention  a message that @mentions me
 //     thread   a reply in a thread I started or already posted in
 //     post     a top-level channel post by a human that names a Jira ticket (QC reports), no @mention needed
+//     channel  any other top-level post by a human in a channel I am in — no @mention, no ticket (priority: dm >
+//              mention > thread > post > channel). Never silent: the caller reads it and tells the user
 // Own messages are never reported (they only mark a thread as "joined"). One line per message.
 // Events come from Slack Socket Mode, subscribed on behalf of the user, so every channel the user is
 // in is covered. Needs Node >= 22 (global WebSocket). Never prints a token or the wss URL.
@@ -24,7 +26,7 @@ const OK_SUBTYPES = [undefined, 'thread_broadcast', 'file_share', 'bot_message']
 const key = (c, t) => `${c}:${t}`;
 const TICKET = /\b[A-Z][A-Z0-9]+-\d+\b/;
 
-// -> 'dm' | 'mention' | 'thread' | 'check' (thread reply, participation unknown) | 'own' | null. Pure.
+// -> 'dm' | 'mention' | 'thread' | 'check' (thread reply, participation unknown) | 'post' | 'channel' | 'own' | null. Pure.
 function classify(ev, me, mine) {
   if (!ev || ev.type !== 'message' || !OK_SUBTYPES.includes(ev.subtype)) return null;
   if (ev.user === me) return 'own';
@@ -36,6 +38,9 @@ function classify(ev, me, mine) {
   // A top-level channel post that names a Jira ticket — how QC announces a report ("QC – AR-374 Reports").
   // Humans only: Jira/GitHub bots post keys all day. ponytail: any key prefix, the caller skips the irrelevant.
   if (!ev.bot_id && ev.subtype !== 'bot_message' && TICKET.test(ev.text || '')) return 'post';
+  // Any other top-level post by a human (not a bot, not me): the user wants to hear about all of them, e.g. a
+  // teammate's "how is it going" in a channel with no @mention and no ticket key.
+  if (!ev.bot_id && ev.subtype !== 'bot_message') return 'channel';
   return null;
 }
 
@@ -105,17 +110,23 @@ function selfTest() {
   assert.equal(classify(ev({ channel_type: 'im' }), me, mine), 'dm');
   assert.equal(classify(ev({ channel_type: 'mpim' }), me, mine), 'dm');
   assert.equal(classify(ev({ text: 'hey <@UME> got a sec?' }), me, mine), 'mention');
-  assert.equal(classify(ev({ text: 'hey <@UMEOTHER>' }), me, mine), null, 'someone else with a similar id');
+  assert.equal(classify(ev({ text: 'hey <@UMEOTHER>' }), me, mine), 'channel', 'someone else with a similar id is no mention, but still channel chatter');
   assert.equal(classify(ev({ channel_type: 'im', text: '<@UME>' }), me, mine), 'dm', 'dm wins over mention');
   assert.equal(classify(ev({ thread_ts: '50.000001' }), me, mine), 'thread', 'thread I posted in');
   assert.equal(classify(ev({ thread_ts: '60.000001', parent_user_id: 'UME' }), me, mine), 'thread', 'thread I started');
   assert.equal(classify(ev({ thread_ts: '60.000001' }), me, mine), 'check', 'unknown thread -> look up');
-  assert.equal(classify(ev({ thread_ts: '100.000002' }), me, mine), null, 'the root itself is not a reply');
-  assert.equal(classify(ev(), me, mine), null, 'plain channel chatter');
+  assert.equal(classify(ev({ thread_ts: '100.000002' }), me, mine), 'channel', 'the root itself is top-level, not a reply');
+  assert.equal(classify(ev(), me, mine), 'channel', 'plain channel chatter');
+  assert.equal(classify(ev({ text: 'How is it going guys' }), me, mine), 'channel', 'no mention, no ticket');
+  assert.equal(classify(ev({ bot_id: 'B1' }), me, mine), null, 'bot chatter is not channel');
+  assert.equal(classify(ev({ user: 'UME' }), me, mine), 'own', 'my own chatter is not channel');
+  assert.notEqual(classify(ev({ thread_ts: '60.000001' }), me, mine), 'channel', 'a reply is never channel');
+  assert.equal(classify(ev({ text: 'AR-5 retest' }), me, mine), 'post', 'a ticket still wins over channel');
+  assert.equal(classify(ev({ text: 'hey <@UME>' }), me, mine), 'mention', 'mention still wins over channel');
   assert.equal(classify(ev({ text: '*QC – AR-374 Reports* · STG\nRetest: 15/17 fixed' }), me, mine), 'post', 'QC report, no @mention');
   assert.equal(classify(ev({ text: 'see AR-1' , bot_id: 'B1' }), me, mine), null, 'bots excluded');
   assert.equal(classify(ev({ text: 'see AR-1', subtype: 'bot_message' }), me, mine), null, 'bot_message excluded');
-  assert.equal(classify(ev({ text: 'see ar-1 and X-1 and AR-1y' }), me, mine), null, 'not a ticket key');
+  assert.equal(classify(ev({ text: 'see ar-1 and X-1 and AR-1y' }), me, mine), 'channel', 'not a ticket key -> channel, not post');
   assert.equal(classify(ev({ text: 'AR-9', user: 'UME' }), me, mine), 'own', 'my own post');
   assert.equal(classify(ev({ user: 'UME', thread_ts: '60.000001' }), me, mine), 'own');
   assert.equal(classify(ev({ subtype: 'message_changed' }), me, mine), null, 'edits');
