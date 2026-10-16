@@ -97,6 +97,9 @@ project's remote rewrite if it needs one), then read, don't guess:
 - **Worth reusing for this context?** The branch belongs to the **same ticket** and carries unmerged work still wanted
   (open PR, work in progress) → reuse. Already merged, or abandoned, or the new work is another ticket/context → it carries
   nothing the new work needs: don't build on it as it is.
+A submodule whose HEAD is **detached** (typical right after its PR merged) has no branch checked out: read the feature
+branch by its name (`probe.sh branch <ticket> <submodule>`) — it exists and is merged → the "merged" row below; it does not
+exist → create it from `origin/<target>` as usual.
 Decide from those, not from a fixed number of commits:
 - Merged, no commit of its own, tree clean → bring it to the target's tip by fast-forward (nothing lost, no force-push); a
   different ticket gets its own new branch (and worktree) from `origin/<target>` instead, never stacked on the old one.
