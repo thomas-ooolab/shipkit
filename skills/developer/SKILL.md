@@ -34,7 +34,7 @@ an environment. The only writes it may make are the thread reply (*post directly
 attached to it are read from disk, never created),
 `.shipkit/developer-<channel_id>-<thread_ts>.md`, `.shipkit/developer-daily.md` (the *Daily briefing* marker),
 and draft answers in the session scratchpad (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
-in the terminal note instead of doing it. The exceptions are *Delegate a bug* and *Start mode*: this
+in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket from the briefing*: this
 session still writes nothing — it hands the work to agents running in an Orca worktree, which own every write.
 One more: when the user explicitly asks in the conversation ("post the comment", "ping Chi on Slack"),
 that single write is the user's own call and is allowed — only through the sanctioned paths
@@ -197,6 +197,36 @@ ready and mark the rest `not checked`. Observer mode starts watching right after
 text, never blocks it, and the user's answer arrives as an ordinary message. When the run already names its target (a
 ticket, URL or description), print the summary but skip the question: the user has chosen.
 
+### Continue a ticket from the briefing
+When the user answers the briefing's question with a ticket whose stage is mid-pipeline (implement unfinished, verify,
+review, PR loop — not merged/done), resume it **in that ticket's own worktree, with its own claude** — no new
+worktree. The answer goes here, never back into *Start mode* (whose "worktree already matches → tell the user and stop"
+would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
+`ORCA open`. The messages below are fixed text — never Jira or Slack content.
+1. **Find the planner.** `ORCA terminal list --worktree id:<repoId>::<path> --json` (id and path from the Orca row).
+   The planner is the worktree's **claude** terminal. Exactly **one** claude terminal per worktree, ever: several
+   → use the idle one titled `<KEY>…` (several of those, or none: the most recent) and open nothing.
+2. **Usable?** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once`: `agent` (idle) → ping it. `working` →
+   don't interrupt it: say `claude is working in <handle>` and stop. `attention` → tell the user, answer nothing.
+   `shell` / `login` / `gone` → it is dead: close it (`terminal close`) and treat the worktree as having none.
+3. **None → create one, only one.** Re-run `terminal list` right before; still no live claude →
+   `ORCA terminal create --worktree id:<repoId>::<path> --title <KEY>-planner --command claude --json`, then the
+   *Ready* check of *Start mode* step 3. A fresh claude has no context: its first message is
+   `Đọc .shipkit/pipeline-<KEY>.md và các file .shipkit/*<KEY>* trong worktree này, rồi báo ngắn stage hiện tại.`
+4. **Ask the situation.** Send (*Send* of *Start mode* step 3): `Ticket <KEY> đang ở stage nào, có blocker không (câu hỏi chưa
+   trả lời, test fail, conflict, chờ người duyệt)? Báo ngắn, chưa làm gì thêm.` Wait for idle, `terminal read` the reply.
+5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
+   one; `open-question.md` has an unchecked item; `assign-failure-<KEY>.md` or a `❌` line exists; a PR concern is open in
+   `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen follows *Start mode*'s *Question on screen* rule.
+6. **No blocker → tell it to carry on to the end:** `Tiếp tục <KEY> từ stage hiện tại tới hết pipeline: chạy /assign cho
+   phần implement còn dở (nếu có), rồi /run-pipeline <KEY> auto. Dừng và báo lại khi gặp blocker hoặc cần quyết định.`
+   It runs there; confirm by what the screen does, as in *Start mode*. **Blocker →** send nothing more; tell the user the
+   blocker in one line and let them decide.
+7. **Report** one line: `<KEY>: pinged <handle> (idle|new planner) — stage <s>, <no blocker → running to the end | blocker: …>`;
+   only when step 6 sent the carry-on: `ORCA worktree set --worktree <id> --comment "developer: <KEY> resumed" --json`.
+This is the one place this skill types into an existing terminal — only the worktree's claude, only the three fixed
+messages above (context-read, situation question, carry-on) (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
+
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira
 comment URL (`…?focusedCommentId=<id>`), or a plain description. The user asked, so there is no approval
@@ -242,7 +272,8 @@ fails → tell the user and stop. Never `ORCA open`.
 
    Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
-   whether or not that worktree has an active terminal; always new terminals, never type into an existing one.
+   whether or not that worktree has an active terminal; always new terminals for a fresh start, never type into an existing one
+   (a resume from the briefing is the exception — *Continue a ticket from the briefing*).
    **Claude plans, kiro only implements:** no kiro terminal exists yet. Once the plan is written, `/assign`
    opens one kiro terminal per submodule and hands each its tasks.
 3. **Planner runs in sequence, sent by this skill — the user types nothing.** Run the whole sequence as one
