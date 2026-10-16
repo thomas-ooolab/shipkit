@@ -46,7 +46,7 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 2. **The one evidence comment on the ticket** — **feature runs only** (spec-driven, no `--concern`), only on
    `PASS`. A normal run only **drafts** it into `.shipkit/evidence/<TICKET>/jira-comment.md` (Step 6) and sends
    nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right before
-   it changes the ticket's status, after the user approves the exact text. It is created once; every later send
+   it changes the ticket's status, once the draft passes Step 7's completeness check (no approval wait). It is created once; every later send
    **edits that same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
    and `--no-jira` never draft or send — the caller's own comment carries the evidence. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
@@ -314,10 +314,14 @@ only other case; never send at any other point of a verify run.
    (a) or (b) → this run is an **edit**. Several found → edit the newest and tell the user about the extras.
    None found, and no id file → this is the **first post**. An id file exists but its comment is gone (deleted)
    → don't post: ask the user whether to create it anew.
-2. Show the user the exact text and the attachment list, labelled **"will EDIT comment <id>"** or **"will POST
-   the first evidence comment"**; **wait for explicit approval** ("post it" / "change X" / "skip"). Unapproved =
-   not posted; say so in the report. Once the user approved the exact text, a change of **layout only** (where
-   images sit, column widths) needs no new approval; a change of **wording** is shown again first.
+2. **Check the draft is complete — then send it without asking.** The format is already agreed (Step 6), so a draft
+   that meets it needs no approval. Complete = (a) one table, first header cell `/verify`, nothing else; (b) one
+   row per check and every result cell `✅ PASS`; (c) no "not checked / chưa kiểm / only covered by a unit test"
+   row; (d) every `![caption](path)` points at an existing PNG, every FE row has at least one, every BE row holds a
+   redacted excerpt with no token, credential or personal data; (e) the `UI` row is present when Part A ran. All
+   hold → print the exact text and the attachment list, labelled **"EDIT comment <id>"** or **"POST the first
+   evidence comment"**, for the record, and go straight to step 3. Any one fails → send **nothing**; report
+   `Jira <TICKET>: evidence NOT sent — incomplete: <which row / what is missing>` (a problem, so the caller asks).
 3. Send it (PNG only, each opened and checked before it is embedded):
    - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`
      then save the printed comment id to `.shipkit/evidence/<TICKET>/jira-comment-id`;
@@ -330,8 +334,8 @@ only other case; never send at any other point of a verify run.
    Exit 3 (Jira env unset) → don't skip silently and don't fall back to a mention-less MCP comment: tell the user
    the evidence was **not** posted/updated, why, and that the files are in `.shipkit/evidence/<TICKET>/`.
    Exit 5 = sent but a mention didn't land — say so.
-4. Report (this line is what `/merge` reads back): `Jira <TICKET>: evidence comment <posted|edited> <permalink>` or
-   `Jira <TICKET>: evidence NOT <posted|updated> — <reason>`.
+4. Report (this line is what `/merge` reads back): `Jira <TICKET>: evidence comment <posted|edited> <permalink>`,
+   `Jira <TICKET>: evidence NOT <posted|updated> — <reason>`, or the `evidence NOT sent — incomplete: …` line of step 2.
 
 ## How it fits the pipeline
 `/design-recon` (UI tickets, opt-in) → implement (`/assign`, by hand, `/pr --implement`) → **`/verify`** (fix → re-run

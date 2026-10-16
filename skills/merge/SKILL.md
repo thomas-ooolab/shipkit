@@ -202,12 +202,17 @@ Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
 **Evidence goes out first, and only when a transition will happen.** The `/verify` evidence is sent to the
 ticket right before the status changes — never earlier (not after verify, not at `/pr`), never when the user
 chose not to transition. Once the target transition is settled (config name found, decided from history, or the user picked one),
-and **before** calling `transitionJiraIssue`, run `/verify --ticket <TICKET> --send-evidence` (its Step 7: shows
-the exact text, waits for approval, posts or edits the one comment).
+and **before** calling `transitionJiraIssue`, run `/verify --ticket <TICKET> --send-evidence` (its Step 7: checks the
+draft is complete against the agreed format and, when it is, posts or edits the one comment — no approval wait).
 - Sent (`evidence comment posted|edited`) → go on to `transitionJiraIssue`.
 - No `.shipkit/evidence/<TICKET>/jira-comment.md` (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
   evidence draft", transition anyway.
-- The user answered "skip" → `JIRA_NOTE` = "evidence skipped by user", transition anyway.
+- The draft is **incomplete** (verify reports `evidence NOT sent — incomplete: …`) → a problem: `AskUserQuestion`
+  naming what is missing, options "skip the evidence and transition anyway" / "stop — don't transition". Skip →
+  `JIRA_NOTE` = "evidence skipped: <what was missing>", transition anyway; stop → no transition, Step 11 says why.
+- `/verify` asks whether to create the evidence comment anew (its id file exists but the comment was deleted) → the
+  user's answer decides: yes → it is sent, then transition; no → `JIRA_NOTE` = "evidence not re-created (comment
+  deleted)", transition anyway.
 - The send errored (Jira env unset, edit rejected) → **don't transition**; `JIRA_NOTE` = the reason; Step 11 says
   evidence was not sent and the ticket stays where it is.
 1. **Transition.** `getTransitionsForJiraIssue` for the ticket, and read its current `status.name`.
@@ -289,6 +294,6 @@ Never end a report with a bare "skipped" on the Jira line: say *what* wasn't don
 - **Jira status and assignee are decided from history, not asked.** Config `jira.after_merge_transition` /
   `jira.qc_account_id` override; otherwise the most frequent hand-off in the last ~10 tickets this user moved decides
   (Step 10), and the report says what and why. Only unusable history (under 3 samples, a tie, a status or account not
-  available on this ticket) is asked. The evidence comment is the exception: its exact text still waits for approval.
+  available on this ticket) is asked. The evidence comment is sent the same way: a draft that is complete per `/verify` Step 7 goes out without a prompt; an incomplete one is a problem and is asked about.
 - **Re-running is safe.** `.shipkit/merge-<ticket>.md` records what's already merged — a re-run
   skips PRs already merged and only waits on pipelines still pending.
