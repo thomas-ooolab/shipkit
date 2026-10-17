@@ -314,6 +314,14 @@ as well: unknown is not "no PR". Same clock and switches as the weekend guard ab
 `SHIPKIT_ALLOW_WEEKEND=1`). Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that
 do not load this plugin (kiro workers) — so at the weekend `/assign` workers on kiro can still push.
 
+## Pipeline pane (mod)
+
+`/pipeline` opens a pane that lists the stages of the newest `.shipkit/pipeline-<ticket>.md` (`✓` done, `▸` next, `✗`
+failed) and refreshes after every turn. It is a Claude Code mod (`hooks/pipeline-pane.tsx`, named in `hooks/hooks.json`
+under `modules`), so it needs Claude Code 2.1.287 or later and draws in the terminal, the Desktop app and VS Code only;
+older versions and `claude -p` simply do not show it. It reads the state file and never writes it. Test it with
+`claude plugin test .`.
+
 ## Developing shipkit itself
 
 `git config core.hooksPath .githooks` once per clone; the pre-commit hook runs `bash scripts/self-test.sh` — the pipeline
