@@ -100,10 +100,10 @@ fails → tell the user and stop. Never `ORCA open`.
 
    | Intent | Observable | Coordinator runs |
    |---|---|---|
-   | feature | issue type Story / New Feature / Improvement, or it asks for a new capability | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (if Open Qs), `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` |
-   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/run-pipeline <KEY> --bug [<commentId>] --agent kiro` (first stage `/bugfix`, then review, PR, merge) |
+   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (if Open Qs), `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` |
+   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/run-pipeline <KEY> --bug [<commentId>] --agent kiro` (first stage `/bugfix`, then verify when the spec changed, review, PR, merge) |
    | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/bootstrap`, `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` — never `/spec-from-ticket` |
-   | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else feature |
+   | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |
 
    Resume check (for anything that is not a bug): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*'` in
    the root, `git ls-remote --heads <url> 'feat/<KEY>-*'` per submodule in `.gitmodules` (with the `<ssh rewrite>` from step
@@ -127,7 +127,7 @@ fails → tell the user and stop. Never `ORCA open`.
    | yes | yes | **reuse** |
    | yes | no | **replace**: the work is in the target and nothing else lives here |
 
-   **Reuse:** feature / resume → `ORCA terminal list --worktree <id> --json`: terminals listed → tell the user its path and
+   **Reuse:** standard / resume → `ORCA terminal list --worktree <id> --json`: terminals listed → tell the user its path and
    terminal titles and stop, never a second set; none listed (a failed start was closed) → reuse the worktree and open a
    fresh coordinator. Bug → reuse it and open the coordinator (step 2, *Reused worktree*): the fix goes on the unmerged branch.
    **Replace:** first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
@@ -183,7 +183,7 @@ fails → tell the user and stop. Never `ORCA open`.
      for idle and re-read. The user answers in the terminal; the skill sees the question gone and sends the next
      message by itself — no "go" needed. Still unanswered after 3 waits → stop and report.
 4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then `/assign` is running in terminal `<handle>`
-   on the existing branches. Feature: say `/assign` is running in terminal `<handle>`, that kiro terminals appear per submodule
+   on the existing branches. Standard: say `/assign` is running in terminal `<handle>`, that kiro terminals appear per submodule
    as it hands out tasks, and that `/plan-deep` asks the user to confirm the plan there. Bug: say
-   `/run-pipeline --bug` is running in terminal `<handle>` (`/bugfix` first: it hands the fix to kiro through `/assign`, then review, PR and merge), and asks the user to approve every Jira comment there.
+   `/run-pipeline --bug` is running in terminal `<handle>` (`/bugfix` first: it hands the fix to kiro through `/assign`, then verify when the spec changed, review, PR and merge), and asks the user to approve every Jira comment there.
    `ORCA worktree set --worktree <id> --comment "developer: <KEY> <assign running | bugfix running>" --json`.

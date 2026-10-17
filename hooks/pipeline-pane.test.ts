@@ -15,6 +15,12 @@ test('parse reads ticket and stage states', () => {
   expect(p?.stages.map(s => s.state)).toEqual(['done', 'todo', 'failed'])
 })
 
+test('parse reads the flow label as written, null when there is no Flow line', () => {
+  expect(parse(md)?.flow).toBe(null)
+  expect(parse(md.replace('## Stages', 'Flow: bug · Branch: fix/AR-450-x\n## Stages'))?.flow).toBe('bug')
+  expect(parse(md.replace('## Stages', 'Flow: refactor, no spec\n## Stages'))?.flow).toBe('refactor, no spec')
+})
+
 test('parse returns null for a file that is not a pipeline state', () => {
   expect(parse('nothing')).toBe(null)
 })

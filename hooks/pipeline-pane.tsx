@@ -6,7 +6,7 @@ import type { Pipeline, Stage } from '../types'
 const PANE = 'pipeline'
 const pipeline = atom({ plugin: 'shipkit', key: 'pipeline' } as const, null as Pipeline)
 
-// "- [x] 3 implement — ..." → done; a line with ❌ → failed
+// "- [x] 3 implement — ..." → done; a line with ❌ → failed; a "Flow: <label>" header line → the label, shown as written (none → nothing shown)
 export const parse = (md: string): Pipeline => {
   const ticket = /^# Pipeline state — (.+)$/m.exec(md)?.[1]
   if (!ticket) return null
@@ -15,7 +15,7 @@ export const parse = (md: string): Pipeline => {
     const m = /^- \[( |x)\] (\S+)\s+(\S+)/.exec(line)
     if (m) stages.push({ id: m[2], name: m[3], state: line.includes('❌') ? 'failed' : m[1] === 'x' ? 'done' : 'todo' })
   }
-  return { ticket, stages }
+  return { ticket, flow: /^Flow:\s*([^·\n]+?)\s*(?:·|$)/m.exec(md)?.[1] ?? null, stages }
 }
 
 // newest .shipkit/pipeline-<ticket>.md under the session cwd (failure notes excluded)
@@ -29,15 +29,15 @@ const refresh = async ($: any) => {
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'pipeline', description: 'Show the shipkit pipeline stages in a pane' })
+    await $.command.register({ name: 'stages', description: 'Show the shipkit pipeline stages in a pane' })
     await refresh($)
     return next(e)
   })
 
-  on('command.run', { command: 'pipeline' }, async $ => {
+  on('command.run', { command: 'stages' }, async $ => {
     await refresh($)
-    await $.ui.open({ id: PANE, title: 'Pipeline' })
-    return { text: 'Pipeline pane opened.' }
+    await $.ui.open({ id: PANE, title: 'Stages' })
+    return { text: 'Stages pane opened.' }
   })
 
   on('turn.complete', async ($, e, next) => {
@@ -61,6 +61,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box>
           <Text weight="bold">{p.ticket} </Text>
+          {p.flow && <Text dimColor>· {p.flow} </Text>}
           {close}
         </Box>
         {p.stages.map(s => (

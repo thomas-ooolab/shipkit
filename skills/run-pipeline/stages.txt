@@ -1,4 +1,4 @@
-# Canonical order of the feature flow — the one place to change it. One group per line;
+# Canonical order of the standard flow — the one place to change it. One group per line;
 # skills on the same line are unordered (verify / review-changes: either order).
 # /assign is the implement step (a human may implement by hand instead). /bump-submodule is the by-hand alternative
 # to the root-PR bump /merge already does. Side flows (/cross-check, /design-recon, /bugfix) are not stages.

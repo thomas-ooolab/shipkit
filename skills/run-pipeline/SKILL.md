@@ -1,6 +1,6 @@
 ---
 name: run-pipeline
-description: "Use when the user wants to take a Jira ticket — a feature, or a reported bug with --bug — through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto]"
+description: "Use when the user wants to take a Jira ticket — any spec-driven change, or a reported bug with --bug — through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto]"
 argument-hint: "<jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto|--auto]"
 ---
 
@@ -56,7 +56,7 @@ Tokenize `$ARGUMENTS`. Exactly one ticket-shaped token (e.g. `AR-123`) → `TICK
 `--auto` token → `AUTO=true` (else `false`). Missing/ambiguous ticket → AskUserQuestion, do not infer.
 In a bug flow a bare number is the Jira comment id and `--agent kiro` is forwarded to `/bugfix`; both are ignored otherwise.
 `FLOW`: a `--bug` token, else the `Flow:` header of `.shipkit/pipeline-<TICKET>.md`, else a local `fix/<TICKET>-*` branch
-(`probe.sh state`) → `bug`; otherwise `feature`. `FLOW=bug` → **REQUIRED:** Read
+(`probe.sh state`) → `bug`; otherwise `standard`. `FLOW=bug` → **REQUIRED:** Read
 `${CLAUDE_PLUGIN_ROOT}/skills/run-pipeline/bugfix-flow.md` and follow it **instead of Steps 2–5** below (Steps 1 and the
 rules above still apply).
 If `SHIPKIT_CONFIG_EXISTS=0` in the probe output, stop: "Run `/bootstrap` first." Read config values
@@ -95,7 +95,7 @@ Derive each stage's status from observations:
 Write `.shipkit/pipeline-<ticket>.md` (mark `[x]` confirmed-complete, `[ ]` pending):
 ```markdown
 # Pipeline state — <ticket>
-Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|unset> · Updated: <ISO-8601>
+Flow: standard · Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|unset> · Updated: <ISO-8601>
 
 ## Stages
 - [ ] 1 spec          — /spec-from-ticket <ticket>

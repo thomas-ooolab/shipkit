@@ -9,7 +9,7 @@ argument-hint: "[<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url
 Answers Slack questions **as the developer — the user** (their user token, first person), and starts
 work on a ticket the user hands over. Three modes:
 - **Start** — `/developer <ticket | jira-comment-url | description>`: decides from what it reads whether
-  this is a feature or a bug, and sets up a worktree with a **coordinator** (a claude session: `/bootstrap`, then
+  this is a standard (spec-driven) change or a bug, and sets up a worktree with a **coordinator** (a claude session: `/bootstrap`, then
   `/spec-from-ticket`, or `/run-pipeline --bug` whose first stage is `/bugfix`; plans and coordinates) whose **workers** are the kiro agents `/assign` starts to implement
   (see *Start mode*). Touches no Slack.
 - **URL** — `/developer <url>`: reads that one thread, answers, then watches it and answers follow-ups
@@ -119,7 +119,7 @@ reproduce), the developer's stance, numbers-from-data, and how a batch of answer
 - **Daily briefing** — the **first** `/developer` run of the day, every mode: what the user did yesterday, then the
   unfinished tickets are continued automatically. Marker: `.shipkit/developer-daily.md`.
 - **Continue a ticket from the briefing** — resume a ticket in its own worktree with its own claude.
-- **Start mode** — `/developer <ticket | jira-comment-url | description>`: feature vs bug vs resume, an Orca worktree,
+- **Start mode** — `/developer <ticket | jira-comment-url | description>`: standard vs bug vs resume, an Orca worktree,
   a coordinator (claude) and its workers (kiro, via `/assign`). Referenced below by *Delegate a bug*.
 
 ## Step 1 — Parse and adopt

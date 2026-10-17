@@ -84,7 +84,7 @@ versions in sync when bumping.
 ```bash
 /fix-permissions           # ONCE per repo — allow shipkit's read-only probe (see Permissions)
 /bootstrap                 # once per project — writes .shipkit/config.yml
-/run-pipeline AR-123       # every feature — the whole pipeline in one command
+/run-pipeline AR-123       # every ticket — the whole pipeline in one command
 ```
 
 `/run-pipeline` fetches the Jira ticket, detects which submodules are affected, creates the
@@ -118,18 +118,18 @@ contracts · edge cases). Then you implement, review, and open PRs.
 
 ### Bug-fix pipeline
 
-A reported defect takes a shorter flow — no spec, no PO questions, no plan: `/run-pipeline AR-123 --bug` (what `/developer`
+A reported defect takes a shorter flow — no new spec, no PO question round, no `/plan-deep` (`/bugfix` edits `spec.md` in place when the fix changes it): `/run-pipeline AR-123 --bug` (what `/developer`
 starts for a bug). Its fix goes on a `fix/AR-123-<slug>` branch cut from the target when the old worktree's code is already
 merged; an unmerged branch (or a merged one that still has uncommitted changes or an open PR) is reused.
 
 ```
 /bugfix AR-123 [<comment-id>]    triage each concern, fix real defects (regression test first, via /assign --agent kiro), prove each with /verify
       ▼
-/review-changes
+/verify  +  /review-changes      /verify --req <changed REQs>, only when the fix changed spec.md
       ▼
 /pr
       ▼
-/merge AR-123                    GATE — as in the feature flow
+/merge AR-123                    GATE — as in the standard flow
       ▼
 /bump-submodule path@sha --closes AR-123    only after a by-hand merge
 ```
@@ -144,7 +144,7 @@ auto-trigger it by description.
 | `/shipkit:help [<use case>]` | **Lost? Start here** — prints the installed shipkit version and drafts step-by-step instructions (which skills, in what order, your ticket filled in, prerequisites, where you must approve) for a use case; `/shipkit:help <skill>` shows one skill. Read-only. |
 | `/fix-permissions` | One-time per-repo — allow the read-only probe so injected context can run |
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
-| `/run-pipeline <ticket> [--bug]` | **Everyday skill** — ticket → scope → branches → one lean spec; `--bug` runs the shorter bug-fix flow (`/bugfix` → review → PR → merge) |
+| `/run-pipeline <ticket> [--bug]` | **Everyday skill** — ticket → scope → branches → one lean spec; `--bug` runs the shorter bug-fix flow (`/bugfix` → verify if the spec changed → review → PR → merge) |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/clarify <ticket>` | Sends the spec's open business questions to the PO in one Jira comment (real @mention, your approval before every post) and waits for the reply in a background poller until every question is resolved. Called right after `/spec-from-ticket`. |
 | `/bugfix <ticket> [<comment-id>] [--agent kiro]` | A tester's Jira comment reports a bug: traces each concern to the code, fixes real defects (regression test first, proved with `/verify`), explains what is by design, asks the PO about product decisions, and keeps checking Jira until the reporter confirms. |
@@ -332,9 +332,9 @@ as well: unknown is not "no PR". Same clock and switches as the weekend guard ab
 `SHIPKIT_ALLOW_WEEKEND=1`). Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that
 do not load this plugin (kiro workers) — so at the weekend `/assign` workers on kiro can still push.
 
-## Pipeline pane (mod)
+## Stages pane (mod)
 
-`/pipeline` opens a pane that lists the stages of the newest `.shipkit/pipeline-<ticket>.md` (`✓` done, `▸` next, `✗`
+`/stages` opens a pane that lists the stages of the newest `.shipkit/pipeline-<ticket>.md` (`✓` done, `▸` next, `✗`
 failed) and refreshes after every turn. It is a Claude Code mod (`hooks/pipeline-pane.tsx`, named in `hooks/hooks.json`
 under `modules`), so it needs Claude Code 2.1.287 or later and draws in the terminal, the Desktop app and VS Code only;
 older versions and `claude -p` simply do not show it. It reads the state file and never writes it. Test it with

@@ -1,7 +1,7 @@
 ---
 name: verify
-description: "Use when a ticket's feature work is implemented, or /bugfix has fixed a defect, and the change must be proven on the running app before review or PR: each REQ-NNN or reported concern checked with evidence (screenshot for FE, request/response and data for BE), plus a design-contract diff when one exists. Gate: PASS | FAILED | INCOMPLETE. Reports only. Trigger: /verify [--ticket <t>] [--concern \"<scenario>\"]... [--url <fe-route>] [--api <be-base-url>]. Examples: \"/verify --ticket AR-450\", \"/verify --ticket AR-460 --concern 'digest counts a call once per attendee'\""
-argument-hint: "[--ticket <jira-ticket>] [--concern \"<scenario>\"]... [--url <running-route>] [--api <be-base-url>] [--selector <css>] [--contract <path>] [--no-jira] [--send-evidence] [--auto]"
+description: "Use when a ticket's feature work is implemented, or /bugfix has fixed a defect, and the change must be proven on the running app before review or PR: each REQ-NNN or reported concern checked with evidence (screenshot for FE, request/response and data for BE), plus a design-contract diff when one exists. Gate: PASS | FAILED | INCOMPLETE. Reports only. Trigger: /verify [--ticket <t>] [--req REQ-NNN]... [--concern \"<scenario>\"]... [--url <fe-route>] [--api <be-base-url>]. Examples: \"/verify --ticket AR-450\", \"/verify --ticket AR-460 --concern 'digest counts a call once per attendee'\""
+argument-hint: "[--ticket <jira-ticket>] [--req REQ-NNN]... [--concern \"<scenario>\"]... [--url <running-route>] [--api <be-base-url>] [--selector <css>] [--contract <path>] [--no-jira] [--send-evidence] [--auto]"
 ---
 
 # shipkit · verify
@@ -48,7 +48,8 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
    nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right before
    it changes the ticket's status, once the draft passes Step 7's completeness check (no approval wait). It is created once; every later send
    **edits that same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
-   and `--no-jira` never draft or send — the caller's own comment carries the evidence. (Optional: with `--ticket` and
+   and `--no-jira` never draft or send a Jira comment — the caller's own comment carries the evidence; a `--concern` run still writes
+   the evidence *table* for the caller to paste (`concern-evidence.md`, Step 6, *Concern runs*). (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
@@ -72,7 +73,9 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   1. `--concern "<scenario>"` (repeatable) — the caller states what must be true (this is how `/bugfix` calls
      it). Each is one check, id = its number.
   2. The ticket's spec (`probe.sh state <ticket>` → `SPEC`): every `REQ-NNN` under `## Requirements`, plus a
-     check per `## Contracts` entry. A `REQ-NNN — blocked on OQ-N` is listed as `not checked (blocked on OQ-N)`.
+     check per `## Contracts` entry. With `--req REQ-NNN` (repeatable; `/run-pipeline --bug` passes the requirements its fix
+     changed) only those requirements, plus the `## Contracts` entries each one cites — the rest of the spec is not listed
+     and not reported; a `REQ-NNN` the spec doesn't have → stop and name it. The surface-coverage rule below still applies. A `REQ-NNN — blocked on OQ-N` is listed as `not checked (blocked on OQ-N)`.
      Tag each as **FE / BE / both** from the spec's task `(submodule)` tags and where its code lives — read the
      real code in the submodule, not `specs/` or `docs/`, to find what implements it.
   3. Neither → AskUserQuestion what to verify. Don't invent requirements.
@@ -214,8 +217,8 @@ Applies when the checks came from the spec (no `--concern`), `--no-jira` is abse
 `FAILED` / `INCOMPLETE` draft nothing and **delete** any older `jira-comment.md`, so `/merge` never sends proof
 of code that has since changed — fix or unblock first. **Verify never posts or edits a Jira comment in a normal
 run:** the evidence reaches the ticket only at the moment its status is changed (Step 7). The comment lists every named variant with its
-evidence and never a "not checked / only covered by a unit test" row. Bugfix runs (`--concern`) skip this step: the
-verification proof rides in `/bugfix`'s own Jira comment.
+evidence and never a "not checked / only covered by a unit test" row. Concern runs (`--concern`, how `/bugfix` calls it) draft no
+comment — they write the table only, see *Concern runs* below.
 1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
    sit inside the table, in the evidence cells — never below it). One row per check, in this shape:
    ```
@@ -235,13 +238,23 @@ verification proof rides in `/bugfix`'s own Jira comment.
 2. Save the draft to `.shipkit/evidence/<TICKET>/jira-comment.md` (the PNGs are already beside it) and report
    `verify: evidence for <TICKET> ready — it will be sent by /merge just before the status change`. Stop there.
 
+### Concern runs (`--concern`)
+The caller owns the Jira comment; this skill owns what the proof looks like. On `PASS` (not with `--no-jira`) write
+`.shipkit/evidence/<TICKET>/concern-evidence.md`: **one table and nothing else**, one row per concern and per named variant —
+`| Concern | FE/BE | Check | Result | Evidence |`, headers and cells in the language of the ticket's comments, a pipe inside a cell
+written `\|`. FE → the screenshot itself in the Evidence cell as `![caption](/abs/path.png)` (opened and checked first, never
+below the table; `jira-comment.py` uploads and embeds it). BE → the observed result in business words ("the digest now shows
+12 calls, same as the call list"), no table or endpoint names; the raw request/response stays in the evidence file and the terminal.
+`FAILED` / `INCOMPLETE` delete any older `concern-evidence.md`. Nothing is sent and no `jira-comment.md` is written. Report
+`verify: concern evidence for <TICKET> ready — <path>`.
+
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` before it changes the status)
 **REQUIRED in send mode:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/send-evidence.md` and follow it. It reads the saved
 draft, drives no app and re-checks nothing; it ends with the `Jira <TICKET>: evidence …` line `/merge` reads back.
 
 ## How it fits the pipeline
 `/design-recon` (UI tickets, opt-in) → implement (`/assign`, by hand, `/pr --implement`) → **`/verify`** (fix → re-run
-until PASS; drafts the evidence locally) and `/review-changes` (either order) → `/pr` → `/merge` (sends the evidence, then moves the status). `/bugfix` calls it with `--concern` for each fixed defect. In
+until PASS; drafts the evidence locally) and `/review-changes` (either order) → `/pr` → `/merge` (sends the evidence, then moves the status). `/bugfix` calls it with `--concern` for each fixed defect; `/run-pipeline --bug` runs it again with `--req … --no-jira` for the requirements the fix changed (the Jira comment is `/bugfix`'s own), only when the fix changed `spec.md`. In
 `/run-pipeline` it is a stage after implement: Part B runs for every ticket, Part A only when the design gate is on.
 `FAILED` or `INCOMPLETE` halts before PRs the same way a review blocker does.
 
