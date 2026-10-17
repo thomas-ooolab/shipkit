@@ -39,7 +39,7 @@ never merge/close/edit a PR; never transition a ticket. All three review agents 
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 ## Topology mode (auto)
-Read `TOPOLOGY_MODE`. **`single-repo`** → review the **one** repo's diff (the `feat/<ticket>-…` branch
+Read `TOPOLOGY_MODE`. **`single-repo`** → review the **one** repo's diff (the `feat/<ticket>-…` or `fix/<ticket>-…` branch
 vs its base); findings use `submodule: <project>`; no per-submodule loop. **`meta-with-submodules`** →
 the per-submodule flow below.
 
@@ -48,14 +48,14 @@ Parse `$ARGUMENTS`:
 - `--pr <url|id>` → **PR mode**; bind the Bitbucket PR. Resolve which submodule repo it belongs to.
 - otherwise → **local mode**; `--staged` selects the index diff over the working-tree+committed diff.
 - `--ticket <key>` → bind `TICKET` (used to locate the spec for drift + context). If absent, infer
-  from the current branch name (`feat/<ticket>-…`); if still unknown, review proceeds without drift.
+  from the current branch name (`feat/<ticket>-…` or `fix/<ticket>-…`); if still unknown, review proceeds without drift.
 - `--auto` (PR mode) → `AUTO=true` (skips the posting gate only; never suppresses clarifications).
 
 Locate the spec via `probe.sh state <TICKET>` → `SPEC` (used for drift + Key decisions context).
 
 ## Step 2 — Gather the diff (per affected submodule)
 **Local mode:** for each affected submodule (from the spec's task tags, or every submodule with a
-`feat/<ticket>-*` branch), collect its diff:
+`feat/<ticket>-*` or `fix/<ticket>-*` branch), collect its diff:
 ```bash
 git -C <path> diff <default-branch>...HEAD        # committed on the feature branch
 git -C <path> diff [--staged]                      # plus working-tree/staged

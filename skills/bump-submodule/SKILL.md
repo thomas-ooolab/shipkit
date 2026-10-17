@@ -71,7 +71,7 @@ exists for `<path>` — resolve it, or re-run with `--replace`." If `REPLACE` �
 PR with an explanatory comment.
 
 ## Step 4 — Bump the pointers (rebase first)
-Work on the ticket's parent branch (`feat/<ticket>-<slug>` if it exists, else create the name
+Work on the ticket's parent branch (`feat/<ticket>-<slug>` or `fix/<ticket>-<slug>` if it exists, else create the name
 `probe.sh branch <ticket>` prints). Rebase on the parent default branch first so a just-merged parent change doesn't
 conflict:
 ```bash

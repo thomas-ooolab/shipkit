@@ -9,9 +9,13 @@ import re, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-GROUPS = [l.split() for l in (ROOT / "skills/run-pipeline/stages.txt").read_text().splitlines()
-          if l.strip() and not l.startswith("#")]
-RANK = {n: i for i, g in enumerate(GROUPS) for n in g}
+def rank_of(name):
+    groups = [l.split() for l in (ROOT / "skills/run-pipeline" / name).read_text().splitlines()
+              if l.strip() and not l.startswith("#")]
+    return {n: i for i, g in enumerate(groups) for n in g}
+
+RANK = rank_of("stages.txt")
+BUG_RANK = rank_of("stages-bugfix.txt")
 
 # (file, region start regex, region end regex or None = start line only, required skills)
 CHECKS = [
@@ -21,6 +25,14 @@ CHECKS = [
     ("skills/spec-from-ticket/SKILL.md", r"^Next:\s+/clarify", r"/run-pipeline", ["clarify", "plan-deep"]),
     ("skills/verify/SKILL.md", r"^`/design-recon` \(UI tickets", r"→ `/merge`", ["verify", "review-changes", "pr", "merge"]),
     ("README.md", r"^## The pipeline", r"^## Skills", ["spec-from-ticket", "clarify", "plan-deep", "assign", "verify", "review-changes", "pr", "merge", "bump-submodule"]),
+]
+
+# the bug-fix flow (stages-bugfix.txt), same row shape
+BUG_CHECKS = [
+    ("skills/run-pipeline/bugfix-flow.md", r"^## Stages", r"^```", list(BUG_RANK)),
+    ("skills/help/SKILL.md", r"Bug fix, one step at a time", None, list(BUG_RANK)),
+    ("skills/developer/work-mode.md", r"^\s*\| bug \|", None, ["bugfix"]),
+    ("README.md", r"^### Bug-fix pipeline", r"^## Skills", list(BUG_RANK)),
 ]
 
 def versions_differ():
@@ -44,14 +56,14 @@ def region(lines, start, end):
             return None
     return None
 
-def problems(text, required):
+def problems(text, required, rank=RANK):
     seq = []
     # "/pr --implement" is an implement option, not the PR stage
     for n in re.findall(r"/([a-z][a-z0-9-]*)", text.replace("/pr --implement", "")):
-        if n in RANK and n not in seq:
+        if n in rank and n not in seq:
             seq.append(n)
     out = [f"missing /{r}" for r in required if r not in seq]
-    out += [f"/{b} comes after /{a}" for a, b in zip(seq, seq[1:]) if RANK[a] > RANK[b]]
+    out += [f"/{b} comes after /{a}" for a, b in zip(seq, seq[1:]) if rank[a] > rank[b]]
     return seq, out
 
 def self_test():
@@ -59,18 +71,19 @@ def self_test():
     assert problems(ok, ["clarify", "merge"])[1] == []
     assert problems("/plan-deep then /clarify", [])[1] == ["/clarify comes after /plan-deep"]
     assert problems("/spec-from-ticket /pr", ["merge"])[1] == ["missing /merge"]
+    assert problems("/bugfix → /pr → /review-changes", ["merge"], BUG_RANK)[1] == ["missing /merge", "/review-changes comes after /pr"]
     print("check-pipeline: self-test ok")
 
 def main():
     if "--self-test" in sys.argv:
         return self_test()
     bad = int(versions_differ())
-    for path, start, end, required in CHECKS:
+    for path, start, end, required, rank in [(*c, RANK) for c in CHECKS] + [(*c, BUG_RANK) for c in BUG_CHECKS]:
         p = ROOT / path
         text = region(p.read_text().splitlines(), start, end) if p.exists() else None
         if text is None:
             print(f"{path}: cannot find the pipeline text (/{start}/) — update CHECKS in this script"); sys.exit(2)
-        seq, out = problems(text, required)
+        seq, out = problems(text, required, rank)
         print(f"{'ok  ' if not out else 'FAIL'} {path}: {' → '.join(seq)}")
         for o in out:
             print(f"       {o}")

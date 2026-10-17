@@ -10,7 +10,7 @@ Answers Slack questions **as the developer — the user** (their user token, fir
 work on a ticket the user hands over. Three modes:
 - **Start** — `/developer <ticket | jira-comment-url | description>`: decides from what it reads whether
   this is a feature or a bug, and sets up a worktree with a **coordinator** (a claude session: `/bootstrap`, then
-  `/spec-from-ticket` or `/bugfix`, plans and coordinates) whose **workers** are the kiro agents `/assign` starts to implement
+  `/spec-from-ticket`, or `/run-pipeline --bug` whose first stage is `/bugfix`; plans and coordinates) whose **workers** are the kiro agents `/assign` starts to implement
   (see *Start mode*). Touches no Slack.
 - **URL** — `/developer <url>`: reads that one thread, answers, then watches it and answers follow-ups
   until the asker is done. Posts directly.
@@ -175,8 +175,8 @@ procedure. Resolve `ORCA` and load the `orca-cli` skill; `ORCA worktree list --j
 tell the user and stop at the reply. In observer mode the delegation needs the same approval as the draft
 (it starts a writer agent); `--auto` scope covers both.
 - **Ticket:** the first `[A-Z]+-\d+` in the thread; none → ask the user which ticket (in their language), delegate nothing until answered.
-- **Report source:** the thread permalink, sent as the context line (a Slack source), unless the thread links a Jira comment — then that comment id goes to `/bugfix`.
-- **Worktree:** the *Worktree match*; none → create one, as in step 2.
+- **Report source:** the thread permalink, sent as the context line (a Slack source), unless the thread links a Jira comment — then that comment id goes to `/run-pipeline <KEY> --bug` (its `/bugfix` stage).
+- **Worktree:** the *Worktree match*; none → create one, as in step 2; a match → *Start mode* step 1, *Existing worktree* (reuse or replace).
 
 ## Step 2 — Answer
 1. Work out what is being asked of the user (class per *Classify*; `skip` and `change` end here).

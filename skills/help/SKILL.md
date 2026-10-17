@@ -30,7 +30,8 @@ improvise a workflow.
 | Same flow, one step at a time | `/spec-from-ticket` → `/cross-check` → `/clarify` (only if questions are open) → `/plan-deep` → implement (`/assign` when ≥2 submodules) → `/verify` → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Ticket is unclear / PO must answer | `/cross-check` → `/clarify` |
 | UI ticket with a mockup | `/design-recon` → implement → `/verify` (it also diffs the built UI against the design contract) |
-| QC / tester reported a bug in a Jira comment | `/bugfix <ticket>` (it calls `/verify` itself) |
+| QC / tester reported a bug in a Jira comment | `/run-pipeline <ticket> --bug` — runs the bug stages below, stops at the merge gate |
+| Bug fix, one step at a time | `/bugfix <ticket>` (it calls `/verify` itself) → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Prove a feature or fix works | `/verify --ticket <ticket>` |
 | Review code before a PR | `/review-changes` |
 | Open PRs / land them | `/pr` → `/merge` → `/bump-submodule` |

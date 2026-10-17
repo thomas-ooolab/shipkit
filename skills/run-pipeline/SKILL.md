@@ -1,7 +1,7 @@
 ---
 name: run-pipeline
-description: "Use when the user wants to take a Jira ticket through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [auto]"
-argument-hint: "<jira-ticket> [auto|--auto]"
+description: "Use when the user wants to take a Jira ticket — a feature, or a reported bug with --bug — through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto]"
+argument-hint: "<jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto|--auto]"
 ---
 
 # shipkit · run-pipeline
@@ -54,6 +54,11 @@ Read `TOPOLOGY_MODE` from the probe. The pipeline shape adapts automatically:
 ## Step 1 — Parse
 Tokenize `$ARGUMENTS`. Exactly one ticket-shaped token (e.g. `AR-123`) → `TICKET`. An `auto` or
 `--auto` token → `AUTO=true` (else `false`). Missing/ambiguous ticket → AskUserQuestion, do not infer.
+In a bug flow a bare number is the Jira comment id and `--agent kiro` is forwarded to `/bugfix`; both are ignored otherwise.
+`FLOW`: a `--bug` token, else the `Flow:` header of `.shipkit/pipeline-<TICKET>.md`, else a local `fix/<TICKET>-*` branch
+(`probe.sh state`) → `bug`; otherwise `feature`. `FLOW=bug` → **REQUIRED:** Read
+`${CLAUDE_PLUGIN_ROOT}/skills/run-pipeline/bugfix-flow.md` and follow it **instead of Steps 2–5** below (Steps 1 and the
+rules above still apply).
 If `SHIPKIT_CONFIG_EXISTS=0` in the probe output, stop: "Run `/bootstrap` first." Read config values
 from the injected config block (multi-repo: submodules, suffixes, scope keywords, jira, pr_target;
 single-repo: `branch`/`feature_base`/`pr_target`, `target.stack`, scope keywords, jira).

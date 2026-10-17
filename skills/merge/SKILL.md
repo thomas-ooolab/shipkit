@@ -61,7 +61,7 @@ first." Missing ticket → same recommend-don't-guess pattern as `/pr` Step 1: c
 Run `probe.sh state <TICKET>` for branches. **`single-repo`** → the one open PR is the candidate.
 **`meta-with-submodules`** → for each affected submodule (from the spec's `## Tasks` tags, or
 `.shipkit/pipeline-<TICKET>.md`'s recorded scope), query Bitbucket for the OPEN PR on
-`feat/<TICKET>-<slug><suffix>` → `pr_target` (same discovery query `/pr` Step 2 uses). **The
+`feat/<TICKET>-<slug><suffix>` (or `fix/…`) → `pr_target` (same discovery query `/pr` Step 2 uses). **The
 parent-repo PR is never a candidate here** — exclude it explicitly (Gotchas). No open child PRs
 found → stop: "No open PRs for `<TICKET>` — run `/pr <TICKET>` first."
 
@@ -146,7 +146,7 @@ Every child result `SUCCESSFUL`? Any `FAILED` / `ERROR` / `STOPPED` (or a child 
 **do not touch the root PR**: report the failing pipeline and go to Step 11. Otherwise continue.
 
 ## Step 9 — Finish the root PR
-Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slug>`.
+Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slug>` (or `fix/…`).
 1. **Bump pointers.** Follow `/bump-submodule` Steps 2 and 4 for the Step 6 merge shas: confirm each
    is merged (`git -C <path> merge-base --is-ancestor <sha> origin/<branch>`), check the root
    feature branch out, `git -C <path> checkout <sha>`, `git add <path>`, one commit, push. (Skip its PR

@@ -116,6 +116,24 @@ contracts · edge cases). Then you implement, review, and open PRs.
 /bump-submodule path@sha --closes AR-123    only after a by-hand merge (the same bump /merge does)
 ```
 
+### Bug-fix pipeline
+
+A reported defect takes a shorter flow — no spec, no PO questions, no plan: `/run-pipeline AR-123 --bug` (what `/developer`
+starts for a bug). Its fix goes on a `fix/AR-123-<slug>` branch cut from the target when the old worktree's code is already
+merged; an unmerged branch (or a merged one that still has uncommitted changes or an open PR) is reused.
+
+```
+/bugfix AR-123 [<comment-id>]    triage each concern, fix real defects (regression test first, via /assign --agent kiro), prove each with /verify
+      ▼
+/review-changes
+      ▼
+/pr
+      ▼
+/merge AR-123                    GATE — as in the feature flow
+      ▼
+/bump-submodule path@sha --closes AR-123    only after a by-hand merge
+```
+
 ## Skills
 
 Each is a plugin **skill** (`skills/<name>/SKILL.md`) — invoke explicitly with `/name`, or let Claude
@@ -126,7 +144,7 @@ auto-trigger it by description.
 | `/shipkit:help [<use case>]` | **Lost? Start here** — prints the installed shipkit version and drafts step-by-step instructions (which skills, in what order, your ticket filled in, prerequisites, where you must approve) for a use case; `/shipkit:help <skill>` shows one skill. Read-only. |
 | `/fix-permissions` | One-time per-repo — allow the read-only probe so injected context can run |
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
-| `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
+| `/run-pipeline <ticket> [--bug]` | **Everyday skill** — ticket → scope → branches → one lean spec; `--bug` runs the shorter bug-fix flow (`/bugfix` → review → PR → merge) |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/clarify <ticket>` | Sends the spec's open business questions to the PO in one Jira comment (real @mention, your approval before every post) and waits for the reply in a background poller until every question is resolved. Called right after `/spec-from-ticket`. |
 | `/bugfix <ticket> [<comment-id>] [--agent kiro]` | A tester's Jira comment reports a bug: traces each concern to the code, fixes real defects (regression test first, proved with `/verify`), explains what is by design, asks the PO about product decisions, and keeps checking Jira until the reporter confirms. |

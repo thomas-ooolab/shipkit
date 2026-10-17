@@ -36,7 +36,7 @@ bump submodule refs (`/bump-submodule`), or **merge / approve / close** a PR —
 ## Write surface (the ONLY things written)
 1. With `--implement`: code in each submodule worktree, restricted to that submodule's task-path
    **allowlist** (out-of-allowlist need → gap file, never silently widens).
-2. Git: push the existing `feat/<ticket>-<slug>{suffix}` branches (parent + affected submodules);
+2. Git: push the existing `feat/<ticket>-<slug>{suffix}` branches (`fix/…` for a bug fix started on a fresh worktree) (parent + affected submodules);
    `--force-with-lease` only on a branch it rebased. Phase 2 review fixes: written, committed and pushed to the same
    branches (auto-updates the open PRs) by `/assign`'s agents — this skill edits no code itself.
 3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open).
@@ -70,7 +70,7 @@ Neither → ask for the ticket ID plainly.
 skip straight to Phase 2 Step 3 (its loop body picks up from the state file).
 
 **Topology mode (auto).** Read `TOPOLOGY_MODE`. **`single-repo`** → there's one target: open **one** PR
-from `feat/<ticket>-<slug>` to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
+from `feat/<ticket>-<slug>` (or `fix/…`) to `pr_target` (config `branching.pr_target`/`feature_base`). **No parent
 PR, no fan-out, no Part order, no bump** — Steps 5–6 collapse to that single PR. `--implement` (if
 given) delegates to one agent on the repo. Everywhere below that says "per affected submodule /
 parent," read it as "the repo." **`meta-with-submodules`** → the full fan-out flow below.
@@ -88,7 +88,7 @@ Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/s
 ## Step 2 — Resolve per-submodule context + existing PRs
 For each affected submodule (from task tags), bind from config + git:
 - `path`, `branch` (tracking), `suffix`, `stack`, `staging_only`.
-- feature branch = `feat/<TICKET>-<slug><suffix>`; confirm it exists (`probe.sh state`). If missing,
+- feature branch = `feat/<TICKET>-<slug><suffix>` (or `fix/…`, bug fix); confirm it exists (`probe.sh state`). If missing,
   stop: "Branch missing for <path> — run `/run-pipeline <TICKET>` to create branches."
 - repo slug = parse `git -C <path> remote get-url origin`.
 - **default branch**: `git -C <path> symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@'` (fallback `main`).

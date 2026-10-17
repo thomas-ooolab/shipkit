@@ -1,0 +1,9 @@
+# Canonical order of the bug-fix flow (/run-pipeline <ticket> --bug) — the one place to change it. Same format as stages.txt.
+# /bugfix is the first stage: it triages, has the fix written (/assign --agent kiro) and proves each concern with its own /verify,
+# so verify is not a stage of its own. No spec-from-ticket / clarify / plan-deep: the ticket is a defect report, not a feature.
+# After editing, update every file scripts/check-pipeline.py lists under BUG_CHECKS, then run it.
+bugfix
+review-changes
+pr
+merge
+bump-submodule

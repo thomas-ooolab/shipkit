@@ -81,7 +81,7 @@ single-target run (no waves to print). Read the **Fan-out**/**Part order** note 
   ```
 
 ## Step 4 — Ground-truth skip check (per submodule, before its wave runs)
-From the Step 2 probe: `dirty=yes` or `unpushed>0` on that submodule's `feat/<ticket>-*` branch means
+From the Step 2 probe: `dirty=yes` or `unpushed>0` on that submodule's `feat/<ticket>-*` (or `fix/<ticket>-*`) branch means
 work already started. Default: skip it (report "already in progress — skip", don't overwrite).
 To force a re-run anyway, the user must say so explicitly — AskUserQuestion: "`<submodule>` already
 has {dirty|unpushed} changes on its branch — re-run its agent anyway and let it continue from
@@ -129,7 +129,7 @@ Per submodule, `PATH` = its path,
 `NAME` = its name, and `BRIEF` is composed of (free-form mode: Step 1's `BRIEF` as-is, `NAME` = repo dir name):
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md` first; reuse existing
   patterns, don't invent structure.
-- **Branch:** create the name `probe.sh branch <ticket> <submodule>` prints (`feat/<ticket>-<slug><suffix>`, config `suffix`) from the submodule's tracking
+- **Branch:** create the name `probe.sh branch <ticket> <submodule>` prints (`feat/<ticket>-<slug><suffix>`, config `suffix`; `fix/…` when the ticket's worktree is on a `fix/<ticket>-*` branch — add `--fix`) from the submodule's tracking
   `branch` (config) if missing; else continue on the existing one.
 - **Objective + tasks:** only this submodule's checkbox items from `## Tasks`, each with its
   `REQ-NNN`, plus the absolute path of `spec.md`.

@@ -169,7 +169,7 @@ case "${1:-}" in
     if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
     echo "SPEC=$(find_spec "$ticket")"
     echo "BRANCHES:"
-    bp=$(git branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+    bp=$(git branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
     if [ -f .gitmodules ]; then
       echo "- parent: branch=${bp:-none}"
     else
@@ -188,7 +188,7 @@ case "${1:-}" in
         [ -z "$p" ] && continue
         # not checked out: `git -C` would fall through to the parent repo and report ITS branch
         if [ ! -e "$p/.git" ]; then echo "- $p: branch=none (not checked out)"; continue; fi
-        b=$(git -C "$p" branch --list "feat/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+        b=$(git -C "$p" branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
         if [ -n "$b" ]; then
           dirty=$(git -C "$p" status --porcelain 2>/dev/null | head -1)
           ahead=$(git -C "$p" rev-list --count "@{upstream}..$b" 2>/dev/null || echo "?")
@@ -201,14 +201,16 @@ case "${1:-}" in
     ;;
 
   branch)
-    # The one place the branch convention lives: feat/<TICKET>-<slug><suffix>.
-    # Usage: probe.sh branch <TICKET> [<submodule name>|parent]   (parent / single-repo: no suffix)
-    ticket="${2:-}"; target="${3:-parent}"
+    # The one place the branch convention lives: feat/<TICKET>-<slug><suffix> (a bug fix on a new worktree: fix/…, --fix).
+    # Usage: probe.sh branch <TICKET> [<submodule name>|parent] [--fix]   (parent / single-repo: no suffix)
+    ticket="${2:-}"; target="${3:-parent}"; kind=feat
+    if [ "$target" = --fix ]; then target=parent; fi
+    if [ "${4:-}" = --fix ] || [ "${3:-}" = --fix ]; then kind=fix; fi
     if [ -z "$ticket" ]; then echo "BRANCH_ERROR=no-ticket" >&2; exit 2; fi
     spec=$(find_spec "$ticket")
     if [ "$spec" = none ]; then
       echo "BRANCH=none"
-      echo "BRANCH_NOTE=no spec for $ticket — slug = the ticket title in kebab-case (<=5 words), then feat/$ticket-<slug><suffix>"
+      echo "BRANCH_NOTE=no spec for $ticket — slug = the ticket title in kebab-case (<=5 words), then $kind/$ticket-<slug><suffix>"
       exit 0
     fi
     slug=$(basename "$spec" | sed -E 's/^[0-9]+-//')
@@ -216,11 +218,11 @@ case "${1:-}" in
     if [ "$target" != parent ] && [ -f .shipkit/config.yml ]; then
       suffix=$(grep -E "name:[[:space:]]*$target[,[:space:]}]" .shipkit/config.yml | sed -n 's/.*suffix:[[:space:]]*\([^, }]*\).*/\1/p' | head -1)
     fi
-    echo "BRANCH=feat/$ticket-$slug$suffix"
+    echo "BRANCH=$kind/$ticket-$slug$suffix"
     ;;
 
   *)
-    echo "usage: probe.sh {topology|remote|spec|config|context|resolve|state <ticket>|branch <ticket> [<submodule>]}" >&2
+    echo "usage: probe.sh {topology|remote|spec|config|context|resolve|state <ticket>|branch <ticket> [<submodule>] [--fix]}" >&2
     exit 2
     ;;
 esac
