@@ -50,8 +50,9 @@ the PO (that is `/clarify`).
 2. `specs/NNN-slug/open-question.md` — appended `[ticket-conflict]` items; create the file with the same
    header `spec-from-ticket` writes if it does not exist.
 3. `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` — Jira screenshots (Step 6).
-4. `--stage post` only: `cross-check-post.md` in the spec dir (no spec → `.shipkit/evidence/<TICKET>/`) and its
-   run evidence under `.shipkit/evidence/<TICKET>/`. Never `open-question.md`; PO questions stay DRAFTS in that file.
+4. `--stage post` only: `.shipkit/evidence/<TICKET>/cross-check-post.md` and its run evidence beside it — never in the
+   spec dir (the spec folder holds the spec, not a discussion's verdict). Never `open-question.md`; PO questions stay
+   DRAFTS in that file.
 **Forbidden side-effects:** no git mutation; no Jira/Bitbucket mutation (reads only); no code/test edits.
 
 ---
@@ -285,7 +286,7 @@ changes, never as the trigger). The spec may be absent; that does not skip this.
    build failures); in zsh write `"${ref}:path"` — `"$ref:path"` is a path modifier; pin the project's
    toolchain when a generator fails on a newer local one.
 
-**Output** — write `cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`), then report, starting
+**Output** — write `.shipkit/evidence/<TICKET>/cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`), then report, starting
 with the **In-flight inventory** table (Step 1b), then:
 1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
 2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,
