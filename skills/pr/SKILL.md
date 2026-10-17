@@ -100,7 +100,7 @@ If every submodule and the parent are `already-open`, skip to Step 7.
 
 ## Step 3 — (Optional) implement via `/assign`
 **Only if `IMPLEMENT=true`**, and only for submodules not `already-open`. Run `/assign <TICKET> [--only <those submodules>]` and
-wait for its report — it owns the brief (grounding, allowlist, discipline, tests, commit + push), the waves and the agents; do
+wait for its report — it owns the brief (grounding, allowlist, discipline, tests, commit; `/assign` pushes once it accepts the work), the waves and the agents; do
 not compose a second brief here. Then run `/verify --ticket <TICKET>` before Step 4 — `FAILED`/`INCOMPLETE` stops here, same
 as a `❌`. On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (submodule, error, recovery), stop.
 > Default (no `--implement`): the human implemented on the branches; skip to Step 4.

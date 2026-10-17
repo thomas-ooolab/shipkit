@@ -73,9 +73,10 @@ worker *before* acking:
   worker.
 - **`worker_done`** (`from_handle` = the terminal; payload `outcome`; `subject` / `body` = the worker's summary) →
   `outcome=failed` → `❌` + the summary. `outcome=succeeded` → **trust git, not the report**: `probe.sh state <ticket>`
-  (branch exists, `unpushed=0`, clean), or the same three facts — HEAD branch == `<branch>`, local HEAD == `git ls-remote
-  --heads origin <branch>`, clean tree. Pushed and clean → `✅` (task count from the summary as a hint, then from the
-  commit and the spec's tasks); not pushed → `❌ not pushed`; dirty → `❌ dirty tree`. **Either outcome**, then the
+  (branch exists, `unpushed>0` — the worker committed and, by the brief, did not push — tree clean). Then run SKILL.md's
+  *Accept, then push*: accepted → the coordinator pushes (not with `--no-push`) → `✅` (task count from the summary as a
+  hint, then from the commit and the spec's tasks); no commit → `❌ no commit`; dirty → `❌ dirty tree`; a worker that pushed
+  anyway (`unpushed=0` before you pushed) → `❌ worker pushed` — report it, don't accept on top. **Either outcome**, then the
   terminal's next owner, exactly one: **reuse** it for the next brief, **`worker-retain --dispatch <id>`** (the default — the user reads the
   terminals and the next wave or fix reuses them), or `worker-release` (only if the user asks). A settled kiro terminal
   left undecided stays `reclaimable`.
@@ -83,7 +84,7 @@ worker *before* acking:
 - Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
   --timeout-ms 1800000 --json` acks and waits for the next one in one call.
 Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
-pushed (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
+accepted (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
 --terminal-state reclaimable --json` must be empty.
 
 **An empty wait is a checkpoint, not a failure.** After three consecutive empty waits (90 minutes), enumerate:
@@ -104,7 +105,7 @@ on proven exit; never `terminal close`; `worker-retain` instead if the user want
 **claude `Agent`** for that submodule (Agent-mode dispatch from this session — **no** claude terminal; no `whoami`), and
 open its `BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
 continue from it; don't redo or discard it." Mark it `kiro → claude` in the state file; the other submodules stay on
-kiro. `attention`, `❌ not pushed` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as
+kiro. `attention`, `❌ no commit`, `❌ not accepted` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as
 they are.
 Leave terminals open so the user can read them (`worker-retain`); record the handles in the state file. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
