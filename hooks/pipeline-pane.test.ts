@@ -18,3 +18,14 @@ test('parse reads ticket and stage states', () => {
 test('parse returns null for a file that is not a pipeline state', () => {
   expect(parse('nothing')).toBe(null)
 })
+
+test('Close button closes the pane on every surface that draws it', async ($, on) => {
+  const closed: string[] = []
+  on('ui.close', async ($, e) => (closed.push(e.id), { value: undefined }))
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'shipkit', surface, component: 'Pane', requestId: 'pipeline', props: {} })
+    await ui.press({ key: 'close' })
+    await ui.unmount()
+  }
+  expect(closed).toEqual(['pipeline', 'pipeline'])
+})

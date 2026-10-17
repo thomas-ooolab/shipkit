@@ -46,13 +46,23 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
-    const { Box, Text } = $.ui.resolve(e)
+    const { Box, Button, Text } = $.ui.resolve(e)
+    const close = <Button key="close" label="Close" role="dismiss" dimColor onPress={() => $.ui.close({ id: PANE })} />
     const p = await read($, pipeline)
-    if (!p) return <Text dimColor>No .shipkit/pipeline-*.md here. Run /run-pipeline &lt;ticket&gt;.</Text>
+    if (!p)
+      return (
+        <Box flexDirection="column">
+          <Text dimColor>No .shipkit/pipeline-*.md here. Run /run-pipeline &lt;ticket&gt;.</Text>
+          {close}
+        </Box>
+      )
     const next = p.stages.find(s => s.state !== 'done')
     return (
       <Box flexDirection="column">
-        <Text weight="bold">{p.ticket}</Text>
+        <Box>
+          <Text weight="bold">{p.ticket} </Text>
+          {close}
+        </Box>
         {p.stages.map(s => (
           <Text
             color={s.state === 'failed' ? 'red' : s.state === 'done' ? 'green' : undefined}
