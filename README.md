@@ -286,6 +286,34 @@ Exit codes: 0 ok · 2 bad usage · 3 env vars missing (skills fall back to MCP; 
 4 Jira rejected (incl. failed image upload) · 5 posted but a mention didn't come back. Prints `{"id","url","mentions"}`.
 `python3 scripts/jira-comment.py --self-test` runs offline checks.
 
+## Weekend guard
+
+The plugin ships a `PreToolUse` hook (`hooks/hooks.json` → `hooks/weekend-guard.py`) that, on **Saturday and Sunday**, blocks
+every tool call that sends something to other people — nothing is sent, and the model is told why:
+
+- sending, editing or scheduling a Slack message (`post-slack.js`, a direct `curl` to the Slack API, the Slack MCP send tools),
+- posting, editing or deleting a Jira comment (`jira-comment.py post|edit|delete`, a direct `curl`, `addCommentToJiraIssue`),
+- creating, commenting on, updating or merging a pull request (`bitbucket-api.sh POST|PUT|DELETE`, `merge-pr.sh`,
+  `gh pr …`, a direct `curl` to Bitbucket, the GitHub MCP create/merge tools).
+
+Reading is never blocked, and neither are drafts or `--self-test` runs; `git push` is covered by the PR-branch guard below. The day is the machine's local day; set
+`SHIPKIT_TZ=<IANA zone>` in the environment Claude Code starts in to use another zone. `SHIPKIT_ALLOW_WEEKEND=1` in that
+same environment lifts the block for the session (an inline `VAR=1 command` does not). To widen or narrow the guard, edit
+the rule lists at the top of `hooks/weekend-guard.py`; `python3 -I hooks/weekend-guard.py --self-test` checks it.
+
+## PR-branch guard (weekend only)
+
+On **Saturday and Sunday** a second `PreToolUse` hook (`hooks/pr-branch-guard.py`) also blocks `git push` to a branch that
+**already has an open pull request** — pushing there notifies the PR's people (Slack, e-mail). The model may still
+`git commit`; the user pushes. On a weekday it does nothing and does not query any host. It works out the branch from the
+command (explicit refspec, `HEAD`, the current branch, or every local branch for `--all` / `--mirror`; `cd` and `git -C` are
+followed), then asks the remote's host which branches have an open PR: Bitbucket through `scripts/bitbucket-api.sh`
+(`BITBUCKET_USERNAME` / `BITBUCKET_APP_PASSWORD`; an API token works), GitHub through `gh`. A branch with no open PR is
+pushed as usual. When the host cannot be asked (no credentials, network error, unknown host) the weekend push is blocked
+as well: unknown is not "no PR". Same clock and switches as the weekend guard above (`SHIPKIT_TZ`,
+`SHIPKIT_ALLOW_WEEKEND=1`). Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that
+do not load this plugin (kiro workers) — so at the weekend `/assign` workers on kiro can still push.
+
 ## Developing shipkit itself
 
 `git config core.hooksPath .githooks` once per clone; the pre-commit hook runs `bash scripts/self-test.sh` — the pipeline
