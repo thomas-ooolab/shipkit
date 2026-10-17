@@ -10,7 +10,7 @@ One-command remediation for shipkit's permission gaps:
 1. **Helper script.** Skills load context by auto-running `!`bash <plugin>/scripts/probe.sh …`` from
    the plugin install dir — outside your repo — so Claude Code wants approval on every skill load. An
    **injected** command can't show that prompt, so `/bootstrap` hard-fails *"command requires approval."*
-2. **Background agent.** `/pr --implement` runs its implementing agent non-interactively in
+2. **Background agent.** `/pr --implement` runs its worker (the implementing agent) non-interactively in
    an isolated worktree, so it **auto-denies** any un-allowlisted Bash. The applier writes shipkit's
    git/test command set to `~/.claude/settings.json` (`--user`) — the scope a background sub-agent reads.
 

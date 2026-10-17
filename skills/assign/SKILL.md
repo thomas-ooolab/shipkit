@@ -142,10 +142,10 @@ Per submodule, `PATH` = its path,
 - **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch.
 
 **`AGENT=claude` never gets a terminal — not even in Orca mode.** `/assign` itself runs inside a claude session (in Orca
-mode that is the planner's terminal), so the claude agents are that session's own background `Agent` calls — dispatch
+mode that is the coordinator's terminal), so the claude agents are that session's own background `Agent` calls — dispatch
 them exactly as **Agent mode** above (one message, `run_in_background: true`), whether `AGENT=claude` came from the flag
 or from the kiro fallback. Never `terminal create` another claude terminal to run a submodule: a second claude session
-adds nothing the planner can't spawn, and leaves a stray terminal. The worker steps below are for kiro only; a
+adds nothing the coordinator can't spawn, and leaves a stray terminal. The worker steps below are for kiro only; a
 run mixing both (kiro workers plus fallback claude `Agent` calls) waits on `check` and the `Agent`
 notifications together.
 

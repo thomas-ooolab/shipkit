@@ -95,7 +95,7 @@ A ticket can have concerns in different buckets at once — classify each on its
 ## Step 3 — Act, then post ONE Jira comment for the tick
 
 1. Fix every real-defect concern now, on the ticket's **existing feature branch** (first apply `/assign` Step 4b to it — merged, behind the target, overlapping — before any fix is written or handed out) — a bug reported on an in-flight feature ticket almost always has one already; find it with `probe.sh state <TICKET>` and check it out. Pushing there auto-updates any open PRs. No feature branch yet → create it from the submodule's tracking `branch` under exactly the name `probe.sh branch <TICKET> <submodule|parent>` prints (`feat/<ticket>-<slug><suffix>`) — never `fix/…`, `hotfix/…`, an agent's or another flow's own naming. Regression test first.
-   **`--agent kiro`: claude plans, kiro writes the fix.** Per real-defect concern, append fix tasks to the ticket's
+   **`--agent kiro`: claude coordinates, a kiro worker writes the fix.** Per real-defect concern, append fix tasks to the ticket's
    `spec.md` `## Tasks` (`- [ ] T0NN [REQ-NNN] (<submodule>) {fix, regression test first} — <file path>`, REQ = the
    requirement whose behavior is broken), then run `/assign <TICKET> --only <submodules> --agent kiro` and wait for its
    report: it opens a kiro terminal per submodule, which commits and pushes to the feature branch — so here the push
