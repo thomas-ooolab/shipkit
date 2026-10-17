@@ -13,7 +13,7 @@
 //   exit 4  Slack rejected a call (bad token/scope, thread not found, not in channel).
 //   exit 6  <thread_ts> is a REPLY, not the root — re-run with the root ts printed in the error.
 //
-// Needs Node >= 22 (global WebSocket). Events arrive "on behalf of the user" (user-scope
+// Needs Node >= 22 (global WebSocket; see slack-socket.js). Events arrive "on behalf of the user" (user-scope
 // message.channels/groups/im/mpim), so every channel the user is in is covered without inviting a bot.
 // Slack allows ~10 concurrent socket connections per app: one process per watched thread fits that.
 // Never prints either token or the wss URL (it embeds a one-time ticket).
@@ -22,7 +22,7 @@
 'use strict';
 
 const API = process.env.SLACK_API_BASE || 'https://slack.com/api';
-const OK_SUBTYPES = [undefined, 'thread_broadcast', 'file_share', 'bot_message'];
+const { OK_SUBTYPES, session: socketSession } = require('./slack-socket.js');
 
 // Slack ts "1759650000.123456" -> integer microseconds (a double can't hold all 16 digits safely).
 const micros = (ts) => { const [s, u = ''] = String(ts).split('.'); return BigInt(s) * 1000000n + BigInt(u.padEnd(6, '0')); };
@@ -65,19 +65,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // One socket lifetime; resolves when it closes so the caller can reconnect.
 async function session(ctx) {
-  let open;
-  try {
-    open = await (await fetch(`${API}/apps.connections.open`, {
-      method: 'POST', headers: { Authorization: `Bearer ${process.env.SLACK_APP_TOKEN}` }, signal: AbortSignal.timeout(20000),
-    })).json();
-  } catch { return; }
-  if (!open.ok) finish(4, `SLACK_ERROR: ${open.error} (invalid_auth / not_allowed_token_type = SLACK_APP_TOKEN must be an app-level xapp- token with connections:write; Socket Mode must be on).`);
-
-  await new Promise((resolve) => {
-    const ws = new WebSocket(open.url);
-    ws.onclose = ws.onerror = () => resolve();
-    ws.onmessage = async (e) => {
-      let env; try { env = JSON.parse(e.data); } catch { return; }
+  const r = await socketSession({
+    api: API, appToken: process.env.SLACK_APP_TOKEN,
+    onEnvelope: async (env, ws) => {
       const act = handle(env, ctx);
       if (act.ack) ws.send(JSON.stringify(act.ack));
       if (act.hit) found(act.hit);
@@ -88,8 +78,9 @@ async function session(ctx) {
         if (c.notRoot) finish(6, `WRONG_TS: ${ctx.root} is a reply, not the thread root. Re-run with root ts ${c.notRoot}.`);
         if (c.hit) found(c.hit);
       }
-    };
+    },
   });
+  if (r.error) finish(4, `SLACK_ERROR: ${r.error} (invalid_auth / not_allowed_token_type = SLACK_APP_TOKEN must be an app-level xapp- token with connections:write; Socket Mode must be on).`);
 }
 
 async function main() {

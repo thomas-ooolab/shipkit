@@ -15,8 +15,8 @@
 #         This script only detects change; it never interprets content.
 # exit 2  timed out after <max_minutes> with no new comment — relaunch the same command (bump
 #         <after_comment_id> if it changed) to keep waiting; this is not a failure.
-# exit 3  JIRA_URL / JIRA_EMAIL / JIRA_API_TOKEN not set — see the ecc `jira-integration` skill for
-#         how to mint a token at https://id.atlassian.com/manage-profile/security/api-tokens. There
+# exit 3  JIRA_URL / JIRA_EMAIL / JIRA_API_TOKEN not set — mint a token at
+#         https://id.atlassian.com/manage-profile/security/api-tokens. There
 #         is no ScheduleWakeup fallback for this path anymore — these creds are required.
 # exit 4  Jira rejected the request (bad auth / no access / wrong ticket key), or the response body
 #         came back empty/unparseable 3 times in a row — configuration/network problem, not a stall.
@@ -32,11 +32,12 @@ MAX_MINUTES="${4:-1440}"
 
 if [ -z "${JIRA_URL:-}" ] || [ -z "${JIRA_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
   echo "NO_JIRA_CREDS: set JIRA_URL, JIRA_EMAIL and JIRA_API_TOKEN to use this poller." >&2
-  echo "  See the ecc jira-integration skill — mint a token at" >&2
+  echo "  Mint a token at" >&2
   echo "  https://id.atlassian.com/manage-profile/security/api-tokens" >&2
   exit 3
 fi
 
+cred="${JIRA_EMAIL}:${JIRA_API_TOKEN}"; cred="${cred//\\/\\\\}"; cred="${cred//\"/\\\"}"
 deadline=$(( $(date +%s) + MAX_MINUTES * 60 ))
 body_file=$(mktemp)
 trap 'rm -f "$body_file"' EXIT
@@ -45,7 +46,8 @@ consecutive_bad_bodies=0
 while [ "$(date +%s)" -lt "$deadline" ]; do
   # Body goes straight to a file so http_code (from -w, on its own stdout line) never has to be
   # split back out of a blob that might itself contain trailing newlines or embedded control bytes.
-  http_code=$(curl -sS --max-time 20 -u "${JIRA_EMAIL}:${JIRA_API_TOKEN}" \
+  # credentials go to curl on stdin (a curl config), not onto its command line (visible in `ps`)
+  http_code=$(printf 'user = "%s"\n' "$cred" | curl -sS -K - --max-time 20 \
     -H "Accept: application/json" \
     "${JIRA_URL}/rest/api/3/issue/${TICKET}/comment?orderBy=created&maxResults=100" \
     -o "$body_file" -w '%{http_code}' 2>&1)

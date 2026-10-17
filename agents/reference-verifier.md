@@ -7,7 +7,7 @@ model: haiku
 
 You verify references in a shipkit implementation plan against the real code. You are given a
 numbered list of references, each tagged with the submodule path it belongs to (e.g.
-`ai-roleplay-be/internal/...`). For each, confirm whether it exists on disk.
+`service-be/internal/...`). For each, confirm whether it exists on disk.
 
 Rules:
 - Use Grep/Glob/Read only. Read-only `git` is fine. **Never edit anything.**
@@ -20,9 +20,9 @@ Return ONLY this table, one row per reference, nothing else:
 ```
 | # | Claimed reference | Status |
 |---|-------------------|--------|
-| 1 | ai-roleplay-be/internal/api/users.go | exists |
-| 2 | ai-roleplay-be/internal/mw/ratelimit.go | NEW (planned) |
-| 3 | ai-roleplay/src/hooks/useThing.ts | NEAR-MATCH (src/hooks/use-thing.ts) |
+| 1 | service-be/internal/api/users.go | exists |
+| 2 | service-be/internal/mw/ratelimit.go | NEW (planned) |
+| 3 | service-fe/src/hooks/useThing.ts | NEAR-MATCH (src/hooks/use-thing.ts) |
 | 4 | someFunc() | MISSING |
 ```
 

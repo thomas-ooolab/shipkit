@@ -42,6 +42,7 @@ import json
 import os
 import re
 import sys
+from decimal import Decimal
 
 # The placeholder is ":thinking_face: thinking…", but tolerate "thinking...", a bare emoji, or
 # added whitespace. If stripping these leaves nothing, the agent has not written anything yet.
@@ -72,8 +73,9 @@ def classify(payload: dict, bot_id: str, parent_ts: str | None = None, after_ts:
     # after it count. Messages lacking a "ts" (unit tests) are kept — only real Slack payloads,
     # which always carry ts, are filtered.
     if after_ts:
-        cutoff = float(after_ts)
-        messages = [m for m in messages if "ts" not in m or float(m["ts"]) > cutoff]
+        # Decimal, not float: a Slack ts has 16 significant digits, more than a double holds safely.
+        cutoff = Decimal(after_ts)
+        messages = [m for m in messages if "ts" not in m or Decimal(m["ts"]) > cutoff]
 
     # Match ONLY the configured agent. An earlier version also accepted any message with a
     # `bot_id` set, which (a) made BOT_ID meaningless — the agent's own messages carry a bot_id,
@@ -103,7 +105,10 @@ def main() -> None:
         payload = json.load(sys.stdin)
     except Exception:
         return
-    result = classify(payload, os.environ.get("BOT_ID", "U0B6M74TLBY"), os.environ.get("PARENT_TS"), os.environ.get("AFTER_TS"))
+    bot_id = os.environ.get("BOT_ID")
+    if not bot_id:  # the id lives in config.json only; wait-for-slack-reply.sh passes it in
+        sys.exit("BOT_ID not set (it comes from skills/pr/config.json)")
+    result = classify(payload, bot_id, os.environ.get("PARENT_TS"), os.environ.get("AFTER_TS"))
     if result:
         print(result)
 

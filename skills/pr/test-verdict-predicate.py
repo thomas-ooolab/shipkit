@@ -5,10 +5,16 @@ The property under test is narrow on purpose: has the agent written anything oth
 "thinking…" placeholder? Every real outcome — approval, findings, error — is reported the same
 way (`changed`), because the caller must read the text regardless.
 """
+import importlib.util
 import sys
-from importlib.machinery import SourceFileLoader
-p = SourceFileLoader("vp", "./verdict-predicate.py").load_module()
-BOT = "U0B6M74TLBY"
+from pathlib import Path
+
+_spec = importlib.util.spec_from_file_location("vp", Path(__file__).resolve().parent / "verdict-predicate.py")
+p = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(p)
+BOT = "UBOT00001"      # fixtures only — the real reviewer id lives in config.json
+HUMAN = "UHUMAN001"
+OTHER_BOT = "UBOT00002"
 
 def msgs(*texts):
     return {"ok": True, "messages": [{"user": BOT, "text": t} for t in texts]}
@@ -19,7 +25,7 @@ CASES = [
     ("placeholder with dots",             msgs("thinking..."), "waiting"),
     ("placeholder, odd spacing",          msgs("  :thinking_face:  thinking …  "), "waiting"),
     ("no bot message yet",                {"ok": True, "messages": []}, "waiting"),
-    ("only the human request present",    {"ok": True, "messages": [{"user": "U0B54LPU9L5", "text": "review please"}]}, "waiting"),
+    ("only the human request present",    {"ok": True, "messages": [{"user": "UHUMAN001", "text": "review please"}]}, "waiting"),
 
     # --- finished: every outcome reports identically ---
     ("approval",                          msgs("LGTM :white_check_mark:"), "changed"),
@@ -38,15 +44,15 @@ CASES = [
     # A message carrying a bot_id from a DIFFERENT app must not count as the reviewer replying.
     # The earlier `or m.get("bot_id")` clause accepted these and made BOT_ID meaningless.
     ("another app's message is ignored",  {"ok": True, "messages": [
-        {"user": "U0OTHERBOT", "bot_id": "B0OTHER", "text": "Build #42 succeeded"}]}, "waiting"),
+        {"user": "UBOT00002", "bot_id": "BBOT00002", "text": "Build #42 succeeded"}]}, "waiting"),
     ("human message is ignored",          {"ok": True, "messages": [
-        {"user": "U0B54LPU9L5", "text": "<@U0B6M74TLBY> review these PRs"}]}, "waiting"),
+        {"user": "UHUMAN001", "text": "<@UBOT00001> review these PRs"}]}, "waiting"),
     ("agent reply among other bots wins", {"ok": True, "messages": [
-        {"user": "U0OTHERBOT", "bot_id": "B0OTHER", "text": "Build #42 succeeded"},
-        {"user": BOT, "bot_id": "B0B6R49GA7K", "text": "LGTM ✅"}]}, "changed"),
+        {"user": "UBOT00002", "bot_id": "BBOT00002", "text": "Build #42 succeeded"},
+        {"user": BOT, "bot_id": "BBOT00001", "text": "LGTM ✅"}]}, "changed"),
     ("only other bots after the agent",   {"ok": True, "messages": [
-        {"user": BOT, "bot_id": "B0B6R49GA7K", "text": ":thinking_face: thinking…"},
-        {"user": "U0OTHERBOT", "bot_id": "B0OTHER", "text": "Deploy finished"}]}, "waiting"),
+        {"user": BOT, "bot_id": "BBOT00001", "text": ":thinking_face: thinking…"},
+        {"user": "UBOT00002", "bot_id": "BBOT00002", "text": "Deploy finished"}]}, "waiting"),
 
     # --- the two waiting states must be distinguishable for troubleshooting ---
     ("never started reports 'none'",      {"ok": True, "messages": []}, "waiting"),
@@ -86,6 +92,10 @@ AFTER_CASES = [
      msgs_ts(("100", "LGTM (round 1)"), ("200", ":thinking_face: thinking…")), "150", "waiting"),
     ("new real reply after trigger → changed, ignoring the stale one",
      msgs_ts(("100", "LGTM (round 1)"), ("200", "Needs changes ⚠️ (round 2)")), "150", "changed"),
+    ("16-digit ts: one microsecond after the trigger counts (a float would round them equal)",
+     msgs_ts(("1759650000.123457", "Needs changes ⚠️")), "1759650000.123456", "changed"),
+    ("16-digit ts: equal to the trigger does not count",
+     msgs_ts(("1759650000.123456", "LGTM (previous round)")), "1759650000.123456", "waiting"),
 ]
 for name, payload, after_ts, expected in AFTER_CASES:
     got = p.classify(payload, BOT, after_ts=after_ts)

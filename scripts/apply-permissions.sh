@@ -13,6 +13,9 @@
 # it as a normal step: an injected/model-issued plugin-script command is the very thing this fixes
 # (chicken-and-egg). A command YOU run is your own action, not the agent's.
 #
+# NOTE: the rules are broad on purpose (`bash:*`, `python3:*`, `node:*`, `curl:*` run any script of that kind without a
+# prompt in the chosen scope) because the plugin lives at a versioned path. --project limits the grant to one repo.
+#
 # Idempotent: re-running makes no further change ("already up to date"). Backs up any file it changes
 # and preserves every other key.
 #

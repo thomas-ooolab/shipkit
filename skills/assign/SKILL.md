@@ -1,6 +1,6 @@
 ---
 name: assign
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they'd otherwise get implemented one submodule at a time — hands each submodule's allowlisted tasks to a parallel background agent (kiro terminals by default, claude as fallback) so they implement concurrently, in dependency waves per the plan's Part order. Also delegates a single target or a free-form task (single-repo, no config, non-ticket args) to one agent. Trigger: /assign <jira-ticket | task>. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\", \"stop doing these submodules one at a time\""
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they would otherwise be implemented one submodule at a time, or when a single target or free-form task should be handed to a background agent. Trigger: /assign <jira-ticket | task> [--only <submodule,...>] [--agent claude|kiro]. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\""
 argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent claude|kiro]"
 ---
 
@@ -54,7 +54,7 @@ Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the co
 - **Free-form mode** — args are not ticket-shaped (or no spec/config to read): one target = repo
   root (`git rev-parse --show-toplevel`), `BRIEF` = the args verbatim + the repo path + "run the
   repo's tests, commit, push the branch". Skip Steps 2–4 and 6's spec check-off; go to Step 5 with a
-  single-target wave. Empty args → AskUserQuestion (Vietnamese) what to implement.
+  single-target wave. Empty args → AskUserQuestion (in the user's language) what to implement.
 - Ticket token but `meta-with-submodules` and `SHIPKIT_CONFIG_EXISTS=0` → stop: "Run `/bootstrap` first."
 
 ## Step 2 — Load the plan (ticket mode)
@@ -87,8 +87,8 @@ there, or skip?" (`--only <name>` alone does not imply force.)
 
 ## Step 4b — Fresh enough to code on? (per submodule, before its wave runs)
 Coming back to an old branch or worktree, never hand out work on what the last `fetch` said: the branch may have been
-merged long ago, or the target may have moved under the files the tasks will touch (a returning worktree once had its
-agent coding on a branch hundreds of commits behind). Per submodule's branch — `git fetch origin` first (with the
+merged long ago, or the target may have moved under the files the tasks will touch (an agent that codes on a branch hundreds
+of commits behind rebuilds work the target already has). Per submodule's branch — `git fetch origin` first (with the
 project's remote rewrite if it needs one), then read, don't guess:
 - **Position:** `git rev-list --left-right --count origin/<target>...HEAD` (behind / ahead); is the branch already
   merged (`git merge-base --is-ancestor HEAD origin/<target>`, or its PR is `MERGED`)?
@@ -135,8 +135,8 @@ Per submodule, `PATH` = its path,
   isn't listed, **stop** and report the gap (don't widen the allowlist itself).
 - **Guard:** work only inside `PATH` and that allowlist; never push to `staging` or `main` (the feature
   branch only); never touch a database or docker. (kiro runs with every tool trusted — this is its only brake.)
-- **Discipline:** BE → OpenAPI-first (`api/api.yml` → `make gen` → domain → repo → handler); FE →
-  BFF proxy + TanStack; Voice → Pipecat, staging-only.
+- **Discipline:** the conventions the submodule's own `CLAUDE.md` states (layering, contract-first, generate steps) and
+  its `staging_only` flag from the config — don't restate them from memory.
 - **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't push red.
 - **Commit + push:** `git add <allowlisted paths>` (never `-A`); one commit; push the branch.
@@ -149,112 +149,11 @@ adds nothing the coordinator can't spawn, and leaves a stray terminal. The worke
 run mixing both (kiro workers plus fallback claude `Agent` calls) waits on `check` and the `Agent`
 notifications together.
 
-**Orca mode** (REQUIRED: load the `orca-cli` and `orchestration` skills first; `ORCA skills get orchestration` is the
-version-matched guide). Same `BRIEF`, one worker per submodule, same wave order — only the agent's home and the plumbing
-change: `/assign` is the **coordinator**; Orca creates and supervises each kiro terminal itself and injects the brief.
-**`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before starting a worker on a new terminal (a run that only reuses live kiro terminals skips it) — "Not logged in" (or an
-error) → start nothing and tell the user (Vietnamese): "kiro chưa đăng nhập — chạy `! kiro-cli login` rồi gọi lại
-/assign", then offer the claude fallback (below) for the whole run instead of stopping dead. (Orchestration does not check
-the login, and what a worker would show on a login screen was not verified — hence the check up front.)
-
-**One Run per invocation.** Exactly one `ORCA orchestration run-create --objective "assign <ticket>" --json`, its id reused
-for every wave and every `--run`, written to the state file (`run=<run_id>`). A second `run-create` from the same terminal
-**fences** the first (`worker-start --run <old>` → `consumer_fenced`). A later `/assign` of the same ticket is a new
-invocation → a new Run; terminals an older Run retained are still reusable (`--terminal`, below).
-
-**The brief goes in as a file.** Compose `BRIEF` into a file in the session scratchpad and pass `--spec "$(cat <file>)"` —
-never inline: multi-line text with backticks, `$` and Vietnamese then arrives byte for byte. The `BRIEF` components above
-already cover the guide's task-spec contract (Target/Change = Branch + Objective + tasks, Constraints/Ownership =
-Allowlist + Guard + Discipline, Observable acceptance = Verify). Orca-mode differences, added to the `BRIEF`:
-- **Finish with `worker_done`, not a final line:** `--outcome succeeded` or `--outcome failed` (failure is never only
-  prose); the three-sentence summary names `implemented <path> (N/M tasks)`. An allowlist gap → stop, `worker_done
-  --outcome failed` naming the gap; never widen the allowlist. (Agent mode keeps the `✅` / `❌` final line.)
-- **It may `ask`** (the command in its preamble). The coordinator answers **only** from `spec.md`, the plan or the
-  submodule's `CLAUDE.md`; a product decision, or anything that widens the allowlist → `AskUserQuestion` or a refusing
-  reply. A permission prompt on a terminal is never answered on the user's behalf.
-
-**Reuse before create — find first, start last.** Before starting a worker on a new terminal, look for one that already
-belongs to this job, in this order (`ORCA terminal list --worktree active --json` is the ground truth; the handle, the
-agent kind and the submodule each terminal serves are in `.shipkit/assign-<ticket>.md`, which also survives an earlier
-`/assign` run of the same ticket):
-1. **Same job:** a terminal already serving this submodule (same `PATH` and branch — a follow-up task, a later wave, a
-   fix after `/verify`, a retry). It has the context; reuse it.
-2. **Never briefed:** a terminal recorded `unassigned` (a start that did not reach a brief). It holds no work, so any
-   submodule may take it.
-
-A terminal that has worked on one submodule is **never** handed another — a different submodule always gets its own.
-Kiro terminals only (claude has none). A candidate is reusable iff `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
-<handle> --once` reads `SCREEN=agent` (idle, an input box up). `working` → **do not start a second agent on the same
-`PATH`**: its own `worker_done` has to settle first (wait on it below), then reuse. `attention`, `login`, `shell`, `gone`,
-another kind, or not in the list → not reusable; a dead one is released only on positive proof of exit (`worker-list` /
-`worker-show` say `exited`), never from absence. Reuse = `worker-start --terminal <handle>` (no `whoami`, no new
-terminal), its `BRIEF` opening for same-job reuse: "New task on the same submodule (`<PATH>`, branch `<branch>`) — the
-allowlist below replaces the previous one." A terminal serves one submodule and never receives another's brief.
-
-**Start the whole wave before waiting.** For every submodule in the wave:
-1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent kiro --worktree current --run <RUN> --json`
-   (add `--terminal <handle>` for a reuse). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
-   agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
-   create` (a second checkout `probe.sh` can't see) — and never `--agent claude`, `dispatch --inject`, or a brief sent with
-   `terminal send`. A brief can't land in a shell: Orca launches the agent itself.
-2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart: unsupported`. The
-   terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
-   agent took the brief** (Orca cannot observe kiro's turn), so make **one** read-only confirmation: the worker's first
-   message in `check`, or `wait-for-agent.sh <handle> --once` → `SCREEN=working` (read a few times, 5 s apart). `shell` /
-   `login` / `gone` → `❌ agent did not start`; anything else is a checkpoint, never a resend.
-3. `worker-start` **non-zero** (or `ok: false`) → `❌ agent did not start` with the receipt's `error.code` /
-   `failedStage` / `residualResources`. A refusal before any launch (e.g. `agent_unconfigured`) leaves nothing behind. A
-   start that launched leaves a terminal owned by that worker (`worker-list` shows it `reclaimable`): release it with
-   `worker-release` (or, if the user wants to read it, `worker-retain` and record it `unassigned`) — never `terminal close` — and retry only with `--task <id> --retry-of <dispatch>`, never a blind
-   relaunch. (A failure after launch was not reproduced; this follows the recovery reference.)
-4. Record per submodule in the state file: `task=<id> dispatch=<id>` beside the handle, kind and submodule.
-
-**Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
-pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
-1800000 --json` via Bash `run_in_background: true` (the output file is written and a notification arrives when it ends),
-so a mixed run waits on `check` and the claude `Agent` notifications together. The output can hold more than one JSON
-document: parse every one (a `raw_decode` loop) and use the one that carries `result.deliveryId` / `messages`. A consuming
-`check` **replays** its delivery until `check --ack <delivery_id>`. Process every message, then ack — and settle each
-worker *before* acking:
-- **`question`** → answer per the rule above with `ORCA orchestration reply --id <msg_id> --body "…"`; it unblocks the
-  worker.
-- **`worker_done`** (`from_handle` = the terminal; payload `outcome`; `subject` / `body` = the worker's summary) →
-  `outcome=failed` → `❌` + the summary. `outcome=succeeded` → **trust git, not the report**: `probe.sh state <ticket>`
-  (branch exists, `unpushed=0`, clean), or the same three facts — HEAD branch == `<branch>`, local HEAD == `git ls-remote
-  --heads origin <branch>`, clean tree. Pushed and clean → `✅` (task count from the summary as a hint, then from the
-  commit and the spec's tasks); not pushed → `❌ not pushed`; dirty → `❌ dirty tree`. **Either outcome**, then the
-  terminal's next owner, exactly one: **reuse** it for the next brief, **`worker-retain --dispatch <id>`** (the default — the user reads the
-  terminals and the next wave or fix reuses them), or `worker-release` (only if the user asks). A settled kiro terminal
-  left undecided stays `reclaimable`.
-- **`escalation`** → show it to the user once, answer nothing for them. (This message type was not reproduced.)
-- Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
-  --timeout-ms 1800000 --json` acks and waits for the next one in one call.
-Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
-pushed (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
---terminal-state reclaimable --json` must be empty.
-
-**An empty wait is a checkpoint, not a failure.** After three consecutive empty waits (90 minutes), enumerate:
-`worker-list --run <RUN>` and `wait-for-agent.sh <handle> --once` per worker. kiro's liveness is always `unverifiable`
-(`missing_status`) — the screen read is the only signal, and absence never authorizes stopping, abandoning, retrying or
-releasing. `attention` (a permission prompt), `login`, `shell`, `gone` → report once with the handle (`❌ agent did not
-finish — <state>`), never answer a prompt; `working` → `❌ still working after 90 min — terminal <handle>`, and the user
-decides: keep waiting, or the fallback below. Count the waits as `waits=n` beside the handle in the state file. There is no
-relaunch: `worker-stop` / `worker-abandon` only on positive proof the agent exited (an `exited` verdict, or a transcript
-whose last turn sent no `worker_done`).
-
-**kiro fallback → claude (always asked, never automatic).** A kiro submodule that ends `❌ agent did not start`,
-`❌ agent did not finish — gone|login|shell`, or hit the 90-minute wait (and the `whoami` failure above) →
-AskUserQuestion naming the submodule, the state and the terminal handle: "Run `<NAME>` with claude instead?" (`whoami`
-failure: the whole run) — `["Switch this submodule to claude", "Leave it ❌", "Retry kiro"]`. Non-interactive → leave it
-`❌`. On a switch: release the failed kiro worker (`worker-release` — reclaimable after a failed start — or `worker-stop`
-on proven exit; never `terminal close`; `worker-retain` instead if the user wants to read it), spawn a background
-**claude `Agent`** for that submodule (Agent-mode dispatch from this session — **no** claude terminal; no `whoami`), and
-open its `BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
-continue from it; don't redo or discard it." Mark it `kiro → claude` in the state file; the other submodules stay on
-kiro. `attention`, `❌ not pushed` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as
-they are.
-Leave terminals open so the user can read them (`worker-retain`); record the handles in the state file. Checkpoint with
-`ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
+**Orca mode** — `AGENT=kiro`. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/assign/orca-mode.md` and follow it (it also
+says to load the `orca-cli` and `orchestration` skills first). Same `BRIEF`, one worker per submodule, same wave order:
+`/assign` is the **coordinator**, Orca creates and supervises each kiro terminal. It covers the `kiro-cli whoami` check, one
+Run per invocation, brief-as-a-file, reuse of terminals, `worker-start`, `check --wait` and its message handling, empty waits,
+and the kiro → claude fallback. Step 6 below reads what it records.
 
 ## Step 6 — Reconcile + report
 Per agent's `✅`, check off its tasks `[x]` in `spec.md` (only the ones it confirmed — never assume

@@ -1,6 +1,6 @@
 ---
 name: review-changes
-description: Reviews code changes with three parallel passes (correctness/security, style/docs, infra/ops) under one rubric, across the affected submodules. Local mode (default) reviews the feature-branch diff and prints findings — no writes. PR mode reviews an open Bitbucket PR and posts a locked review comment. Checks drift against the spec's task allowlist. Not for writing specs/plans or fixing the issues found.
+description: "Use when a feature branch's changes (local diff, or an open Bitbucket PR with --pr) need review before a PR or a merge. Reports findings only; never fixes. Not for reviewing specs or plans. Trigger: /review-changes [--ticket <t>] [--pr <id>]"
 argument-hint: "[--ticket <jira-ticket>] [--pr <bitbucket-pr-url|id>] [--staged] [--auto]"
 ---
 
@@ -62,8 +62,7 @@ git -C <path> diff [--staged]                      # plus working-tree/staged
 ```
 If all diffs are empty: "No changes to review." Stop.
 
-**PR mode:** fetch the PR diff + head SHA via the Bitbucket API
-(`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`): `GET .../pullrequests/<id>` and `.../diff`. On
+**PR mode:** fetch the PR diff + head SHA with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" GET "/repositories/<workspace>/<repo>/pullrequests/<id>"` and `.../pullrequests/<id>/diff`. On
 failure: "Cannot read PR — confirm Bitbucket creds." Stop.
 
 **Drift check (if `SPEC` known).** Compare changed files to the spec's `## Tasks` file paths
@@ -132,7 +131,7 @@ Optionally add a one-line Jira pointer note. No labels (Bitbucket has none) — 
 - **Drift check needs the spec** — it compares changed files to the spec's task allowlist; skipped if
   no spec/ticket is resolvable.
 - **Per-submodule** — diffs, findings, and the `submodule` field keep a cross-service change readable
-  per repo. Works for ai-roleplay's 3 submodules or learningos's larger set.
+  per repo. Works for any number of submodules.
 - **Three bundled agents** dispatched in one message; dedup by `(submodule, file, line)` with the
   `line:0` finding-text carve-out before output.
 - **Reports only** — never fixes; never merges.

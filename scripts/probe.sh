@@ -46,13 +46,20 @@ find_root() {
   while sp=$(git -C "$d" rev-parse --show-superproject-working-tree 2>/dev/null) && [ -n "$sp" ]; do d="$sp"; done
   echo "$d"
 }
+# The spec dir from .shipkit/config.yml (`spec: { dir: specs, ... }` or a block `dir:` under `spec:`), else `specs`.
+spec_dir() {
+  local d=""
+  [ -f .shipkit/config.yml ] && d=$(sed -n -E 's/^[[:space:]]*spec:.*[{,][[:space:]]*dir:[[:space:]]*"?([^,}" ]+).*/\1/p; s/^[[:space:]]+dir:[[:space:]]*"?([^,}" ]+).*/\1/p' .shipkit/config.yml | head -1)
+  echo "${d:-specs}"
+}
 # The ticket's spec dir (`specs/NNN-slug`) or `none`: frontmatter `ticket:` (or `jira:`, older specs)
 # first, then a dir name containing the ticket.
 find_spec() {
   local f d
-  f=$(grep -rlE "^(ticket|jira):[[:space:]]*\"?$1\"?[[:space:]]*$" specs/*/spec.md 2>/dev/null | head -1)
+  local sd; sd=$(spec_dir)
+  f=$(grep -rlE "^(ticket|jira):[[:space:]]*\"?$1\"?[[:space:]]*$" "$sd"/*/spec.md 2>/dev/null | head -1)
   if [ -n "$f" ]; then dirname "$f"; return; fi
-  d=$(ls -d specs/*"$1"* 2>/dev/null | head -1); echo "${d:-none}"
+  d=$(ls -d "$sd"/*"$1"* 2>/dev/null | head -1); echo "${d:-none}"
 }
 START=$(pwd -P)
 ROOT=$(find_root)
@@ -101,9 +108,10 @@ case "${1:-}" in
     ;;
 
   spec)
-    if [ -d specs ]; then
-      echo "SPEC_DIR=specs"
-      last=$(ls specs 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
+    sd=$(spec_dir)
+    if [ -d "$sd" ]; then
+      echo "SPEC_DIR=$sd"
+      last=$(ls "$sd" 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
       if [ -n "$last" ]; then
         num=$(echo "$last" | grep -oE '^[0-9]+')
         pad=${#num}
@@ -145,7 +153,7 @@ case "${1:-}" in
       cat .shipkit/config.yml
       echo "----- end -----"
       # also surface next spec number from disk (ground truth beats the cached value)
-      last=$(ls "$(grep -E '^\s*dir:' .shipkit/config.yml | head -1 | awk '{print $2}' || echo specs)" 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
+      last=$(ls "$(spec_dir)" 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
       [ -n "$last" ] && echo "DISK_HIGHEST_SPEC=$last"
     else
       echo "SHIPKIT_CONFIG_EXISTS=0"

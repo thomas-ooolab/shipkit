@@ -22,7 +22,7 @@
 'use strict';
 
 const API = process.env.SLACK_API_BASE || 'https://slack.com/api';
-const OK_SUBTYPES = [undefined, 'thread_broadcast', 'file_share', 'bot_message'];
+const { OK_SUBTYPES, session, ack } = require('../../scripts/slack-socket.js');
 const key = (c, t) => `${c}:${t}`;
 const TICKET = /\b[A-Z][A-Z0-9]+-\d+\b/;
 
@@ -84,21 +84,16 @@ async function main() {
   }
 
   for (;;) { // one iteration = one socket lifetime
-    const open = await slack('apps.connections.open', app).catch(() => ({ retry: true }));
-    if (!open.ok && !open.retry) { console.error(`SLACK_ERROR: ${open.error} (SLACK_APP_TOKEN must be an app-level xapp- token with connections:write; Socket Mode on).`); process.exit(4); }
-    if (open.ok) {
-      await new Promise((resolve) => {
-        const ws = new WebSocket(open.url);
-        ws.onclose = ws.onerror = () => resolve();
-        ws.onmessage = (e) => {
-          let env; try { env = JSON.parse(e.data); } catch { return; }
-          if (env.envelope_id) ws.send(JSON.stringify({ envelope_id: env.envelope_id })); // unacked → redelivered
-          if (env.type === 'disconnect') ws.close();
-          else if (env.type === 'events_api') onEvent(env.payload && env.payload.event);
-        };
-      });
-    }
-    await new Promise((r) => setTimeout(r, 2000)); // ponytail: fixed backoff, add jitter if it ever flaps
+    const r = await session({
+      api: API, appToken: app,
+      onEnvelope: (env, ws) => {
+        ack(ws, env); // unacked → redelivered
+        if (env.type === 'disconnect') ws.close();
+        else if (env.type === 'events_api') onEvent(env.payload && env.payload.event);
+      },
+    });
+    if (r.error) { console.error(`SLACK_ERROR: ${r.error} (SLACK_APP_TOKEN must be an app-level xapp- token with connections:write; Socket Mode on).`); process.exit(4); }
+    await new Promise((res) => setTimeout(res, 2000)); // ponytail: fixed backoff, add jitter if it ever flaps
   }
 }
 

@@ -1,6 +1,7 @@
 ---
 name: clarify
-description: "Use when the user wants to resolve a Jira ticket's open PO-clarification questions without manually re-checking the ticket — seeds one Jira comment with the ticket's open business-logic questions, then polls for the PO's reply on a self-paced background loop until every question is resolved. Trigger: /clarify <ticket-id>. Examples: \"clarify AR-450\", \"keep asking the PO until AR-450's open questions are resolved\""
+description: "Use when the user wants to resolve a Jira ticket's open PO-clarification questions without manually re-checking the ticket. Trigger: /clarify <ticket-id>. Examples: \"clarify AR-450\", \"keep asking the PO until AR-450's open questions are resolved\""
+argument-hint: "<jira-ticket>"
 ---
 
 # Clarify Loop
@@ -16,55 +17,28 @@ Composes three existing pieces — do not reimplement any of them:
 
 State lives in `.shipkit/clarify-<ticket>.md` at the SDD root repo, so a re-invocation picks up where it left off instead of re-seeding.
 
-## Hard rule: business language only, both directions
+## Hard rules: business language, sound like a person, confirm before every Jira post
 
-Every Jira comment this skill posts — the initial question AND any follow-up reply/acknowledgment once the PO answers — must read as plain business language. No field names, table/column names, endpoint paths, ticket-internal jargon ("sync logic", "the `is_active` flag", "webhook retry"). Say what a non-technical PO would say: what decision is needed, in what situation, with what options. This applies even to comments where you're just confirming you understood the PO's answer.
+**REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md` and follow all three rules — here "item" = an open
+question. Applies to the seed comment and every per-tick comment, acknowledgments included.
 
-Bad: "Confirming: `retention_days` defaults to 90 unless `plan_tier == enterprise`."
-Good: "Got it — Enterprise workspaces keep call recordings for a year, everyone else for 90 days. Confirming that's right before I build it that way."
-
-## Hard rule: sound like a person, not a report
-
-Write every comment the way you'd actually type a quick reply — plain sentences, contractions, one thought running into the next. Not a bolded outline, not a numbered "questions" list, no stock phrases ("please advise", "I hope this clarifies", "kindly confirm at your earliest convenience"). Asking about more than one thing in a single comment still reads as one person talking, not a formatted document — run them together or split with "also," not a numbered heading per question.
-
-Bad: "**Question 1:** Please confirm the retention period for Enterprise workspaces.\n**Question 2:** Please confirm whether the weekly digest should include workspaces with zero calls.\nKindly advise at your earliest convenience."
-Good: "Two things I need from you — how long should Enterprise workspaces keep call recordings, a year or unlimited? And should the weekly digest still go out to workspaces that had zero calls that week, or skip them?"
-
-## Hard rule: confirm with me before every Jira post
-
-Never call the Jira comment-posting tool until I've explicitly approved the exact text. This applies to the seed comment and every per-tick comment — acknowledgments included, not just the substantive ones.
-
-1. Draft the comment.
-2. Show me the exact text, verbatim — not a summary of what you plan to say.
-3. Wait for explicit approval ("post it", "change X", "skip this one"). A wake with no reply yet means no post this tick — don't post because "no one objected" or "this one's obviously fine, it's just an ack."
-4. Only once approved: post it, then continue.
-
-If this tick's poller notification arrives unattended (nobody's replied to the draft yet) → show the draft, write it into `pending_comment` in the state file, and stop — don't relaunch the background poller yet, since nothing new has been posted to poll replies against. The next turn (I reply, or you're re-invoked) picks up from `pending_comment`, skips straight to confirming it, and only relaunches the poller once it's posted.
-
-**No exceptions:**
-- Not for "just an acknowledgment" comments.
-- Not because the wording is obviously right.
-- Not because posting now and mentioning it in the summary afterward is faster.
-- A drafted-but-unapproved comment is not sent. Don't count it as "resolved this tick" until it actually posts.
+One more excuse that belongs to this skill:
 
 | Excuse | Reality |
 |---|---|
-| "It's just a routine ack, not worth asking about" | Every comment is public on the ticket — I decide what goes out, not you. |
-| "No one replied to the draft, but it's clearly right" | Silence isn't approval. No reply = no post, this tick. |
-| "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
-| "Confirming breaks the autonomous loop" | It doesn't — it pauses posting, not the whole skill. Polling and rescheduling resume normally once posted. |
 | "The state file doesn't exist, so this is a fresh seed" | The file's absence proves nothing — check the ticket's comments first (Step 2.0). A missing file plus an existing seed comment means adopt, not re-post. |
 
 ## Step 1 — Resolve inputs
 
-1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress `/clarify` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
+1. Ticket ID comes from the invocation args (e.g. `AR-450`). If missing, recommend candidates instead of asking blank: check `.shipkit/clarify-*.md` for existing state files (in-progress `/clarify` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `/pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly.
 2. Find the ticket's spec dir: search `specs/*/spec.md` under the SDD root for one whose frontmatter references this ticket ID, then look for `open-question.md` alongside it. If the spec doesn't exist, invoke `spec-from-ticket` first — then continue.
    **`/clarify` always runs right after `/spec-from-ticket`** — seed with what `open-question.md` holds now; never
    hold the first comment back for `/plan-deep`, and don't ask whether to run it first. `/plan-deep` runs after the
    PO has answered, and any question it adds later goes out as a follow-up in this skill's next round.
-3. The PO to tag is `jira.reporter_account_id` from `.shipkit/config.yml` (written by `/spec-from-ticket`) —
-   the only source; don't re-derive it from the ticket and don't copy it into the state file. Key
-   missing → stop and tell the user to run `/spec-from-ticket <ticket>` first.
+3. The PO to tag is `reporter_account_id` in this ticket's `spec.md` frontmatter (written by `/spec-from-ticket`) —
+   the only source; don't re-derive it from the ticket and don't copy it into the state file. A spec from before that field
+   existed → fall back to `jira.reporter_account_id` in `.shipkit/config.yml` if it has one. Neither → stop and tell the user
+   to run `/spec-from-ticket <ticket>` first.
    **Every comment this skill posts must @mention that account.** Write `@[Name](<reporter_account_id>)`
    in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` — it sends a real ADF mention (the MCP tool stores mentions as
    plain text, so nobody is notified). The script verifies the mention came back. If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).
@@ -135,10 +109,10 @@ The local state file is not the source of truth for "has this been seeded" — t
    This sleeps and re-checks Jira itself (default: every 60s, up to a 24h window) instead of paying for a full session wake on every empty check — you're notified once, only when something actually posted. Exit codes:
    - **0** — a new comment landed. Continue to step 2 below.
    - **2** — timed out with nothing new → increment `silent_ticks` (see Step 4), then relaunch the same command with the same `<last_checked_comment_id>` to keep waiting. Normal for a quiet ticket, not a failure.
-   - **3** (`JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` unset) → tell the user directly these are required to poll Jira at all — there's no `/loop` fallback for this path anymore. Stop until they're configured (see the ecc `jira-integration` skill for how to mint a token).
+   - **3** (`JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` unset) → tell the user directly these are required to poll Jira at all — there's no `/loop` fallback for this path anymore. Stop until they're configured (mint a token at https://id.atlassian.com/manage-profile/security/api-tokens).
    - **4** — Jira rejected the request (bad auth / wrong ticket key) → tell the user, don't silently keep retrying.
 2. Read the state file.
-3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here. **Check each new comment's author against `jira.reporter_account_id` first.** A reply from someone other than the tagged PO is not automatically authoritative — same Jira ticket, different person than the one asked. Don't fold a mismatched-author reply into `open-question.md` as a resolved answer; when drafting this tick's comment/summary (step 5 below), say plainly who the tagged PO was and who actually replied, and let the user decide whether to treat it as authoritative, wait for the named PO, or escalate. **Also re-read `open-question.md`** and diff it against the state file's checklist — a later `/plan-deep` run (or a manual edit) can append new items after this ticket was already seeded, and those need to reach the PO in this tick's comment too, not sit unasked. Any item in the file not yet in the state file's checklist is new: add it to today's batch the same as a bucket-2 item below (it doesn't count against `follow_up_rounds` — that counter is only for questions *this skill itself* generated in response to a PO reply, not ones `spec-from-ticket`/`plan-deep` already decided were needed).
+3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here. **Check each new comment's author against the spec's `reporter_account_id` first.** A reply from someone other than the tagged PO is not automatically authoritative — same Jira ticket, different person than the one asked. Don't fold a mismatched-author reply into `open-question.md` as a resolved answer; when drafting this tick's comment/summary (step 5 below), say plainly who the tagged PO was and who actually replied, and let the user decide whether to treat it as authoritative, wait for the named PO, or escalate. **Also re-read `open-question.md`** and diff it against the state file's checklist — a later `/plan-deep` run (or a manual edit) can append new items after this ticket was already seeded, and those need to reach the PO in this tick's comment too, not sit unasked. Any item in the file not yet in the state file's checklist is new: add it to today's batch the same as a bucket-2 item below (it doesn't count against `follow_up_rounds` — that counter is only for questions *this skill itself* generated in response to a PO reply, not ones `spec-from-ticket`/`plan-deep` already decided were needed).
 4. Reset `silent_ticks` to 0. **Gate first:** if a reply states a rule about who may see or do what (role, permission, data scope), or a
    threshold, limit, state or notification, that may contradict an earlier dated decision, the spec or another ticket's PO
    comment, run `/cross-check <TICKET> --stage post` on that reply (link or id) before checking anything off. A confirmed

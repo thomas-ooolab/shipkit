@@ -16,7 +16,7 @@ Check for:
 - **Error handling** — swallowed errors, missing error propagation, panics/unwraps on untrusted input.
 - **Security** — injection (SQL/command/template), missing input validation, secrets in code, authz
   bypass, unsafe deserialization.
-- **Multi-tenant scoping** — any query/handler that must be scoped by `WorkspaceID` (from JWT claims)
+- **Multi-tenant scoping** — any query/handler that must be scoped by the tenant key the project's CLAUDE.md names (workspace / org / account id from the auth claims)
   but isn't — a cross-tenant data leak is **blocking**.
 - **Key-decisions contradiction** — if the spec's `## Key decisions` are provided and the diff
   contradicts one, flag it. If no spec/decisions provided, ignore this check.
@@ -25,8 +25,8 @@ Ground every finding in a specific diff line. Return ONLY a JSON array (or `[]`)
 
 ```json
 [
-  {"pass": "correctness", "finding": "register handler queries users without WorkspaceID filter — cross-tenant leak", "severity": "blocking", "submodule": "ai-roleplay-be", "file": "internal/api/users.go", "line": 42},
-  {"pass": "correctness", "finding": "nil email not handled before strings.ToLower", "severity": "advisory", "submodule": "ai-roleplay-be", "file": "internal/api/users.go", "line": 14}
+  {"pass": "correctness", "finding": "register handler queries users without the tenant filter — cross-tenant leak", "severity": "blocking", "submodule": "service-be", "file": "internal/api/users.go", "line": 42},
+  {"pass": "correctness", "finding": "nil email not handled before strings.ToLower", "severity": "advisory", "submodule": "service-be", "file": "internal/api/users.go", "line": 14}
 ]
 ```
 `severity` is `blocking` or `advisory`. `line` is an integer (0 if no single line applies).

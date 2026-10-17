@@ -1,6 +1,6 @@
 ---
 name: design-recon
-description: "Captures the GROUND-TRUTH design from a ticket's mockup — a screenshot, an HTML file, or an auth-gated Claude design link — by driving it in a real browser (Playwright MCP) and reading COMPUTED styles, then snapping every value to the project's Tailwind tokens. Writes specs/NNN-slug/design-contract.md so the implementer assembles known classes instead of guessing at spacing/color/typography, and /verify can later diff the built UI against it. Reading computed styles via the browser is cheaper AND more accurate than reading the mockup's HTML. For FE/UI tickets that carry a visual reference; not for backend/logic work, and not for GENERATING a new design."
+description: "Use when a UI ticket carries a visual reference — a screenshot, an HTML file or an auth-gated Claude design link — that the implementation must match. Not for backend work, and not for generating a new design. Trigger: /design-recon <artifact> [--ticket <t>]"
 argument-hint: "<artifact: image path | .html path | design URL> [--ticket <jira-ticket>] [--selector <css>]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: bump-submodule
-description: After child PRs merge, bump the parent repo's submodule pointer(s) to explicit merged commits and open or update the parent PR that ties the feature to the ticket. Pins each submodule via <path>@<sha> (path is whatever .gitmodules declares). Rejects --to-default-branch-head combined with --closes. Never writes to Jira — the report names the manual step. Not for single-repo projects.
+description: "Use when a ticket's child submodule PRs were merged by hand (not through /merge) and the parent repo's submodule pointers must be bumped to the merged commits and the parent PR updated. Not for single-repo projects. Trigger: /bump-submodule <path>@<sha>… [--closes <ticket>]"
 argument-hint: "<path>@<sha>… [--closes <jira-ticket>] [--to-default-branch-head] [--replace]"
 ---
 
@@ -62,12 +62,11 @@ git -C <path> fetch origin <branch>
 git -C <path> merge-base --is-ancestor <sha> origin/<branch> && echo merged || echo NOT-merged
 ```
 Any `NOT-merged` → stop and list them (bumping to an unmerged sha breaks the parent). In `remote`
-mode instead resolve the sha: `git -C <path> submodule? ` → fetch + `rev-parse origin/<branch>`, and
+mode instead resolve the sha: `git -C <path> fetch origin <branch>`, then `git -C <path> rev-parse origin/<branch>`, and
 record the resolved sha for the Bumps table.
 
 ## Step 3 — Concurrency check
-List open parent PRs whose body mentions a `Bumps:` row for the same submodule path (Bitbucket API
-search). If a duplicate exists and `REPLACE` is false → stop with its URL: "Open bump PR already
+List open parent PRs whose body mentions a `Bumps:` row for the same submodule path (`bitbucket-api.sh GET …/pullrequests?state=OPEN`, see `/pr` Step 2 for the query form). If a duplicate exists and `REPLACE` is false → stop with its URL: "Open bump PR already
 exists for `<path>` — resolve it, or re-run with `--replace`." If `REPLACE` → decline the superseded
 PR with an explanatory comment.
 
@@ -89,14 +88,14 @@ git push   # (--force-with-lease only if the branch was rebased)
 ## Step 5 — Open or update the parent PR
 - If a parent PR for the ticket already exists (opened by `/pr`): the push **updates it** —
   refresh its description with the Bumps table.
-- Else open one on the parent repo via the Bitbucket API:
+- Else open one on the parent repo with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" POST "/repositories/<workspace>/<repo>/pullrequests" <body.json>`:
   - **Title:** `<ticket>: bump <paths>`
   - **Body:** the `Bumps:` table + links to the merged child PRs + the spec path + the ticket link.
 ```
 Bumps:
 | Submodule | From | To |
 |---|---|---|
-| ai-roleplay-be | <before> | <sha> |
+| <submodule> | <before> | <sha> |
 ```
 (Bitbucket has no auto-close keyword; the ticket key in the title is the link.)
 
@@ -112,10 +111,8 @@ Always print the `Jira:` line — never end the report without it. `/run-pipelin
 from this report.
 
 ## Gotchas
-- **No dollar-digit fields in this file's commands.** The skill loader substitutes them with the
-  command's arguments (an awk third-field print turned into a print of the ticket key), so read a gitlink sha with
-  `git rev-parse HEAD:<path>`. Loops over `path sha` pairs break on zsh (no word-splitting) — wrap
-  them in `bash -c '...'`.
+- **Read a gitlink sha with `git rev-parse HEAD:<path>`.** Loops over `path sha` pairs break on zsh (no
+  word-splitting) — wrap them in `bash -c '...'`.
 - **Verify-merged is mandatory.** Bumping to an unmerged sha leaves the parent pointing at a commit
   nobody else can fetch. Step 2 guards this.
 - **Rebase before bumping.** A parent change merged seconds earlier would otherwise conflict on the
@@ -124,5 +121,4 @@ from this report.
   shas; that's why `--closes` is rejected with it.
 - **No auto-close, no Jira write.** Bitbucket has no closing keyword and this skill never touches
   Jira, so the ticket only reaches Done when the user moves it — Step 6 says so every run.
-- **Path-agnostic.** Works for whatever `.gitmodules` declares — ai-roleplay's 3 submodules or
-  learningos's larger set; never assumes a path prefix.
+- **Path-agnostic.** Works for whatever `.gitmodules` declares; never assumes a path prefix.

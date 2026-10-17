@@ -1,6 +1,6 @@
 ---
 name: run-pipeline
-description: Orchestrates the Ticket → PRs pipeline. Resumable and idempotent — re-derives state from ground truth (spec file, branches, PRs, Jira status) and runs only pending stages. Default stops at the human gate (implement) and never merges; opt-in `auto` continues through review + PRs. Writes .shipkit/pipeline-<ticket>.md. Fans out child PRs per submodule. Not for hotfixes.
+description: "Use when the user wants to take a Jira ticket through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [auto]"
 argument-hint: "<jira-ticket> [auto|--auto]"
 ---
 
@@ -45,10 +45,10 @@ never bump a submodule before its child PR is confirmed merged; no force-push.
 ## Topology mode (auto)
 Read `TOPOLOGY_MODE` from the probe. The pipeline shape adapts automatically:
 - **`meta-with-submodules`** — the flow below as written: parent branch + per-submodule branches,
-  fan-out PRs, then a submodule-ref bump (stage 7).
+  fan-out PRs, then the merge and the submodule-ref bump (stages 6–7).
 - **`single-repo`** — collapse to one repo: **one** feature branch `feat/<ticket>-<slug>` (no parent/
   child, no suffixes), scope/grounding/review act on the one repo, stage 5 opens **one** PR, and
-  **stages 6–7 (merged/bump) do not apply** — the pipeline finishes at the open PR. Everywhere the
+  **stages 6–7 (merged/bump) do not apply** — the pipeline finishes at the open PR (and `/merge`). Everywhere the
   steps say "per affected submodule / parent," read it as "the repo."
 
 ## Step 1 — Parse
@@ -64,14 +64,16 @@ Run as a model Bash step (resumability depends on this — never trust a prior r
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>
 ```
 Then, **if Bitbucket creds are available** (`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`), check
-open/merged PRs per affected submodule via the Bitbucket API (search by branch `feat/<ticket>-*`).
+open/merged PRs per affected submodule with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name~%22feat/<ticket>-%22&state=OPEN"` (and `state=MERGED`).
 If creds absent, note "PR state: unknown (no Bitbucket creds) — will rely on local branch state."
 If Atlassian MCP is connected, read the Jira ticket status.
 
 Derive each stage's status from observations:
 | Stage | Complete when |
 |---|---|
-| **spec** | `SPEC=specs/NNN-…` (not `none`) |
+| **spec** | `SPEC=<spec dir>/NNN-…` (not `none`) |
+| **clarify** *(gate)* | the spec dir has no `open-question.md`, or it has no unchecked `- [ ]` item |
+| **plan** | the spec's frontmatter `status:` is `planned` (or `in-progress` / `shipped`) |
 | **design-recon** *(opt-in, UI)* | design gate is `off`, or `design-contract.md` exists in the spec dir |
 | **branches** | parent + every affected submodule has `branch=feat/<ticket>-…` |
 | **implement** *(human gate)* | affected submodule branches have commits/dirty changes (`dirty=yes` or `unpushed>0`) |
@@ -82,7 +84,7 @@ Derive each stage's status from observations:
 | **bump** | parent submodule refs point at merged shas; parent PR open/merged |
 
 **Mandatory audit line** (print before any decision/dispatch):
-`shipkit state <ticket>: spec=<dir|none> branches=<n/m> implemented=<yes|no> review=<done|pending> prs=<n/m|unknown> merged=<yes|no|unknown>`
+`shipkit state <ticket>: spec=<dir|none> open-questions=<n> planned=<yes|no> branches=<n/m> implemented=<yes|no> review=<done|pending> prs=<n/m|unknown> merged=<yes|no|unknown>`
 
 ## Step 3 — Write/refresh the pipeline state file
 Write `.shipkit/pipeline-<ticket>.md` (mark `[x]` confirmed-complete, `[ ]` pending):
@@ -92,14 +94,16 @@ Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|uns
 
 ## Stages
 - [ ] 1 spec          — /spec-from-ticket <ticket>
+- [ ] 1.2 clarify     — GATE: /clarify <ticket> while open-question.md has unchecked items (needs the PO — never automated)
+- [ ] 1.4 plan        — /plan-deep --ticket <ticket>
 - [ ] 1.5 design-recon — /design-recon (opt-in; UI tickets — asked once, skipped if gate off)
 - [ ] 2 branches      — feat/<ticket>-<slug>(+ per-submodule suffix)
-- [ ] 3 implement     — HUMAN: write code in the submodule branches (orchestrator never edits code)
+- [ ] 3 implement     — HUMAN GATE: write the code in the submodule branches, by hand or with /assign <ticket> (orchestrator never edits code)
 - [ ] 4 review        — /review-changes
 - [ ] 4.5 verify      — /verify (gate: behavior evidence for every ticket; UI fidelity too when Design gate = on)
 - [ ] 5 prs           — /pr
-- [ ] 6 merged        — EXTERNAL: child PRs merge on Bitbucket (orchestrator never merges)
-- [ ] 7 bump          — /bump-submodule <path>@<sha> --closes <ticket>
+- [ ] 6 merged        — GATE: /merge <ticket> lands the signed-off child PRs (orchestrator never merges)
+- [ ] 7 bump          — root-PR pointers at the merged shas — /merge already does it; /bump-submodule <path>@<sha> --closes <ticket> only after a by-hand merge
 ```
 `Design gate` is `unset` until Stage 1.5 asks; then `on`/`off`, remembered so resumes never re-ask.
 
@@ -110,6 +114,13 @@ re-confirm success from ground truth and append the result + timestamp to the st
 
 - **Stage 1 — spec** (if `SPEC=none`): dispatch `/spec-from-ticket <ticket>`. Success = `spec.md`
   now exists. This also fixes the scope (affected submodules) used by later stages.
+- **Stage 1.2 — clarify** *(gate)*: if the spec dir has an `open-question.md` with unchecked items, **stop**: "<n> open
+  question(s) block a sound plan — run `/clarify <ticket>`, then re-run `/run-pipeline <ticket>`." `/clarify` is a
+  long-running loop that waits for the PO and needs the user's approval before each Jira post, so the orchestrator never
+  dispatches it, `auto` included. No file, or every item checked → mark `[x]`.
+- **Stage 1.4 — plan** (spec exists, `status: draft`): dispatch `/plan-deep --ticket <ticket>` (add `--auto` only when
+  `AUTO=true`). Success = the spec's frontmatter reads `status: planned`. A plan that leaves new open questions sends the
+  run back to Stage 1.2 on the next pass.
 - **Stage 1.5 — design fidelity opt-in** *(UI tickets only)*: after the spec fixes scope, run this
   only when the scope includes frontend (`fe-only` / `fe+…`). If `Design gate` is already `on`/`off`
   in the state file, honor it (don't re-ask). Otherwise:
@@ -129,8 +140,8 @@ re-confirm success from ground truth and append the result + timestamp to the st
   named by `probe.sh branch <ticket>`. Skip unaffected; flag `staging_only`.
   Success = `probe.sh state` shows the branches.
 - **Stage 3 — implement** *(human gate)*: if no changes detected on the affected branches, **stop**:
-  "Spec + branches ready. Implement the tasks in the submodule branches, then re-run
-  `/run-pipeline <ticket>` to continue." In `AUTO=true`, still stop here — the orchestrator never
+  "Spec, plan and branches ready. Implement the tasks in the submodule branches — by hand, or run `/assign <ticket>` — then
+  re-run `/run-pipeline <ticket>` to continue." In `AUTO=true`, still stop here — the orchestrator never
   writes app code.
 - **Stage 4 — review** (changes present, review not done): dispatch `/review-changes --ticket <ticket>`.
   Success = output reports per-submodule ✅/⚠️ and checks off tasks. On ⚠️ blocking issues in strict
@@ -151,9 +162,11 @@ re-confirm success from ground truth and append the result + timestamp to the st
   until sign-off. Stage success = the PRs are open; the review loop keeps running on `/pr`'s own
   background pollers (`.shipkit/pr-<ticket>.md` tracks it). **Stop here by default** — the pipeline
   never merges. Report the PR URLs and "review loop running".
-- **Stage 6 — merged** *(external gate)*: only re-runs find this; if not all child PRs merged, stop:
-  "Waiting on child PRs to merge: <list>. Re-run `/run-pipeline <ticket>` after they merge."
-- **Stage 7 — bump** (all child PRs merged): dispatch
+- **Stage 6 — merged** *(gate)*: only re-runs find this; if not all child PRs merged, stop:
+  "Waiting on child PRs to merge: <list>. Run `/merge <ticket>` (it asks only on a problem), then re-run
+  `/run-pipeline <ticket>`." The orchestrator itself never merges.
+- **Stage 7 — bump** (all child PRs merged; skip when the root PR is already merged or its pointers already equal the merged
+  shas — `/merge` does that): dispatch
   `/bump-submodule <path>@<sha> … --closes <ticket>` with the merged shas. Success = parent refs
   bumped + parent PR open. `/bump-submodule` never writes to Jira: relay its `Jira:` line and tell the
   user to move `<ticket>` to its done status themselves once the parent PR merges.
@@ -178,10 +191,11 @@ Next:   <the single next action — implement / wait for merge / bump / done>
   recon→verify; the answer is remembered in the state file (`Design gate: on|off`), so resumes never
   re-ask. `auto`/headless runs default it `off`. Backend tickets never see the question. When `on`,
   Stage 4.5's `FAILED` halts the pipeline like a review blocker.
-- **Two non-automatable gates.** Stage 3 (implement) needs a human; Stage 6 (merge) is external.
-  The orchestrator stops at both and at the open PR — it never edits code and never merges.
-- **`auto` only removes pauses between automatable stages** (spec → branches → review → prs). It
-  never crosses the implement or merge gates, and never merges a PR.
+- **Non-automatable gates.** Stage 1.2 (open questions) needs the PO; Stage 3 (implement) needs a human or `/assign`;
+  Stage 6 is `/merge`, run by the user. The orchestrator stops at each and at the open PR — it never edits code and
+  never merges.
+- **`auto` only removes pauses between automatable stages** (spec → plan → branches → review → prs). It
+  never crosses the clarify, implement or merge gates, and never merges a PR.
 - **Multi-repo fan-out** is inherent: stages 2/5/7 act per affected submodule; the parent PR is the
   throughline that ties the child PRs and the bump to the ticket.
 - **Transient Bitbucket/Jira errors:** retry up to 3× (2s→4s→8s) before treating as failure.

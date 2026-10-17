@@ -1,6 +1,6 @@
 ---
 name: help
-description: "Use when the user asks how to use shipkit, which skill or command to run for what they want to do, what order the skills go in, or which shipkit version is installed. Trigger: /shipkit:help [<what you want to do>]. Examples: \"/shipkit:help\", \"/shipkit:help QC báo bug trên AR-450\", \"shipkit: làm sao để ship ticket từ đầu đến cuối?\", \"shipkit đang version nào?\""
+description: "Use when the user asks how to use shipkit, which skill or command to run for what they want to do, what order the skills go in, or which shipkit version is installed. Trigger: /shipkit:help [<what you want to do>]. Examples: \"/shipkit:help\", \"/shipkit:help QC reported a bug on AR-450\", \"shipkit: how do I ship a ticket from start to finish?\", \"which shipkit version is installed?\""
 argument-hint: "[<use case in your own words>]"
 ---
 
@@ -26,7 +26,7 @@ improvise a workflow.
 | Use case | Skills, in order |
 |---|---|
 | First time in a repo | `/fix-permissions` → `/bootstrap` |
-| Ticket → merged PRs, end to end | `/run-pipeline <ticket>` — it runs the stages below and stops at the implement gate |
+| Ticket → merged PRs, end to end | `/run-pipeline <ticket>` — it runs the stages below and stops at the open-questions, implement and merge gates |
 | Same flow, one step at a time | `/spec-from-ticket` → `/cross-check` → `/clarify` (only if questions are open) → `/plan-deep` → implement (`/assign` when ≥2 submodules) → `/verify` → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Ticket is unclear / PO must answer | `/cross-check` → `/clarify` |
 | UI ticket with a mockup | `/design-recon` → implement → `/verify` (it also diffs the built UI against the design contract) |

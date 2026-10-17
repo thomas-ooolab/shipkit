@@ -1,6 +1,6 @@
 ---
 name: merge
-description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land. Merges each qualifying child PR via the Bitbucket API, waits on the Bitbucket Pipeline each merge triggers (via twg), then — only if every pipeline is SUCCESSFUL — bumps the root PR's submodule pointers, rebases it if it conflicts, merges it, and moves the Jira ticket to the configured post-merge status and assignee, sending the saved /verify evidence just before the status change. Prints its plan and goes ahead when nothing is off; stops and asks only on a problem (missing sign-off, conflict, failed pipeline, a root rebase/force-push, a merge rejection). Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
+description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land; also moves the Jira ticket after the merge. Asks only on a problem (missing sign-off, conflict, failed pipeline, a root rebase/force-push, a merge rejection). Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
 argument-hint: "<jira-ticket>"
 ---
 
@@ -111,7 +111,7 @@ For each confirmed PR, in Part order, run the bundled script — never an inline
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/merge/merge-pr.sh" <workspace> <repo> <pr_id>
 ```
-It POSTs `.../pullrequests/<id>/merge` with `$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD` and no explicit merge
+It POSTs `.../pullrequests/<id>/merge` with `$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD` (an API token works as the password) and no explicit merge
 strategy (the repo's own Bitbucket default applies), follows an async merge to its end, and prints one line,
 `<repo> #<id> MERGED <full merge sha>`, exit 0. Any rejection (not approved, server-side check, conflict), any state
 other than MERGED, or a body it cannot parse → non-zero with the verbatim error on stderr: **1** Bitbucket said no,
@@ -124,8 +124,8 @@ rejection verbatim, merge nothing later in Part order, don't retry blindly. Appe
 `python3 "${CLAUDE_PLUGIN_ROOT}/skills/merge/merge-pr.py" --self-test` checks the response judge.
 
 ## Step 7 — Wait for the pipelines (script, not inline)
-Run the bundled poller — never an inline `python3 -c '...'` or a `timeout` (nested quoting broke the
-poll on an earlier run, and macOS has no `timeout`); the Bash tool runs zsh, so call it with `bash`:
+Run the bundled poller — never an inline `python3 -c '...'` or a `timeout` (nested quoting is fragile, and macOS has
+no `timeout`); the Bash tool runs zsh, so call it with `bash`:
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/merge/wait-pipelines.sh" <workspace> <pr_target> <repo>=<merge_sha> [<repo>=<merge_sha> ...]
 ```
@@ -180,80 +180,21 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
    line to `.shipkit/merge-<TICKET>.md`. Non-zero → stop, report verbatim.
 
 ## Step 10 — Move the Jira ticket
-Only when **every** PR of the ticket — all child PRs and the root — is `MERGED` (re-read each PR's
-state from Bitbucket; don't trust your own log). Not all merged → don't touch Jira, but still report
-it (Step 11). **This step is never skipped silently** — no config value means *decide from history*, and only unusable history means *ask*.
-Worktrees are ephemeral, so `.shipkit/config.yml` (gitignored) is not durable: decide from **recent history**, and let
-config only override. `jira.after_merge_transition` (a status *name*, never a remembered transition id — ids differ
-per project) and `jira.qc_account_id`, when present, win. Otherwise use the *history sample* below.
-
-**History sample (once, shared by 10.1 and 10.3).** `atlassianUserInfo` → my `accountId`. `searchJiraIssuesUsingJql`:
-`project = <P> AND status CHANGED BY currentUser() ORDER BY updated DESC`, the last ~10 other than `<TICKET>`; read each
-issue's changelog (`expand=changelog` via the REST call in 10.2, or `getJiraIssue`). Per issue, my **latest** status
-change is the hand-off after the work was done: record the status it moved to, and — from the `assignee` entry made
-by me within two minutes of it — who was assigned. An issue without that data is not a sample for that field.
-Take the most frequent value per field. It is **usable** only with at least 3 samples **and** a leader strictly ahead
-of the runner-up; the chosen status must also be among this ticket's transitions (`getTransitionsForJiraIssue`, by
-name) and the chosen assignee in its assignable users (10.2). Anything unusable → the question in 10.1 / 10.3 with the
-top candidates (never more than ~4); never guess.
-**Always say what was decided and why**, in `JIRA_NOTE` and the Step 11 line, e.g. `status <name> (n of m),
-assignee <displayName> (n of m)` (m = the usable samples for that field) — or `(config)` — so the user can correct it afterwards.
-Keep a running `JIRA_NOTE` (what did and didn't happen, and why) for Step 11.
-**Evidence goes out first, and only when a transition will happen.** The `/verify` evidence is sent to the
-ticket right before the status changes — never earlier (not after verify, not at `/pr`), never when the user
-chose not to transition. Once the target transition is settled (config name found, decided from history, or the user picked one),
-and **before** calling `transitionJiraIssue`, run `/verify --ticket <TICKET> --send-evidence` (its Step 7: checks the
-draft is complete against the agreed format and, when it is, posts or edits the one comment — no approval wait).
-- Sent (`evidence comment posted|edited`) → go on to `transitionJiraIssue`.
-- No `.shipkit/evidence/<TICKET>/jira-comment.md` (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
-  evidence draft", transition anyway.
-- The draft is **incomplete** (verify reports `evidence NOT sent — incomplete: …`) → a problem: `AskUserQuestion`
-  naming what is missing, options "skip the evidence and transition anyway" / "stop — don't transition". Skip →
-  `JIRA_NOTE` = "evidence skipped: <what was missing>", transition anyway; stop → no transition, Step 11 says why.
-- `/verify` asks whether to create the evidence comment anew (its id file exists but the comment was deleted) → the
-  user's answer decides: yes → it is sent, then transition; no → `JIRA_NOTE` = "evidence not re-created (comment
-  deleted)", transition anyway.
-- The send errored (Jira env unset, edit rejected) → **don't transition**; `JIRA_NOTE` = the reason; Step 11 says
-  evidence was not sent and the ticket stays where it is.
-1. **Transition.** `getTransitionsForJiraIssue` for the ticket, and read its current `status.name`.
-   - Config value set and found **by name** → send the evidence (above), then `transitionJiraIssue` with that id.
-   - Else the history sample is usable → that status, found **by name** among the transitions → send the evidence,
-     then `transitionJiraIssue` with its id.
-   - Else (no config value, history unusable: fewer than 3 samples, a tie, or the status isn't available on this
-     ticket) → `AskUserQuestion` "Move <TICKET> (now: <status.name>) to which status?" with the top history
-     candidates that exist among the ticket's real transitions (else the ~4 most relevant transition names; "Other"
-     resolves against the list) **plus** "Không chuyển trạng thái lần này"; say why it's asking. Picked a transition →
-     send the evidence, then `transitionJiraIssue`. Picked "Không…" → no transition; `JIRA_NOTE` = "user chose not to
-     transition". Continue to 10.2 either way.
-   - `transitionJiraIssue` errors → `JIRA_NOTE` = the error verbatim; continue to 10.2.
-2. **Fetch assignable users** for the ticket (the Atlassian MCP has no such lookup —
-   `lookupJiraAccountId` is an unfiltered name search — so use REST with the `JIRA_URL`/`JIRA_EMAIL`/
-   `JIRA_API_TOKEN` the sibling skills already require):
-   `curl -sS -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_URL/rest/api/3/user/assignable/search?issueKey=<TICKET>&maxResults=50"`
-   → keep `accountId`, `displayName` of active users. Creds unset, HTTP error or empty list → do
-   **not** guess an assignee: leave it as is, add the reason to `JIRA_NOTE`, go to 10.5.
-3. **Assignee (QC).** `jira.qc_account_id` when set and in the fetched list → that account. Else the history sample is
-   usable and its most frequent accountId is in the fetched list → that account. Else (unusable history, or the account
-   isn't assignable on this ticket) → `AskUserQuestion` "Who is the QC for <TICKET>?" with options from the fetched list
-   only — the top history candidates first, else the ~4 most relevant (e.g. recent reporter/commenters); "Other" resolves against
-   the fetched list. Never assign an account absent from it.
-4. `editJiraIssue` with `fields: {"assignee": {"accountId": "<chosen accountId>"}}`.
-5. Verify from the responses/a fresh `getJiraIssue`: `status.name` and `assignee.accountId` match
-   what was requested; report a mismatch as a failure, not a success. Record the final `status.name`
-   and assignee for Step 11.
-No Jira comment other than the evidence comment unless the user approves the exact text first.
+**REQUIRED once every PR of the ticket is `MERGED`:** Read `${CLAUDE_PLUGIN_ROOT}/skills/merge/jira-handoff.md` and follow it
+(sends the `/verify` evidence, then transition + QC assignee decided from config or recent history). Keep its `JIRA_NOTE` for
+Step 11. Not all PRs merged → don't touch Jira, but still report it. This step is never skipped silently.
 
 ## Step 11 — Report
 ```
 shipkit · merge <TICKET> — <title>
 PR                     merge sha   pipeline (run#)        
-ai-roleplay-be  #123   <sha8>      ✅ SUCCESSFUL (#456)
-ai-roleplay     #124   <sha8>      ❌ FAILED (#457) — <step/reason>
+service-be      #123   <sha8>      ✅ SUCCESSFUL (#456)
+service-fe      #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
 Jira <TICKET>: evidence <posted|edited <permalink> | none — <why>> · status <status.name> · assignee <displayName> (<accountId>) · decided: <status X (n of m | config | asked), assignee Y (n of m | config | asked)>
-         — or, when anything wasn't done: Jira KHÔNG được cập nhật (or: chỉ cập nhật một phần) — <JIRA_NOTE: reason>; ticket vẫn ở <current status.name>, assignee <current>
-Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | chuyển <TICKET> sang <status> và gán QC thủ công trên Jira (hoặc chạy lại /merge) — if Jira wasn't fully updated>
+         — or, when anything wasn't done: Jira NOT updated (or: only partly updated) — <JIRA_NOTE: reason>; ticket is still at <current status.name>, assignee <current>
+Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | move <TICKET> to <status> and assign the QC by hand on Jira (or re-run /merge) — if Jira wasn't fully updated>
 ```
 Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; the Next line must name the manual step.
 
@@ -261,15 +202,11 @@ Never end a report with a bare "skipped" on the Jira line: say *what* wasn't don
 - **The root PR is merged only after its pointers are bumped to the verified child merge shas.** It's
   a throughline stub until then (`/pr` Step 6); merging before Step 9.1 would ship a stale diff. Any
   child pipeline not SUCCESSFUL blocks it.
-- **Never write a dollar sign followed by a digit in a SKILL.md command** (awk's field references,
-  positional shell args). The skill loader substitutes them with the command's arguments — that turned
-  awk's third-field print into `print <ticket>`. Use a form without them (`git rev-parse HEAD:<path>`,
-  `sed` with a backslash-digit group), or put the logic in a script file.
 - **zsh `echo` mangles JSON escapes.** `echo "$out" | python3 ...` turns the backslash-n inside a JSON error
   message into a real control character and `json.load` fails. Never pass an API response through
   `echo`: write it to a file (curl `-o`) or use `printf '%s'` — `merge-pr.sh` does the former.
 - **A pipeline's exit status is its last command's.** `cmd | tee log || break` gates on `tee`, which is always 0,
-  so a failed merge step let the next PR merge anyway (a later PR merged although the earlier step had errored).
+  so a failed merge step would let the next PR merge anyway.
   Never gate on a pipeline; call the script, read its status directly, stop on non-zero.
 - **The Bash tool is zsh.** Unquoted variables aren't word-split and `for p in "a sha"; set -- $p`
   breaks — wrap loops in `bash -c '...'`. There is no `timeout` on macOS; scripts track their own

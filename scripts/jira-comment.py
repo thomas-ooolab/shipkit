@@ -6,6 +6,7 @@ The Atlassian MCP addCommentToJiraIssue stores mentions as plain text (nobody is
   python3 jira-comment.py post <TICKET> (--file PATH | -) [--image PATH[:CAPTION]]... [--dry-run]
   python3 jira-comment.py edit <TICKET> <COMMENT_ID> (--file PATH | -) [--image PATH[:CAPTION]]... [--dry-run]
   python3 jira-comment.py delete <TICKET> <COMMENT_ID>
+  python3 jira-comment.py assignable <TICKET>      # JSON [{accountId, displayName}] of active assignable users
   python3 jira-comment.py --self-test
 
 Env: JIRA_URL, JIRA_EMAIL, JIRA_API_TOKEN (the token is never printed).
@@ -202,13 +203,16 @@ def env():
     return v
 
 
-def call(method, path, body=None):
+def auth_header():
     e = env()
-    auth = base64.b64encode(f"{e['JIRA_EMAIL']}:{e['JIRA_API_TOKEN']}".encode()).decode()
+    return "Basic " + base64.b64encode(f"{e['JIRA_EMAIL']}:{e['JIRA_API_TOKEN']}".encode()).decode()
+
+
+def call(method, path, body=None):
     req = urllib.request.Request(
-        e["JIRA_URL"] + path, method=method,
+        env()["JIRA_URL"] + path, method=method,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"Authorization": "Basic " + auth, "Accept": "application/json", "Content-Type": "application/json"},
+        headers={"Authorization": auth_header(), "Accept": "application/json", "Content-Type": "application/json"},
     )
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
@@ -230,11 +234,6 @@ def png_size(path):
     if h[:8] == b"\x89PNG\r\n\x1a\n" and h[12:16] == b"IHDR":
         return struct.unpack(">II", h[16:24])
     return 1280, 800  # not a PNG: size only affects display scaling
-
-
-def auth_header():
-    e = env()
-    return "Basic " + base64.b64encode(f"{e['JIRA_EMAIL']}:{e['JIRA_API_TOKEN']}".encode()).decode()
 
 
 def multipart(path):
@@ -411,7 +410,23 @@ def cmd_delete(args):
     print(json.dumps({"deleted": args[1]}))
 
 
+def active_users(users):
+    """-> [{"accountId", "displayName"}] for the active accounts of a user-search response."""
+    return [{"accountId": u["accountId"], "displayName": u.get("displayName", "")}
+            for u in users if u.get("active", True) and u.get("accountId")]
+
+
+def cmd_assignable(args):
+    if len(args) != 1:
+        die(2, "usage: assignable <TICKET>")
+    check_ticket(args[0])
+    users = call("GET", f"/rest/api/3/user/assignable/search?issueKey={args[0]}&maxResults=50")
+    print(json.dumps(active_users(users or []), ensure_ascii=False))
+
+
 def self_test():
+    assert active_users([{"accountId": "a", "displayName": "A", "active": True},
+                         {"accountId": "b", "active": False}, {"displayName": "no id"}]) == [{"accountId": "a", "displayName": "A"}]
     d = build_adf(
         "# Title\n\nHi @[Ann](a:1) and @[](b:2), **bold** `x` [l](https://e.co)\nnext line\n\n- one\n- two\n\n1. a\n2. b",
         lambda i: "Looked Up" if i == "b:2" else i,
@@ -443,13 +458,13 @@ def self_test():
         f.write(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR" + struct.pack(">II", 300, 200))
         f.flush()
         assert png_size(f.name) == (300, 200)
-    d = build_adf("| REQ | Kết quả |\n|---|---|\n| REQ-001 | **PASS** a \\| b |\n| REQ-002 | @[Ann](a:1) |", lambda i: i)
+    d = build_adf("| REQ | Résultat |\n|---|---|\n| REQ-001 | **PASS** a \\| b |\n| REQ-002 | @[Ann](a:1) |", lambda i: i)
     t = d["content"][0]
     assert t["type"] == "table" and len(t["content"]) == 3, t
     assert [c["type"] for c in t["content"][0]["content"]] == ["tableHeader", "tableHeader"]
     assert t["content"][1]["content"][1]["content"][0]["content"][-1]["text"] == " a | b"
     assert list(mention_ids(d)) == ["a:1"]
-    d = build_adf("Intro\n\n| REQ | Kết quả | Bằng chứng |\n|---|---|---|\n| REQ-1 | ✅ | ![Shot 1](/x/a.png) ![Shot 2](/x/b.png) |\n| REQ-2 | ✅ | n/a |",
+    d = build_adf("Intro\n\n| REQ | Résultat | Preuve |\n|---|---|---|\n| REQ-1 | ✅ | ![Shot 1](/x/a.png) ![Shot 2](/x/b.png) |\n| REQ-2 | ✅ | n/a |",
                   lambda i: i, lambda p: ("uuid-" + p[-5:], 640, 480))
     t = d["content"][1]
     assert t["attrs"]["layout"] == "wide", t["attrs"]
@@ -475,6 +490,8 @@ def main():
         return cmd_edit(a[1:])
     if a and a[0] == "delete":
         return cmd_delete(a[1:])
+    if a and a[0] == "assignable":
+        return cmd_assignable(a[1:])
     die(2, __doc__)
 
 

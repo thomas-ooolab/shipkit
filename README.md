@@ -47,7 +47,7 @@ work:
 - **Same SDD discipline, kept** — grounded + agent-verified plans, three-pass review, allowlist-gated
   PRs. Lighter artifacts, not a lighter process.
 - **One standard across the company** — the same skills, the same one-file spec shape, and the same
-  ticket → spec → plan → review → PR → bump pipeline in **every** repo (ai-roleplay, learningos, …).
+  ticket → spec → plan → review → PR → bump pipeline in **every** repo.
   Specs and reviews look the same everywhere, onboarding a project or a teammate is "install the
   plugin," and an improvement to the workflow ships to every team at once. It **auto-detects** whether
   a repo is a plain **single repo** or a **submodule orchestration root** and adapts the flow
@@ -96,20 +96,24 @@ contracts · edge cases). Then you implement, review, and open PRs.
 ## The pipeline
 
 ```
-/run-pipeline AR-123
-      │  (fetch ticket → detect scope → branch → write one lean spec.md)
+/run-pipeline AR-123       (re-derives state from git / Bitbucket / Jira, runs what is pending, stops at each gate)
+      │
+/spec-from-ticket          ticket → one lean spec.md  (+ /cross-check against other tickets, specs, code)
       ▼
-   implement in submodule branches
+/clarify                   GATE — open PO questions go to Jira and are polled until answered
       ▼
-/review-changes            check diff vs spec (REQ coverage, discipline)
+/plan-deep                 grounded, reference-verified plan + per-submodule tasks into spec.md
       ▼
-/pr                        one child PR per submodule + parent PR, all ref AR-123
-                           → ping reviewer, triage concerns until sign-off
+/assign  (or by hand)      GATE — implement; /assign fans the tasks out to parallel agents, per submodule
       ▼
-/merge AR-123              merge signed-off, conflict-free child PRs → wait on the Bitbucket
-                           pipeline (twg) → report done/error
+/verify  +  /review-changes   prove it on the running app (evidence) · three-pass review + drift check
       ▼
-/bump-submodule path@sha --closes AR-123    bump parent refs → parent PR merges → you move the ticket to Done
+/pr                        one child PR per submodule + parent PR → ping reviewer, triage until sign-off
+      ▼
+/merge AR-123              GATE — merge signed-off child PRs → wait on the Bitbucket pipeline (twg) → bump and
+                           merge the root PR → move the Jira ticket
+      ▼
+/bump-submodule path@sha --closes AR-123    only after a by-hand merge (the same bump /merge does)
 ```
 
 ## Skills
@@ -124,6 +128,8 @@ auto-trigger it by description.
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
 | `/run-pipeline <ticket>` | **Everyday skill** — ticket → scope → branches → one lean spec |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
+| `/clarify <ticket>` | Sends the spec's open business questions to the PO in one Jira comment (real @mention, your approval before every post) and waits for the reply in a background poller until every question is resolved. Called right after `/spec-from-ticket`. |
+| `/bugfix <ticket> [<comment-id>] [--agent kiro]` | A tester's Jira comment reports a bug: traces each concern to the code, fixes real defects (regression test first, proved with `/verify`), explains what is by design, asks the PO about product decisions, and keeps checking Jira until the reporter confirms. |
 | `/plan-deep --ticket <ticket>` | Verified, grounded plan into `spec.md` — Explore-agent grounding + parallel self-review & reference-verify, per-task submodule targets |
 | `/assign <ticket \| task> [--only <submodule,...>]` | Fan out `spec.md`'s per-submodule tasks to parallel background agents instead of implementing submodules one at a time — dependency waves per the plan's Part order, ground-truth skip on already-in-progress branches. Inside an Orca-managed worktree each agent runs as a visible Orca terminal (see `/orca-cli`); otherwise as a background `Agent`. Hands off to `/pr` afterward. |
 | `/design-recon <artifact> [--ticket <t>]` | **Match a mockup** — drives a screenshot / HTML / auth-gated Claude design link in a real browser (Playwright MCP), reads *computed* styles, snaps to the project's Tailwind tokens, and writes `design-contract.md` (all breakpoints + states). Cheaper *and* more accurate than reading the mockup's HTML. |
@@ -223,7 +229,31 @@ bash "$(find ~/.claude/plugins -name apply-permissions.sh 2>/dev/null | sort -V 
 `/pr --implement` **background worktree agent** reads. (`--project` writes the repo's
 `.claude/settings.json` instead; commit it to share with the team.) The key rule is `Bash(bash:*)` —
 the plugin lives at a versioned cache path, so a path-scoped rule would break on every update. The
-applier is idempotent and backs up before writing.
+applier is idempotent and backs up before writing. The rules are broad on purpose (`bash:*`, `python3:*`, `node:*`,
+`curl:*` run any script of that kind without a prompt in the chosen scope) — pick `--project` to limit the grant to one repo.
+
+## Bitbucket credentials
+
+Skills that call the Bitbucket REST API (`/pr`, `/review-changes`, `/bump-submodule`, `/run-pipeline`,
+`/spec-from-ticket`, `/merge`) read two variables: `BITBUCKET_USERNAME` and `BITBUCKET_APP_PASSWORD`. The second keeps its
+old name but takes an **API token** (Atlassian account → Security → API tokens, with the pull-request and repository
+scopes); with an API token `BITBUCKET_USERNAME` is your Atlassian account e-mail. Calls go through
+`scripts/bitbucket-api.sh`, which hands the credentials to curl on stdin, never on its command line.
+
+## Other tools some skills use
+
+shipkit does not install these; a skill that needs one says so and stops when it is missing.
+
+| Tool | Used by |
+|---|---|
+| `superpowers` plugin (`systematic-debugging`, `test-driven-development`) | `/bugfix`, `/pr` review loop |
+| Orca CLI + `orca-cli` / `orchestration` skills, `kiro-cli` | `/assign` (Orca mode), `/developer` Start mode |
+| `twg` CLI | `/merge` (pipeline wait), `/developer` (deploy status) |
+| Playwright MCP, Claude in Chrome | `/verify`, `/design-recon`, `/cross-check` screenshots |
+| `JIRA_*`, `SLACK_*`, `BITBUCKET_*` environment variables | see the sections on this page |
+
+Optional per-project settings in `.shipkit/config.yml` (`language`, `timezone`, `observer_hours`, `git_ssh_rewrite`) are
+listed in the template `/bootstrap` writes.
 
 ## Posting Jira comments
 
@@ -256,6 +286,11 @@ Exit codes: 0 ok · 2 bad usage · 3 env vars missing (skills fall back to MCP; 
 4 Jira rejected (incl. failed image upload) · 5 posted but a mention didn't come back. Prints `{"id","url","mentions"}`.
 `python3 scripts/jira-comment.py --self-test` runs offline checks.
 
+## Developing shipkit itself
+
+`git config core.hooksPath .githooks` once per clone; the pre-commit hook runs `bash scripts/self-test.sh` — the pipeline
+drift check, the two `plugin.json` versions, the skill-frontmatter lint, every script's self-test and `bash -n`.
+
 ## Spec = source of truth in git
 
 Specs are git-tracked files (`specs/NNN-slug/spec.md`), not Jira comments — so they diff, review,
@@ -265,7 +300,7 @@ and trace alongside the code. Jira gets a short pointer comment + status transit
 
 | | speckit | shipkit |
 |---|---|---|
-| Commands | 9 (`/speckit.*`) | 1 everyday (`/run-pipeline`) + 5 stages |
+| Commands | 9 (`/speckit.*`) | 1 everyday (`/run-pipeline`) + one skill per stage |
 | Files per feature | 5–9 (spec, requirements, plan, contracts, tasks-*, research, …) | **1** (`spec.md`) |
 | Per-project setup | copy `.specify/` scripts + templates | `/bootstrap` writes one config file |
 | Distribution | per-repo | install the plugin once |

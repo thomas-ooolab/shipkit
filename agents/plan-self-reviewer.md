@@ -13,7 +13,7 @@ Check for:
 - **Edge cases** — failure modes, empty/error states, auth/permission, multi-tenant scoping the
   plan misses.
 - **Structural fit** — does the plan contradict a real signature, contract, or convention in the
-  target submodule? (e.g. BE change that skips OpenAPI-first; FE business logic in a BFF proxy.)
+  target submodule? (e.g. a change that skips a convention the submodule's CLAUDE.md states, such as contract-first or a layering rule.)
 - **Cross-submodule ordering** — does a task depend on another submodule's change that must merge
   first? Is the order pinned?
 - **Scope creep** — tasks broader than the spec requires; over-broad refactors.
@@ -24,7 +24,7 @@ Return ONLY a JSON array (or `[]` if the plan is sound), nothing else:
 ```json
 [
   {"section": "Tasks", "description": "REQ-003 (rate-limit reset) has no task", "severity": "blocking"},
-  {"section": "Plan", "description": "BE change edits handler before api/api.yml — violates OpenAPI-first", "severity": "blocking"},
+  {"section": "Plan", "description": "service-be change edits the handler before the API contract file — violates the contract-first rule in its CLAUDE.md", "severity": "blocking"},
   {"section": "Tasks", "description": "consider a test for the empty-list case", "severity": "advisory"}
 ]
 ```

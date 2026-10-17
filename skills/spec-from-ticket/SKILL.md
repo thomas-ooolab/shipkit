@@ -1,6 +1,6 @@
 ---
 name: spec-from-ticket
-description: Extracts a structured one-file spec from a Jira ticket (or Bitbucket PR). Mines the description, comments, linked tickets, and attachments; auto-discovers affected submodules by grepping the code; resolves each field from a cited source before asking; surfaces only residual or contradictory ambiguities via a single batched question; writes specs/NNN-slug/spec.md. Not for triaging tickets.
+description: "Use when a Jira ticket (or Bitbucket PR) has no spec yet, or the spec must be rebuilt from the ticket's description, comments, linked tickets and attachments. Writes specs/NNN-slug/spec.md. Not for triaging tickets or planning. Trigger: /spec-from-ticket <jira-ticket | bitbucket-pr-url>"
 argument-hint: "<jira-ticket | bitbucket-pr-url>"
 ---
 
@@ -61,7 +61,7 @@ if asked.
 1. `specs/NNN-slug/spec.md` (Step 5; overwrite vs `-v2` is user-confirmed).
 2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items; Step 5b appends `[ticket-conflict]` items) — business-language
    questions for the PO, consumed by `/clarify`.
-3. `.shipkit/config.yml` → `jira.reporter_account_id` only (Step 1b). No other key is touched.
+3. `reporter_account_id` in the spec's own frontmatter (Step 5; the value is read in Step 1b). Nothing in `.shipkit/config.yml` — the reporter belongs to this ticket, not to the project.
 4. `specs/NNN-slug/current-behaviour.md` + `specs/NNN-slug/current/*.png` (Step 3c, only when the
    ticket touches an existing screen/flow or carries a design/prototype).
 5. `specs/NNN-slug/cross-check.md` + `specs/NNN-slug/conflicts/*.png` (Step 5b, written by
@@ -90,17 +90,15 @@ Everything else (evidence mining, requirements, tier, Key decisions) is identica
 `$ARGUMENTS` is a Jira key (`AR-123`) or a Bitbucket PR URL.
 - **Jira:** Atlassian MCP `getAccessibleAtlassianResources` → `getJiraIssue` for summary, description,
   acceptance criteria, labels/components, comments.
-- **Bitbucket PR:** fetch title + description via the API (`$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD`).
+- **Bitbucket PR:** fetch title + description with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" GET "/repositories/<workspace>/<repo>/pullrequests/<id>"`.
 - On fetch failure, or if Atlassian MCP isn't connected: AskUserQuestion for the ticket content (or
   ask the user to paste it). Don't construct a spec from the title alone.
 
 ## Step 1b — Record the reporter
 Jira ticket only (skip for a PR URL). From the `getJiraIssue` response take `fields.reporter.accountId`
-(request `reporter` in `fields` if absent). Write it to `.shipkit/config.yml` as `jira.reporter_account_id`
-(add the key under `jira:` if missing; overwrite if it differs — it tracks the latest spec'd ticket's
-reporter; keep the file's other lines and comments byte-for-byte). No reporter or no accountId (deleted
-user) → leave the key untouched and say so in the report. This is the person `/clarify` tags with
-open questions.
+(request `reporter` in `fields` if absent) and keep it for Step 5, which writes it into the spec's frontmatter as
+`reporter_account_id` — per ticket, so two tickets in flight never share one. No reporter or no accountId (deleted user) →
+leave the field empty and say so in the report. This is the person `/clarify` tags with open questions.
 
 ## Step 2 — Evidence mining (source of truth)
 Before asking anything, resolve what the sources already answer. Build an **evidence ledger** —
@@ -112,7 +110,7 @@ cited quotes attached to each field:
    (cite `unreadable attachment <name>`).
 4. **Web** — only when the ticket explicitly references a URL/standard the criteria depend on and it's
    unresolvable from the ticket or local code: WebFetch it. Never blocks — on failure, note and continue.
-5. **Labels/components** — Jira labels/components carry scope (`backend`, `frontend`, `voice`); cite as `(from label: "…")`.
+5. **Labels/components** — Jira labels/components carry scope (e.g. `backend`, `frontend`); cite as `(from label: "…")`.
 6. **Current-state claims** — any sentence in the ticket/comments/PO replies asserting what the system
    *already does* ("today X happens", "reuses the existing Y", "same as Z") is a hypothesis, not
    evidence. Queue each one for verification in Step 3 — never cite it as-is to support a requirement
@@ -130,25 +128,25 @@ Resolve which submodules the ticket touches from **evidence, not guesses**:
    (`git -C <path> ls-files` to derive extensions; `grep -rl -E "<kw1|kw2|…>" <path> --include=…`).
 4. Submodules with matches → **affected** (cite the matched files). Cross-check against the config's
    `scope_detection` keywords. If grep + config disagree or find nothing, mark scope a Step 4 question.
-5. **Verify every Step 2.6 current-state claim** the same way — grep/read the real submodule source
+5. **Verify every Step 2 item 6 current-state claim** the same way — grep/read the real submodule source
    (never `specs/` or `docs/`) for the specific capability/flag/table/component named. Confirmed →
    cite `(verified in <file>:<line>)`. Not found → do **not** assume it exists; carry it into Step 3b
    as undefined.
-6. **Resolve the Step 2.7 hints against the code.** For each technical specific, find what the code
+6. **Resolve the Step 2 item 7 hints against the code.** For each technical specific, find what the code
    really has for that business concept (the real table/column/role/endpoint/component). Real name
    differs from the ticket's → the code's name wins; record the mapping `ticket said X → code has Y
    (verified in <file>:<line>)` under Key decisions and never ask the PO. No equivalent exists → the
    technical shape is a dev decision: Key decision `[not specified — ask before implementing]`, put to the
    local interviewee in Step 4, not the PO. A ticket specific is adopted only when the code confirms it
    fits; cite the code, not the ticket.
-Derive `scope` (`fe-only`/`be-only`/`fe+be`/`fe+be+voice`/…) and `services` from the affected set.
+Derive `scope` (`fe-only`/`be-only`/`fe+be`/`fe+be+…`/…) and `services` from the affected set.
 
 ## Step 3b — Undefined-reference & dependency-chain check
 Acceptance criteria routinely name a component or mechanism at a high level ("show a badge when X",
 "use the existing retry logic") without spelling out its business logic, and without saying whether
 the thing it leans on is actually built yet. For every AC/requirement candidate:
 1. List the concrete feature(s)/component(s)/mechanism(s) it names or implies.
-2. Check each against Step 3.5's verification. **Confirmed in code** → cite it, move on.
+2. Check each against Step 3 item 5's verification. **Confirmed in code** → cite it, move on.
 3. **Not confirmed** → this AC references something undefined. Two-part question for Step 4's batch:
    *what is it*, and *is there an already-defined feature that's meant to support the new one*. Give
    the local interviewee a chance to correct a grep miss (wrong name, different file) before treating
@@ -165,7 +163,7 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 |---|---|
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
-| "Asking about every referenced component is excessive" | Only ones Step 3.5 couldn't verify reach here — this isn't every AC, just the undefined ones. |
+| "Asking about every referenced component is excessive" | Only ones Step 3 item 5 couldn't verify reach here — this isn't every AC, just the undefined ones. |
 
 ## Step 3c — Current behaviour + design fidelity & placement
 Runs when the ticket touches an existing screen/flow **or** carries a design/prototype (mockup, Figma,
@@ -227,7 +225,7 @@ the branch agree. If `specs/NNN-slug/spec.md` exists, AskUserQuestion: `["Overwr
 "Write -v2", "Cancel"]`.
 
 Populate **every** field of `${CLAUDE_PLUGIN_ROOT}/templates/spec.md`:
-- frontmatter: `spec-id`, `ticket`, `services` (from Step 3), `scope`, `tier`, `status: draft`.
+- frontmatter: `spec-id`, `ticket`, `reporter_account_id` (Step 1b), `services` (from Step 3), `scope`, `tier`, `status: draft`.
 - **Goal**, **Requirements** — atomic, numbered `REQ-NNN`, each one observable/testable assertion with
   a cited source, written in business terms (what the user/admin sees or can do). No ticket-invented
   table/field/endpoint names in a requirement.
@@ -278,7 +276,7 @@ Scope:   <scope>  (services: <list>)  · Tier: <tier>
 Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specified])
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
 Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (specs/NNN-<slug>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
-Reporter: <displayName> (<accountId>) → jira.reporter_account_id   (or: unchanged — <reason>)
+Reporter: <displayName> (<accountId>) → spec frontmatter reporter_account_id   (or: empty — <reason>)
 Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those block a sound plan)
          then /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
 ```
@@ -289,12 +287,12 @@ Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those blo
 - **Tracker ticket.** If the description designates another ticket as the real spec ("see AR-45"),
   AskUserQuestion whether to re-target onto it; non-interactively keep this ticket and note it in Open questions.
 - **Don't assume layout.** Scope comes from the grep in Step 3, not assumptions — works regardless of
-  how many submodules a project has (ai-roleplay's 3 or learningos's larger set).
-- **Labels are evidence.** A `backend`/`frontend`/`voice` label is a cited scope signal — don't ignore it.
+  how many submodules a project has.
+- **Labels are evidence.** A `backend`/`frontend` label is a cited scope signal — don't ignore it.
 - **Ticket technical detail is a PO guess.** Spec the business intent; let the code and the dev pick
-  the technical shape (Business-intent rule, Step 3.6). A business contradiction inside the ticket
+  the technical shape (Business-intent rule, Step 3 item 6). A business contradiction inside the ticket
   (two rules that can't both hold) is still a PO question — a technical mismatch with the code is not.
-- **A "current behavior" claim is not evidence of current behavior.** Step 3.5 verifies it in real code
+- **A "current behavior" claim is not evidence of current behavior.** Step 3 item 5 verifies it in real code
   before Requirements cite it as fact — the ticket/PO/comment is where the *claim* came from, not proof
   it's true.
 - **Don't spec a feature on an undefined foundation.** If C needs B and B isn't confirmed in code

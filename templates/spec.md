@@ -1,8 +1,9 @@
 ---
 spec-id: NNN
 ticket: AR-NNN
-services: []          # ai-roleplay | ai-roleplay-be | ai-roleplay-voice (auto-discovered + confirmed)
-scope: ""            # fe-only | be-only | fe+be | fe+be+voice | ...
+reporter_account_id: ""   # Jira accountId of the ticket's reporter (the PO) — /clarify tags this person
+services: []          # submodule names from .shipkit/config.yml (auto-discovered + confirmed)
+scope: ""            # e.g. fe-only | be-only | fe+be | ... — whatever the submodule set makes meaningful
 tier: ""             # trivial | small | medium | large | unknown
 status: draft        # draft | planned | in-progress | shipped
 ---
@@ -29,23 +30,20 @@ status: draft        # draft | planned | in-progress | shipped
 - **{decision}**: {choice} (user confirmed)
 
 ## Plan
-<!-- Filled by /plan-deep. Approach per affected service; keep it short until then. -->
-- **ai-roleplay (FE):** {BFF proxy only; pages/components/hooks; TanStack}
-- **ai-roleplay-be (BE):** {OpenAPI-first: api/api.yml → `make gen` → domain → repo → handler}
-- **ai-roleplay-voice:** {⚠️ staging-only}
+<!-- Filled by /plan-deep. Approach per affected submodule; keep it short until then. -->
+- **{submodule-a}:** {approach — layers, files, and the conventions its CLAUDE.md states}
+- **{submodule-b}:** {approach} — {⚠️ staging-only, if `.shipkit/config.yml` says so}
 
 ## Contracts
 <!-- Only if a cross-service interface changes. Otherwise "None". -->
 - {new/changed endpoint, request/response shape, or shared type}
 
 ## Tasks
-<!-- Filled/expanded by /plan-deep. Per service, dependency-ordered, each task tagged with its target. -->
-### FE — ai-roleplay
-- [ ] T001 [REQ-001] (ai-roleplay) {description} — `path/to/file`
-### BE — ai-roleplay-be
-- [ ] T010 [REQ-002] (ai-roleplay-be) {description} — `path/to/file`
-### Voice — ai-roleplay-voice
-- [ ] T020 [REQ-00N] (ai-roleplay-voice) ⚠️ staging-only — `path/to/file`
+<!-- Filled/expanded by /plan-deep. Per submodule, dependency-ordered, each task tagged with its target. -->
+### {submodule-a}
+- [ ] T001 [REQ-001] ({submodule-a}) {description} — `path/to/file`
+### {submodule-b}
+- [ ] T010 [REQ-002] ({submodule-b}) {description} — `path/to/file`
 
 ## Edge cases
 | Case | Expected behavior |

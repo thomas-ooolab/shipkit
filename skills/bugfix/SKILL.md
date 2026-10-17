@@ -1,6 +1,7 @@
 ---
 name: bugfix
-description: "Use when a tester/QA posts a Jira comment reporting a bug on an in-flight feature ticket (the comment, not the ticket's own description, is the bug report) and it needs triage — deciding per reported concern whether it's a real defect (fix it), expected behavior (explain why), or a product decision (ask for options) — then tracking the commenter's reply until every concern is actually resolved, not just replied to once. Trigger: /bugfix <ticket-id> [--agent kiro]. Examples: \"/bugfix AR-460\", \"QA left a bug comment on AR-460, triage it and keep checking until they confirm\""
+description: "Use when a tester/QA posts a Jira comment reporting a bug on an in-flight feature ticket (the comment, not the ticket's own description, is the bug report) and it needs triage — real defect, expected behavior, or product decision — and tracking until every reported concern is resolved. Trigger: /bugfix <ticket-id> [<comment-id>] [--agent kiro]. Examples: \"/bugfix AR-460\", \"QA left a bug comment on AR-460, triage it and keep checking until they confirm\""
+argument-hint: "<jira-ticket> [<comment-id>] [--agent kiro]"
 ---
 
 # Bugfix Loop
@@ -16,43 +17,18 @@ Composes existing pieces — do not reimplement any of them:
 
 State lives in `.shipkit/bugfix-<ticket>.md`.
 
-## Hard rule: business language only, both directions
+## Hard rules: business language, sound like a person, confirm before every Jira post
 
-Every Jira comment this skill posts must read as plain business language — no field/function/table names, endpoint paths, or code snippets, even when explaining "why this is correct behavior." Say what a non-technical reporter would understand: what happens, in what situation, why, or what decision is needed.
+**REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md` and follow all three rules — here "item" = a
+reported concern. They apply to the first comment and every per-tick comment, status notes and acknowledgments included. A
+`pending_comment` concern is not checked off until its comment has actually posted.
 
-Bad: "`CanViewCallReview` gates on `c.RecordedAt.After(m.AssignedAt)`, so this is by design."
-Good: "That's how it's built today — a manager only sees calls recorded after they joined the team, not the team's full history before that. Wanted to check: should managers see everything the team ever recorded, or only what happened since they joined?"
+Business-language example for this skill — Bad: "`CanViewCallReview` gates on `c.RecordedAt.After(m.AssignedAt)`, so this is by design." Good: "That's how it's built today — a manager only sees calls recorded after they joined the team, not the team's full history before that. Wanted to check: should managers see everything the team ever recorded, or only what happened since they joined?"
 
-## Hard rule: sound like a person, not a report
-
-Write every comment the way you'd actually type a quick reply — plain sentences, contractions, one thought running into the next. Not a bolded outline, not a numbered "findings" report, no stock phrases ("I've thoroughly investigated...", "please let me know if you have any questions", "I hope this clarifies"). Covering several concerns in one comment still reads as one person talking, not a formatted document — separate them with a line break or "also," not a bolded heading per concern.
-
-Bad: "Looked into all three issues from testing:\n**1. Manager can't see call reviews from before they joined the team.** That's how it's built today...\n**2. Weekly digest double-counting.** Confirmed as a bug...\n**3. Export Team Performance button greyed out.** Expected, not a bug..."
-Good: "Went through all three. The manager-visibility one is by design — right now a manager only sees calls recorded after they joined the team, not the team's full history before that. Wanted to check if that's actually the right call, or if managers should see everything once they're assigned — let me know which. The digest double-counting was a real bug, it was counting a call once per person instead of once per call — fixed and pushed, should be right next time. And the export button being greyed out is expected, that workspace is on the free plan and that export needs a paid tier, nothing to fix there."
-
-## Hard rule: confirm with me before every Jira post
-
-Never call the Jira comment-posting tool until I've explicitly approved the exact text. This applies to the seed comment and every per-tick comment — status notes and acknowledgments included, not just the substantive ones. Fixing a real-defect concern doesn't need my approval (that's code, not a public comment) — only the comment describing it does.
-
-1. Draft the comment.
-2. Show me the exact text, verbatim — not a summary of what you plan to say.
-3. Wait for explicit approval ("post it", "change X", "skip this one"). A wake with no reply yet means no post this tick — don't post because "no one objected" or "this one's obviously fine, it's just an ack."
-4. Only once approved: post it, then continue.
-
-If this tick's poller notification arrives unattended (nobody's replied to the draft yet) → show the draft, write it into `pending_comment` in the state file, and stop — don't relaunch the background poller yet, since nothing new has been posted to poll replies against. The next turn (I reply, or you're re-invoked) picks up from `pending_comment`, skips straight to confirming it, and only relaunches the poller once it's posted.
-
-**No exceptions:**
-- Not for "just an acknowledgment" or "just a fixed-and-pushed note."
-- Not because the wording is obviously right.
-- Not because posting now and mentioning it in the summary afterward is faster.
-- A drafted-but-unapproved comment is not sent. Don't count its concern as checked off until it actually posts.
+One more excuse that belongs to this skill:
 
 | Excuse | Reality |
 |---|---|
-| "It's just a routine ack, not worth asking about" | Every comment is public on the ticket — I decide what goes out, not you. |
-| "No one replied to the draft, but it's clearly right" | Silence isn't approval. No reply = no post, this tick. |
-| "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
-| "Confirming breaks the autonomous loop" | It doesn't — it pauses posting, not the whole skill. Polling and rescheduling resume normally once posted. |
 | "The state file doesn't exist, so this bug report hasn't been triaged yet" | The file's absence proves nothing — check the ticket's comments after the bug report first (Step 1.4). A missing file plus an existing response means resume, not re-triage. |
 
 ## Dynamic context (injected)
@@ -66,11 +42,11 @@ If this tick's poller notification arrives unattended (nobody's replied to the d
    it is created, so this normally just passes. If `SHIPKIT_CONFIG_EXISTS=0` anyway (worktree made by hand,
    config removed), stop: "Run `/bootstrap` first." — don't guess the submodules, branch names or Jira config:
    `probe.sh state/branch`, `/assign` and `/verify` all read `.shipkit/config.yml`.
-1. Ticket ID from args (strip `--agent kiro` first — it only changes *who writes the fix*, Step 3.1). If missing, recommend candidates instead of asking blank: check `.shipkit/bugfix-*.md` for existing state files (in-progress `/bugfix` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `pre-pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly. The ticket is an existing feature ticket already being built — the bug report is a **comment** on it, not the ticket's own description (that's the feature spec, unrelated to what's being triaged here).
+1. Ticket ID from args (strip `--agent kiro` first — it only changes *who writes the fix*, Step 3.1). If missing, recommend candidates instead of asking blank: check `.shipkit/bugfix-*.md` for existing state files (in-progress `/bugfix` runs from an earlier session — list any found, most recently modified first) and infer from the current branch name (`feat/AR-{num}-{slug}`) like `/pr` Step 1 does. Exactly one candidate → confirm it with me in one line. More than one, or a state file and branch disagree → ask via `AskUserQuestion` listing each. Neither → ask for the ticket ID plainly. The ticket is an existing feature ticket already being built — the bug report is a **comment** on it, not the ticket's own description (that's the feature spec, unrelated to what's being triaged here).
 2. Find the comment(s) to triage: if the invocation points at a specific comment, use that. Otherwise take the latest tester/QA comment that reports unexpected behavior (skip status updates, unrelated remarks) — if more than one recent comment could qualify, ask the user which one. If it lists multiple distinct problems (e.g. a numbered list), treat each as a separate concern.
 3. The person to reply to is the **author of that comment** — not the ticket's Jira "Reporter" field, which is usually whoever filed the original feature ticket, not the tester who found the bug. If the comment author is ambiguous (shared/bot account), ask the user once and remember for this ticket only.
 4. **Before triaging, check whether this exact bug report already has a response.** The local state file is not the source of truth for "already triaged" — the ticket's comments are. The file can be missing for reasons unrelated to whether a response exists: a fresh clone/worktree, a teammate ran this from another machine, or the response posted but the file write never happened. Fetch the ticket's comments posted *after* the bug-report comment found in step 2 and look for one from you/the bot account that already addresses it (a fixed-and-pushed note, a not-a-defect explanation, or lettered options, in this skill's own comment style — see Steps 2–3).
-   - **Found one** → treat it as the already-posted tick response. Reconstruct `.shipkit/bugfix-<ticket>.md` from it: `commenter_account_id`, `jira.reporter_account_id`, `seed_comment_id` (the bug-report comment), `last_checked_comment_id` set to that response comment's ID, `pending_comment: null`, `silent_ticks: 0`, and the concerns checklist with each concern's status as that comment states it. Do not re-run systematic-debugging and do not draft a new comment. Skip the rest of Step 1 and Steps 2–3 entirely — go straight to Step 4's loop body.
+   - **Found one** → treat it as the already-posted tick response. Reconstruct `.shipkit/bugfix-<ticket>.md` from it: `commenter_account_id`, `reporter_account_id`, `seed_comment_id` (the bug-report comment), `last_checked_comment_id` set to that response comment's ID, `pending_comment: null`, `silent_ticks: 0`, and the concerns checklist with each concern's status as that comment states it. Do not re-run systematic-debugging and do not draft a new comment. Skip the rest of Step 1 and Steps 2–3 entirely — go straight to Step 4's loop body.
    - **Nothing found** → this is a genuine first triage, continue below.
 5. Separately, identify the **PO** — the person who actually owns the business call on this feature. Check the ticket's reporter field first (on a feature ticket it's usually the PO); if that's wrong for this project (bot, or someone else owns product calls here), ask the user once and remember for this ticket only. You'll @-mention the PO whenever a concern needs their ruling (Step 3.3) — the tester gets acknowledged either way, but they aren't who decides.
 6. Invoke `superpowers:systematic-debugging` on each concern, reading the real code path — not just reasoning from the comment's description of symptoms.
@@ -101,19 +77,19 @@ A ticket can have concerns in different buckets at once — classify each on its
    report: it opens a kiro terminal per submodule, which commits and pushes to the feature branch — so here the push
    comes before `/verify`; a `FAILED` verify means new tasks and another `/assign`, never a claim in Jira. If `/assign`
    asks about a submodule already in progress, that is the user's answer, not yours. `probe.sh state` gives `SPEC=none`,
-   or `/assign` stops for any other reason → **stop and tell the user why** (Vietnamese, one line); never fall back to
+   or `/assign` stops for any other reason → **stop and tell the user why** (one line, in the user's language); never fall back to
    fixing inline — the flag means kiro writes the fix, and an inline fix by claude is not what was asked. Inline is only
    for a run without `--agent kiro`.
    **Then prove it with `/verify`** — a passing unit test is not a pass. Run `/verify --ticket <TICKET> --concern "<the reported scenario, in the tester's words>"` once per real-defect concern (repeat `--concern`). It owns the mechanics: it drives the report's exact steps on the running app, checks the adjacent happy path, and saves evidence under `.shipkit/evidence/<TICKET>/` — **FE → a screenshot** (opened and checked), **BE → request/response and data proof** (redacted) — then emits `verify: PASS | FAILED | INCOMPLETE`. Called with `--concern` it posts nothing to Jira; this skill's own tick comment (3.3) carries the proof. Run it after the **last** code change of the tick: it also checks every FE/BE surface the branch diff touches beyond the concern, but a fix made after a `/verify` (an FE change following a BE fix) is only seen by another run.
-   **A concern is `fixed` only when `/verify` returns PASS for it and its evidence file exists.** `FAILED` → keep fixing; `INCOMPLETE` (a named variant has no evidence, or can't run: missing env, creds, data) → don't draft the Jira comment yet: build what's missing (`/verify` "Building a variant"), and ask me only for what you can't create yourself. The comment never carries a "not checked / chưa kiểm / only covered by a unit test" line. Not proven yet = not passed: don't push-and-announce it, don't check it off, don't claim it in the Jira comment. Push only after PASS (`--agent kiro`: kiro already pushed — still nothing is claimed or checked off before PASS).
+   **A concern is `fixed` only when `/verify` returns PASS for it and its evidence file exists.** `FAILED` → keep fixing; `INCOMPLETE` (a named variant has no evidence, or can't run: missing env, creds, data) → don't draft the Jira comment yet: build what's missing (`/verify` "Building a variant"), and ask me only for what you can't create yourself. The comment never carries a "not checked / only covered by a unit test" line. Not proven yet = not passed: don't push-and-announce it, don't check it off, don't claim it in the Jira comment. Push only after PASS (`--agent kiro`: kiro already pushed — still nothing is claimed or checked off before PASS).
 2. Leave not-a-defect and needs-decision concerns as comments only — no code changes yet.
-3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR; say in plain words that you re-checked it yourself in the app, and show the proof the tester can read, in an evidence table (one row per fixed defect, e.g. `| Lỗi | Cách kiểm | Kết quả | Bằng chứng |`): for an FE fix the **Bằng chứng cell holds the screenshot itself** as `![caption](/abs/path.png)` (opened and checked first; never below the table — `jira-comment.py` embeds it in the cell, reusing an already-attached file); for a BE fix state the observed result in business words, e.g. "the digest now shows 12 calls, same as the call list", with no table/endpoint names — the raw request/response stays in the evidence file and the terminal. Never claim "verified" for a fix you only unit-tested), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way) as `@[Name](commenter_account_id)`; additionally @-mention the **PO** as `@[Name](jira.reporter_account_id)` on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
+3. Draft exactly one Jira comment covering every concern from this tick: a factual fixed-and-pushed note per defect (link the branch/PR; say in plain words that you re-checked it yourself in the app, and show the proof the tester can read, in an evidence table (one row per fixed defect, e.g. `| Defect | How checked | Result | Evidence |` (headers and cells in the language of the ticket's comments)): for an FE fix the **Evidence cell holds the screenshot itself** as `![caption](/abs/path.png)` (opened and checked first; never below the table — `jira-comment.py` embeds it in the cell, reusing an already-attached file); for a BE fix state the observed result in business words, e.g. "the digest now shows 12 calls, same as the call list", with no table/endpoint names — the raw request/response stays in the evidence file and the terminal. Never claim "verified" for a fix you only unit-tested), the business-language explanation per not-a-defect concern, the lettered options per needs-decision concern. One comment, not one per concern. Tag the **tester** throughout (they reported it, they get the update either way) as `@[Name](commenter_account_id)`; additionally @-mention the **PO** as `@[Name](reporter_account_id)` on any not-a-defect or needs-decision concern — that's their ruling to make or confirm, not the tester's. Real-defect status notes don't need the PO tagged.
 4. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment` in the state file below and stop — don't launch the background poller yet.
 5. Once approved, post it with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (the MCP tool leaves mentions as plain text; If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed). The script reads the comment back and prints `"images": {"in_table": n, "outside_table": m}` — `outside_table` must be `0` and `in_table` the FE screenshots you embedded, else say so. Approved text stays approved when only the layout changes; changed wording is shown again first.), then write `.shipkit/bugfix-<ticket>.md`:
    ```markdown
    # Bugfix loop state — <ticket>
    commenter_account_id: <id of the tester/QA who posted the bug comment>
-   jira.reporter_account_id: <id or "reporter">
+   reporter_account_id: <the PO's id — the spec's reporter_account_id, else the ticket's reporter field>
    seed_comment_id: <id of the comment being triaged>
    last_checked_comment_id: <id>
    silent_ticks: 0

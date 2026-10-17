@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail when a file that restates the pipeline order drifts from skills/run-pipeline/stages.txt.
 
-Usage: python3 -I scripts/check-pipeline.py [--self-test]      exit 0 ok · 1 drift · 2 missing file/anchor
+Usage: python3 -I scripts/check-pipeline.py [--self-test]      exit 0 ok · 1 drift or version mismatch · 2 missing file/anchor
 Checks only skill names and their order (and that the required ones are present), not wording —
 a stale sentence like "verify posts to Jira" is still on the person changing the pipeline.
 """
@@ -14,15 +14,24 @@ GROUPS = [l.split() for l in (ROOT / "skills/run-pipeline/stages.txt").read_text
 RANK = {n: i for i, g in enumerate(GROUPS) for n in g}
 
 # (file, region start regex, region end regex or None = start line only, required skills)
-# ponytail: run-pipeline has no clarify / plan-deep stage yet — add them to its required list when it gets one.
 CHECKS = [
-    ("skills/run-pipeline/SKILL.md", r"^## Stages", r"^```", ["spec-from-ticket", "review-changes", "verify", "pr", "bump-submodule"]),
+    ("skills/run-pipeline/SKILL.md", r"^## Stages", r"^```", ["spec-from-ticket", "clarify", "plan-deep", "review-changes", "verify", "pr", "merge", "bump-submodule"]),
     ("skills/help/SKILL.md", r"Same flow, one step at a time", None, list(RANK)),
-    ("skills/developer/SKILL.md", r"^\s*\| feature \|", None, ["spec-from-ticket", "clarify", "plan-deep"]),
+    ("skills/developer/work-mode.md", r"^\s*\| feature \|", None, ["spec-from-ticket", "clarify", "plan-deep", "assign"]),
     ("skills/spec-from-ticket/SKILL.md", r"^Next:\s+/clarify", r"/run-pipeline", ["clarify", "plan-deep"]),
     ("skills/verify/SKILL.md", r"^`/design-recon` \(UI tickets", r"→ `/merge`", ["verify", "review-changes", "pr", "merge"]),
-    ("README.md", r"^## The pipeline", r"^## Skills", ["review-changes", "pr", "merge", "bump-submodule"]),
+    ("README.md", r"^## The pipeline", r"^## Skills", ["spec-from-ticket", "clarify", "plan-deep", "assign", "verify", "review-changes", "pr", "merge", "bump-submodule"]),
 ]
+
+def versions_differ():
+    """The two manifests are bumped by hand (CLAUDE.md step 4) — a mismatch ships two versions of one plugin."""
+    import json
+    v = {f: json.loads((ROOT / f).read_text())["version"] for f in ("plugin.json", ".claude-plugin/plugin.json")}
+    if len(set(v.values())) > 1:
+        print("FAIL version: " + ", ".join(f"{f}={x}" for f, x in v.items()))
+        return True
+    print(f"ok   version: {next(iter(v.values()))} in both plugin.json files")
+    return False
 
 def region(lines, start, end):
     for i, l in enumerate(lines):
@@ -55,7 +64,7 @@ def self_test():
 def main():
     if "--self-test" in sys.argv:
         return self_test()
-    bad = 0
+    bad = int(versions_differ())
     for path, start, end, required in CHECKS:
         p = ROOT / path
         text = region(p.read_text().splitlines(), start, end) if p.exists() else None

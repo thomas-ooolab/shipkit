@@ -1,6 +1,6 @@
 ---
 name: bootstrap
-description: One-time per-project setup for shipkit. Detects submodule topology, remote host/workspace, and spec layout from real files, then writes .shipkit/config.yml directly (backing up an existing one) and prints what it wrote. Asks only when a value has no candidate anywhere. Has an audit/--dry-run mode. Defers to existing CLAUDE.md; never touches app code or dependencies.
+description: "Use when a project has no .shipkit/config.yml yet (first time using shipkit in a repo), or its submodule topology, remote or spec layout changed and the config must be re-derived or audited. Not for app dependencies or CLAUDE.md. Trigger: /bootstrap [--dry-run | audit]"
 argument-hint: "[--dry-run | audit]"
 ---
 
@@ -41,8 +41,7 @@ for routing context but never overwrites it.
 
 From the probe output, establish:
 - **Submodules** — every `- path=… branch=… stack=…` line. Each becomes one entry. The submodule
-  count is whatever the probe reports (3 for ai-roleplay, more for larger repos like learningos —
-  do **not** assume a fixed set).
+  count is whatever the probe reports — do **not** assume a fixed set.
 - **Single-repo fallback** — if `GITMODULES_EXISTS=0`, there are no submodules; use `ROOT_STACK`
   and write a single-target config (the pipeline operates on the one repo).
 - **Remote** — `REMOTE_HOST` + `REMOTE_WORKSPACE` (Bitbucket expected; GitHub/GitLab also fine).
@@ -64,15 +63,15 @@ each submodule's detected stack**, not from fixed service names:
 | `nextjs` | ui, page, component, chart, dialog, bff, `src/app/api`, tanstack, middleware, cookie |
 | `react` | ui, page, component, view, route, hook, store, state, api client, style, layout |
 | `node` | endpoint, handler, route, service, queue, worker |
-| `go` | endpoint, `api/api.yml`, migration, schema, gorm, handler, repository, jwt |
-| `python` | endpoint, handler, model, migration (alembic/django), celery, worker, fastapi, gunicorn, stt/tts/pipeline (voice) |
+| `go` | endpoint, API contract file (`api.yml` / proto), migration, schema, orm, handler, repository, jwt |
+| `python` | endpoint, handler, model, migration (alembic/django), celery, worker, fastapi, gunicorn, pipeline |
 | `flutter` | screen, widget, navigation, state, provider/bloc, platform channel, build |
 | `rust` / `java` / `ruby` / `php` | endpoint, service, handler, migration (adjust per project) |
 
 Map each submodule → its signals. The user can edit these after.
 
 ## Step 3 — Infer per-submodule defaults
-- **suffix** — derive from the submodule name's trailing token (`…-be`→`-be`, `…-voice`→`-voice`,
+- **suffix** — derive from the submodule name's trailing token (`…-be`→`-be`, `…-worker`→`-worker`,
   `…-fe` or a `nextjs` frontend→`-fe`). If ambiguous, ask.
 - **branch** — default `staging` (matches `pr_target: staging`). An earlier config's `branch` for that
   submodule (Candidate sources, below) wins over the default; use the probe's branch only if the user
@@ -111,11 +110,15 @@ existing contents. **Always set `topology_mode`** from the probe — every skill
 topology_mode: meta-with-submodules
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
+# optional knobs — uncomment to set; every skill that reads one has a default
+# language: <e.g. vi>                         # questions and drafts to the user (default: the language they write in)
+# timezone: <IANA zone, e.g. Asia/Ho_Chi_Minh> # /developer's daily briefing and observer hours (default: the machine's)
+# observer_hours: "08:00-18:00"                # when /developer's Slack observer runs (default shown)
+# git_ssh_rewrite: { from: "git@bitbucket.org:", to: "git@<host-alias>:" }  # .gitmodules URLs that need another SSH key
 jira:
   base_url: <from sources>   # e.g. https://ooolab.atlassian.net
   project_key: <from sources> # e.g. AR
   # optional — /merge moves the ticket here once every PR is merged (looked up by transition NAME):
-  # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"
   # qc_account_id: "<Jira accountId>"   # optional QC override — /merge otherwise derives it from your recent tickets
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }
@@ -136,10 +139,14 @@ parent/child PRs, no bump. One feature branch, one PR.
 topology_mode: single-repo
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
+# optional knobs — uncomment to set; every skill that reads one has a default
+# language: <e.g. vi>                         # questions and drafts to the user (default: the language they write in)
+# timezone: <IANA zone, e.g. Asia/Ho_Chi_Minh> # /developer's daily briefing and observer hours (default: the machine's)
+# observer_hours: "08:00-18:00"                # when /developer's Slack observer runs (default shown)
+# git_ssh_rewrite: { from: "git@bitbucket.org:", to: "git@<host-alias>:" }  # .gitmodules URLs that need another SSH key
 jira:
   base_url: <from sources>
   project_key: <from sources>
-  # reporter_account_id: "<Jira accountId>"   # written by /spec-from-ticket: ticket reporter (PO), tagged by /clarify
   # after_merge_transition: "TESTING"              # optional, used by /merge
   # qc_account_id: "<Jira accountId>"   # optional QC override — /merge otherwise derives it from your recent tickets
 spec: { dir: <SPEC_DIR>, next_number: "<NEXT_SPEC>", zero_pad: <ZERO_PAD> }

@@ -1,6 +1,6 @@
 ---
 name: fix-permissions
-description: Resolves and prints the terminal command that applies shipkit's permissions (the probe helper script + git/curl/test commands) to your Claude Code settings, clearing the "command requires approval" failure that blocks /bootstrap and the other skills' injected context — and unblocking /pr's background agent. Works even when nothing is permitted yet; it never runs the applier itself. Run before /bootstrap. Not for app dependencies.
+description: "Use when /bootstrap or another shipkit skill fails with \"command requires approval\", or before the first /bootstrap in an environment where shipkit's probe script is not yet allowed. Prints the terminal command that applies shipkit's allow-rules and offers to run it once, with confirmation. Not for app dependencies. Trigger: /fix-permissions"
 ---
 
 # shipkit · fix-permissions
@@ -68,6 +68,9 @@ does not bootstrap, run probes, or touch app code. The applier only merges `perm
   that is the supported path, not a failure to retry.
 
 ## Gotchas
+- **What the allow-list grants.** `Bash(bash:*)`, `python3:*`, `node:*` and `curl:*` let any script of that kind run without a
+  prompt in the scope you pick. `--user` is the one a background agent needs; `--project` limits the grant to one repo. Say so
+  when you present the command, and let the user choose.
 - `${CLAUDE_PLUGIN_ROOT}` is set in skill context but **not** in a plain user terminal — that's why
   the skill resolves the absolute path for the user rather than telling them to use the variable.
 - Never instruct the user to ask Claude to run the applier as a normal step — it would be blocked by
@@ -79,7 +82,7 @@ User: /fix-permissions
 Assistant: [echoes ${CLAUDE_PLUGIN_ROOT}/scripts/apply-permissions.sh, confirms it exists]
 "Run this in your terminal to apply shipkit's permissions (covers every project + background agents):
 
-    bash \"/Users/you/.claude/plugins/cache/shipkit/shipkit/0.1.0/scripts/apply-permissions.sh\" --user
+    bash \"/Users/you/.claude/plugins/cache/shipkit/shipkit/<version>/scripts/apply-permissions.sh\" --user
 
 Then verify with `jq '.permissions.allow' ~/.claude/settings.json` and run `/bootstrap`. Want me to
 run it now (default mode), or will you run it yourself?"

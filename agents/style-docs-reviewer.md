@@ -10,7 +10,7 @@ CLAUDE.md conventions. Review **only what the diff changes**. **Read-only — ne
 
 Check for:
 - **Consistency** — does the change match the naming, structure, and idioms of the surrounding code
-  and the conventions in CLAUDE.md? (e.g. BFF routes stay proxy-only on the FE; OpenAPI-first on BE.)
+  and the conventions in CLAUDE.md? (e.g. a layering or placement rule CLAUDE.md states for that submodule.)
 - **Naming** — unclear, misleading, or inconsistent identifiers.
 - **Docs/comments** — missing doc on an exported symbol, stale comment, comment that contradicts code.
 - **Dead code** — unused vars/imports/functions introduced by the change.
@@ -25,8 +25,8 @@ CLAUDE.md rule (then `blocking`). Return ONLY a JSON array (or `[]`):
 
 ```json
 [
-  {"pass": "style", "finding": "BFF route adds business logic — CLAUDE.md says proxy-only", "severity": "blocking", "submodule": "ai-roleplay", "file": "src/app/api/x/route.ts", "line": 20},
-  {"pass": "style", "finding": "unused import 'lodash'", "severity": "advisory", "submodule": "ai-roleplay", "file": "src/lib/x.ts", "line": 3}
+  {"pass": "style", "finding": "route handler adds business logic — CLAUDE.md says handlers only proxy", "severity": "blocking", "submodule": "service-fe", "file": "src/app/api/x/route.ts", "line": 20},
+  {"pass": "style", "finding": "unused import 'lodash'", "severity": "advisory", "submodule": "service-fe", "file": "src/lib/x.ts", "line": 3}
 ]
 ```
 `severity` is `blocking` or `advisory`. `line` is an integer (0 if no single line applies).

@@ -1,6 +1,6 @@
 ---
 name: plan-deep
-description: Produces a verified, grounded implementation plan inside the ticket's spec.md. Grounds in real submodule code via an Explore agent, drafts tier-scaled Plan/Tasks/Contracts, reasons about source-of-truth consistency (asks only on a genuine conflict), self-reviews and reference-verifies in parallel, then writes the refined plan into spec.md behind a confirm gate. Not for trivial edits.
+description: "Use when a ticket has a spec.md and needs a verified implementation plan — Plan, Tasks per submodule, Contracts — before anyone implements. Not for trivial edits. Trigger: /plan-deep --ticket <jira-ticket> [--auto]"
 argument-hint: "--ticket <jira-ticket> [--auto] [<extra scope notes>]"
 ---
 
@@ -101,15 +101,15 @@ digest — do not dump large code bodies:
 - for every Requirement that says who may see or do what, the **actual access rule per role** the code
   enforces on that entity — the list query's filter and the permission check, each with `file:line`
   (or "not found").
-- the submodule's discipline anchors (BE: OpenAPI-first `api/api.yml`→`make gen`; FE: BFF-proxy +
-  TanStack placement; Voice: Pipecat pipeline + staging-only).
+- the submodule's discipline anchors: the conventions its `CLAUDE.md` states (layering, contract-first and generate steps,
+  where logic may live) and its `staging_only` flag from the config.
 
 ## Step 3 — Draft + source-of-truth reasoning gate
 Draft the plan sections (tier-scaled) from the grounding digest:
 - **`## Plan`** — approach per affected submodule, grounded in the real signatures/conventions.
 - **`## Tasks`** — per submodule, dependency-ordered, each citing a `REQ-NNN` and naming exact
   file(s). **Tag each task with its target** so PRs fan out:
-  `- [ ] T010 [REQ-002] (ai-roleplay-be) {desc} — internal/api/...go`. If ≥2 submodules are touched,
+  `- [ ] T010 [REQ-002] (<submodule>) {desc} — path/to/file`. If ≥2 submodules are touched,
   note **Fan-out** and a **Part order** (which submodule's PR must merge first, e.g. BE before FE).
 - **`## Contracts`** — only if a cross-service interface changes (new/changed endpoint, request/
   response shape, shared type); else "None".
@@ -197,7 +197,7 @@ to `<SPEC>/spec.md` (status: planned)."
 
 ## Gotchas
 - **Don't assume layout.** Ground via the Explore agent; never assume `src/` or a fixed structure
-  (learningos differs from ai-roleplay).
+  (layouts differ between projects).
 - **Multi-submodule = fan-out.** A plan touching ≥2 submodules must pin Part order; `/pr`
   reads the per-task targets to open one child PR per submodule.
 - **Breaking cross-service contract.** Surface an expand→migrate→contract sequence as a

@@ -110,7 +110,8 @@ deadline=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 
 while [ "$(date +%s)" -lt "$deadline" ]; do
   # || true so one transient network failure never kills the wait.
-  resp=$(curl -sS --max-time 20 -H "Authorization: Bearer ${SLACK_REVIEW_TOKEN}" \
+  # the token goes to curl on stdin (a curl config), not onto its command line (visible in `ps`)
+  resp=$(printf 'header = "Authorization: Bearer %s"\n' "$SLACK_REVIEW_TOKEN" | curl -sS -K - --max-time 20 \
     --data-urlencode "channel=${CHANNEL}" --data-urlencode "ts=${THREAD_TS}" \
     --data-urlencode "limit=${LIMIT}" -G "${API}/conversations.replies" 2>/dev/null) || true
 

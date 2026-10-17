@@ -1,13 +1,10 @@
 {
   "_comment": [
-    "Single source of truth for pr's waiter addresses and tunables.",
-    "scripts/wait-for-slack-reply.sh (--until verdict) and verdict-predicate.py were copied from",
-    "/Users/tung/ooolab/review-loop (2026-08-20) — battle-tested against this same",
-    "reviewer bot. Only this config.json differs: it points at pr's own channel",
-    "(#dev-enterprise) instead of review-loop's #ooolab-be. Do not edit the scripts to",
-    "change addresses — change them here."
+    "Single source of truth for /pr's review loop: the Slack channel and reviewer bot, the poll interval and",
+    "the round cap. scripts/wait-for-slack-reply.sh (--until verdict) reads this file and passes the bot id to",
+    "verdict-predicate.py; skills/pr/review-loop.md reads the same keys. To point /pr at another channel or bot, change",
+    "the values here and nowhere else."
   ],
-
   "slack": {
     "bot_review_channel": {
       "name": "#dev-enterprise",
@@ -19,12 +16,10 @@
     "bot_reviewer_handle": "OOOLAB AI Agent",
     "waiter_token_env": "SLACK_REVIEW_TOKEN"
   },
-
   "waiter": {
     "poll_interval_seconds": 12,
     "default_timeout_minutes": 10
   },
-
   "loop": {
     "max_rounds": 5,
     "_note": "Same default and meaning as review-loop's: one round = one new-reviewer-message triage-and-reply cycle. Reaching it is a stop-and-report, never a silent exit."
