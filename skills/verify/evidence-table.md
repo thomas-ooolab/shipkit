@@ -23,9 +23,10 @@ data files it embeds are already beside it.
   space. Open every PNG first and confirm it shows what the row claims. `jira-comment.py` uploads it (reusing one already
   attached) and embeds it in the cell, so no `--image`. **Never** a file name, a path in backticks or a 📎 as the proof of an FE
   check: the reader sees the picture, not where it lives.
-- **BE check →** a **redacted** excerpt in business words or the key fields (method + path, status, the values that show the
-  requirement holds). Never a token, credential, real personal data or a raw database dump; the full file stays in
-  `.shipkit/evidence/`.
+- **BE check →** never a token, credential, real personal data or a raw database dump; the full file stays in
+  `.shipkit/evidence/`. **Feature:** a redacted excerpt (method + path, status, the key fields that show the requirement holds).
+  **Bugfix:** the observed result in business words ("a Manager is refused another team's rep and sees their own team's"), with
+  **no endpoint, path or table name**: the reader is the tester, not a developer.
 - A pipe inside a cell is written `\|`. Headers and cells are in the language of the ticket's comments.
 
 ## Feature — a single table, nothing else
@@ -56,6 +57,12 @@ retyped or reworded.
 ```
 
 A concern that is `FAIL` or `UNVERIFIED` has no row: the gate is not `PASS`, so no file is written.
+
+## A picture that does not show its row
+
+The table carries the run's results as they are: never reword a Requirement, Check or Result cell to fit a picture. If a PNG
+does not show what its row claims, **write no file**: name the row and what the picture shows instead, and leave the call (re-capture
+the screenshot, or re-run the check) to the person. Silently weakening a claim hides the gap from the reader.
 
 ## After writing
 
