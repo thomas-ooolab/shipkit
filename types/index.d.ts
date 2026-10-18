@@ -24,10 +24,11 @@ export type Collected = {
   prLoop?: { waiting: number; total: number; round: number; silent: number; pending: boolean } | null
 }
 // the check as the pane keeps it, by ticket: while it runs, the last good answer stays (`data`) so the pane keeps showing it
-export type Checked = { ticket: string; at: number; running: boolean; data: Collected | null; error: string | null } | null
+// `model` is what the engine says the checker runs on (the id it resolved), known once the checker has started
+export type Checked = { ticket: string; at: number; running: boolean; data: Collected | null; error: string | null; model?: string | null } | null
 // what the pane says about its check: how it stands, when, and which values differ from the state file (`stage:<id>`, `detail:<id>:<line>`,
 // `status`, `next`, `blockers`, `prs`, `oq`, `concerns`, `waits`)
-export type Check = { state: 'running' | 'ok' | 'failed'; at: number; hasData: boolean; diff: string[]; error: string | null }
+export type Check = { state: 'running' | 'ok' | 'failed'; at: number; hasData: boolean; diff: string[]; error: string | null; model: string | null }
 export type Pipeline = {
   ticket: string
   flow: string | null
@@ -46,7 +47,8 @@ export type Pipeline = {
   evidenceLatest: string | null // else the newest file in that dir (a screenshot, a data file), when there is any
   pollers: string[] // `Poller:` lines the run declared (waits the pane cannot read from a state file)
   waiting: Wait[] // waits read from /clarify's, /bugfix's and /pr's own state files, while their loop is still open
-  mtimeMs: number
+  mtimeMs: number // when the pipeline-<ticket>.md file itself last changed
+  activityMs: number // when the newest state file of the ticket changed (clarify, bugfix, assign, pr, … as well), the pipeline file's own time at least
   stages: Stage[]
   check: Check | null
 } | null

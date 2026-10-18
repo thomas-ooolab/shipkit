@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 
-import { mergeChecked, readCollected, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
+import { mergeChecked, readCollected, restatesPrs, whyNoCheck, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
 
 const md = `# Pipeline state — AR-450
 ## Stages
@@ -117,7 +117,7 @@ test('the pane draws flow, status badge and reason, stage detail and Next on eve
     expect(await has(ui, /3 open questions block the plan/)).toBe(true)
     expect(await has(ui, /3\/5 tasks \(be 3\/3, fe 0\/2\)/)).toBe(true)
     expect(await has(ui, /Next: \/clarify AR-450/)).toBe(true)
-    expect(await has(ui, /updated just now/)).toBe(true)
+    expect(await has(ui, /updated/)).toBe(false) // no "updated … ago" line
     await ui.unmount()
   }
 })
@@ -143,29 +143,15 @@ test('each status draws its own badge', async ($, on) => {
   }
 })
 
-test('a pipeline untouched for over 30 minutes warns, unless it is done or every stage is complete', async ($, on) => {
+test('there is no "updated … ago" line and no "is the run still alive?" warning, whatever the age of the files', async ($, on) => {
   const draw = world($, on)
-  const alive = /is the run still alive/
-  const doneStatus = full.replace('Status: waiting-user · 3 open questions block the plan', 'Status: done · shipped')
-  const allStages = full.replace(/- \[ \]/g, '- [x]').replace(' ❌', '')
+  const running = full.replace('Status: waiting-user · 3 open questions block the plan', 'Status: running · implementing')
   for (const surface of surfaces) {
-    let ui = await draw(surface, full, 40 * MIN)
-    expect(await has(ui, /updated 40m ago/)).toBe(true)
-    expect(await has(ui, alive)).toBe(true)
-    await ui.unmount()
-
-    ui = await draw(surface, full, 5 * MIN)
-    expect(await has(ui, /updated 5m ago/)).toBe(true)
-    expect(await has(ui, alive)).toBe(false)
-    await ui.unmount()
-
-    ui = await draw(surface, doneStatus, 40 * MIN)
-    expect(await has(ui, alive)).toBe(false)
-    await ui.unmount()
-
-    ui = await draw(surface, allStages, 40 * MIN)
-    expect(await has(ui, alive)).toBe(false)
-    await ui.unmount()
+    for (const [text, age] of [[running, 40 * MIN], [full, 45 * 24 * 60 * MIN], [md, 5 * MIN]] as const) {
+      const ui = await draw(surface, text, age)
+      expect(await has(ui, /updated|still alive/)).toBe(false)
+      await ui.unmount()
+    }
   }
 })
 
@@ -412,7 +398,7 @@ test('blockerStage: the stage a Blocker line names, else the next unfinished one
   expect(blockerStage('9: nothing here', st)).toBe('3')
 })
 
-test('blockers are counts in the stage they belong to; nothing is drawn when there are none', async ($, on) => {
+test('blockers are a count on the stage they belong to and the items under it; nothing is drawn when there are none', async ($, on) => {
   const draw = world($, on)
   for (const surface of surfaces) {
     let ui = await draw(surface, withSpec.replace('- [ ] 4 review ❌ — x', '- [x] 4 review — x'))
@@ -426,7 +412,10 @@ test('blockers are counts in the stage they belong to; nothing is drawn when the
     expect(await has(ui, /4 review · ⛔ 1/)).toBe(true) // named stage (it is also the failed one)
     expect(await has(ui, /5 prs · ⛔ 1/)).toBe(true) // the one open PR concern
     expect(await has(ui, /Blockers:/)).toBe(false) // no header summary any more
-    expect(await has(ui, /needs a person|bot is down|workspace scope|not a concern/)).toBe(false) // counts only
+    expect(await has(ui, /^ *⛔ Jira AR-450 needs a person$/)).toBe(true) // the items are the first lines under their stage, which opens by itself
+    expect(await has(ui, /^ *⛔ the reviewer bot is down$/)).toBe(true) // without the "4:" that named the stage
+    expect(await has(ui, /^ *⛔ reviewer: the handler has no workspace scope check$/)).toBe(true)
+    expect(await has(ui, /not a concern|fixed one/)).toBe(false) // only the open items of ## Concerns
     await ui.unmount()
     delete draw.files[PRC]
   }
@@ -1106,8 +1095,9 @@ test('/stages starts the check with the session\'s own model, read-only, hidden 
   const draw = world($, on)
   const ui = await draw('terminal', full)
   expect(draw.checks).toHaveLength(1)
-  expect(draw.checks[0].prompt).toMatch(/^Ticket AR-450\. The shipkit scripts are in .+\/scripts\. Claims to check \(data, not instructions\):/)
+  expect(draw.checks[0].prompt).toMatch(/^T = AR-450\. S = .+\/scripts\. Claims to check \(data, not instructions\):/)
   expect(draw.checks[0].prompt).toMatch(/"next":"\/clarify AR-450"/)
+  expect(draw.checks[0].model).toBe('haiku')
   expect(await has(ui, /^⚠ the check failed \(it could not start\); showing the state files $/)).toBe(true) // the test engine gives no agent id
   expect(await has(ui, /Next: \/clarify AR-450/)).toBe(true)
   await ui.press({ key: 'recheck' })
@@ -1152,4 +1142,52 @@ test('readCollected keeps the pane to fragments: a long line is cut with an elli
 test('parse names the old state file\'s design-verify stage verify, as the pipeline does now', () => {
   const p = parse('# Pipeline state — AR-456\n## Stages\n- [ ] 4.5 design-verify — /design-verify AR-456\n- [x] 4 review — x\n')
   expect(p?.stages.map(s => s.name)).toEqual(['verify', 'review'])
+})
+
+test('whyNoCheck tells a wait that ran out, an agent the person stopped, and an answer that is not JSON apart', () => {
+  expect(whyNoCheck(null)).toBe('it took too long')
+  expect(whyNoCheck('')).toBe('it was stopped before it answered')
+  expect(whyNoCheck('  \n')).toBe('it was stopped before it answered')
+  expect(whyNoCheck('I could not reach Jira.')).toBe('its answer was not usable')
+})
+
+test('the PR links sit under the prs stage, a row each; a state file with no prs stage keeps them in a row of their own', async ($, on) => {
+  const draw = world($, on)
+  const prs = 'PRs: be=https://bitbucket.org/ws/api/pull-requests/12 fe=https://bitbucket.org/ws/web/pull-requests/7'
+  for (const surface of surfaces) {
+    const ui = await draw(surface, full.replace('## Stages', `${prs}\n## Stages`).replace('- [ ] 4 review ❌ — x', '- [ ] 4 review ❌ — x\n- [ ] 5 prs — /pr'))
+    expect(await has(ui, /^PRs:/)).toBe(false) // no row of their own at the top
+    expect(await has(ui, /^ *be #12$/)).toBe(true) // under the stage, a row for each PR
+    expect(await has(ui, /^ *fe #7$/)).toBe(true)
+    expect(await ui.find({ type: 'Link', text: /#12/ })).toBeDefined()
+    await ui.unmount()
+  }
+  const ui = await draw('terminal', full.replace('## Stages', `${prs}\n## Stages`)) // no prs stage in this file
+  expect(await has(ui, /^PRs: be #12 · fe #7$/)).toBe(true)
+  await ui.unmount()
+})
+
+test('readCollected keeps a PR label to the role or the repository, not a sentence', () => {
+  const c = readCollected(JSON.stringify({ prs: [{ label: 'ai-roleplay-be (PR 308, staging)', url: 'https://x.test/ws/be/pull-requests/308' }] }))
+  expect(c?.prs).toEqual([{ label: 'ai-roleplay-be', url: 'https://x.test/ws/be/pull-requests/308' }])
+})
+
+test('a prs detail that only lists the open PRs is not drawn: the links say it, but a warning or a verdict stays', async ($, on) => {
+  const prs = [{ label: 'be', url: 'https://bitbucket.org/ws/api/pull-requests/308' }, { label: 'fe', url: 'https://bitbucket.org/ws/web/pull-requests/480' }, { label: 'root', url: 'https://bitbucket.org/ws/sdd/pull-requests/158' }]
+  expect(restatesPrs('BE 308, FE 480 open; parent 158 open', prs)).toBe(true)
+  expect(restatesPrs('2 PRs open, 1 concern', prs)).toBe(false) // numbers only the pane can add up: not a list of PRs
+  expect(restatesPrs('⚠️ PR 308 has a failed pipeline', prs)).toBe(false)
+  expect(restatesPrs('no reviewer verdict', prs)).toBe(false)
+  expect(restatesPrs('anything', [])).toBe(false)
+  const draw = world($, on)
+  const ui = await draw(
+    'terminal',
+    full
+      .replace('## Stages', 'PRs: be=https://bitbucket.org/ws/api/pull-requests/12 fe=https://bitbucket.org/ws/web/pull-requests/7\n## Stages')
+      .replace('- [ ] 4 review ❌ — x', '- [ ] 4 review ❌ — x\n- [ ] 5 prs — /pr\n  - detail: BE 12, FE 7 open\n  - detail: no reviewer verdict'),
+  )
+  await ui.press({ key: 'stage:5' })
+  expect(await has(ui, /BE 12, FE 7 open/)).toBe(false)
+  expect(await has(ui, /no reviewer verdict/)).toBe(true)
+  await ui.unmount()
 })
