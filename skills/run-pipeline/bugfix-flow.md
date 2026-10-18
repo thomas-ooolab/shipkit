@@ -38,7 +38,7 @@ A change no requirement can be named for → no `--req` (the whole ticket), and 
 Audit line before any dispatch: `shipkit bug <ticket>: bugfix=<done|pending> concerns=<fixed/total> spec-changed=<yes|no> verify=<done|skipped|pending> review=<done|pending> prs=<n/m|unknown> merged=<yes|no|unknown>`
 
 ## State file
-`Status:`, `Next:`, the context rows (`Branch:`, `PRs:`, `Evidence:`, `Poller:` — here `Poller:` reads `.shipkit/bugfix-<ticket>.md`'s `silent_ticks`) and the optional `  - detail:` line under a stage are written as `SKILL.md` Step 3 says (rewritten after every stage and before every stop;
+`Status:`, `Next:`, the context rows (`PRs:`, `Evidence:`; the wait on the reporter is read from `.shipkit/bugfix-<ticket>.md` by the pane, so no `Poller:` line) and the optional `  - detail:` line under a stage are written as `SKILL.md` Step 3 says (rewritten after every stage and before every stop;
 here `waiting-user` also covers a Jira comment awaiting the user's confirmation and the reporter's reply).
 `.shipkit/pipeline-<ticket>.md`, same line shape as the standard flow (the `/pipeline` pane reads `- [x] <id> <name>`), header `Flow: bug`:
 ```markdown
@@ -46,13 +46,13 @@ here `waiting-user` also covers a Jira comment awaiting the user's confirmation 
 Flow: bug · Auto: <yes|no> · Updated: <ISO-8601>
 Status: <running|waiting-user|failed|done> · <what it waits on, or why it failed>
 Next: <the single next action>
-Branch: fix/<ticket>-<slug>
-PRs: <pr url> <pr url>
+PRs: root=<pr url> <suffix>=<pr url>
 Evidence: .shipkit/evidence/<ticket>/
-Poller: <the reporter's reply, silent <n>>
 
 ## Stages
 - [ ] 1 bugfix  — /bugfix <ticket> [<comment-id>] [--agent kiro]
+  - detail: root  fix/<ticket>-<slug>
+  - detail: <suffix>  <that submodule's fix branch>
 - [ ] 2 verify  — /verify --ticket <ticket> --req <the changed REQs> --no-jira (only when the spec changed; else skipped: spec unchanged)
 - [ ] 3 review  — /review-changes
 - [ ] 4 prs     — /pr

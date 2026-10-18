@@ -163,6 +163,13 @@ case "${1:-}" in
 
   state)
     # Local ground truth for one ticket. Usage: probe.sh state <TICKET>
+    # push=none (origin has no such branch), synced (origin has every commit) or ahead:<n> (n commits only here), as of the last
+    # fetch/push — `git fetch` first when it must be current. Unlike `unpushed`, it does not need an upstream to be configured.
+    push_state() { # <repo dir> <branch>
+      if ! git -C "$1" rev-parse --verify -q "refs/remotes/origin/$2" >/dev/null 2>&1; then echo none; return; fi
+      local n; n=$(git -C "$1" rev-list --count "refs/remotes/origin/$2..$2" 2>/dev/null || echo "?")
+      if [ "$n" = 0 ]; then echo synced; else echo "ahead:$n"; fi
+    }
     ticket="${2:-}"
     if [ -z "$ticket" ]; then echo "STATE_ERROR=no-ticket" >&2; exit 2; fi
     echo "TICKET=$ticket"
@@ -171,13 +178,17 @@ case "${1:-}" in
     echo "BRANCHES:"
     bp=$(git branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
     if [ -f .gitmodules ]; then
-      echo "- parent: branch=${bp:-none}"
+      if [ -n "$bp" ]; then
+        echo "- parent: branch=$bp push=$(push_state . "$bp")"
+      else
+        echo "- parent: branch=none"
+      fi
     else
       # single-repo: the repo itself carries the feature branch + changes
       if [ -n "$bp" ]; then
         dirty=$(git status --porcelain 2>/dev/null | head -1)
         ahead=$(git rev-list --count "@{upstream}..$bp" 2>/dev/null || echo "?")
-        echo "- repo: branch=$bp dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead"
+        echo "- repo: branch=$bp dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead push=$(push_state . "$bp")"
       else
         echo "- repo: branch=none"
       fi
@@ -192,7 +203,7 @@ case "${1:-}" in
         if [ -n "$b" ]; then
           dirty=$(git -C "$p" status --porcelain 2>/dev/null | head -1)
           ahead=$(git -C "$p" rev-list --count "@{upstream}..$b" 2>/dev/null || echo "?")
-          echo "- $p: branch=$b dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead"
+          echo "- $p: branch=$b dirty=$([ -n "$dirty" ] && echo yes || echo no) unpushed=$ahead push=$(push_state "$p" "$b")"
         else
           echo "- $p: branch=none"
         fi

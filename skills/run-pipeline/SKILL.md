@@ -98,10 +98,9 @@ Write `.shipkit/pipeline-<ticket>.md` (mark `[x]` confirmed-complete, `[ ]` pend
 Flow: standard · Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|unset> · Updated: <ISO-8601>
 Status: <running|waiting-user|failed|done> · <one line: what it waits on, or why it failed>
 Next: <the single next action>
-Branch: <branch>
-PRs: <pr url> <pr url>
+PRs: root=<pr url> <suffix>=<pr url>
 Evidence: <path of .shipkit/evidence/<ticket>/>
-Poller: <what is being waited on, e.g. the reporter's reply (silent 2)>
+Poller: <a wait the state files below do not show, e.g. Bitbucket pipelines for the merge commits>
 
 ## Stages
 - [ ] 1 spec          — /spec-from-ticket <ticket>
@@ -109,6 +108,8 @@ Poller: <what is being waited on, e.g. the reporter's reply (silent 2)>
 - [ ] 1.4 plan        — /plan-deep --ticket <ticket>
 - [ ] 1.5 design-recon — /design-recon (opt-in; UI tickets — asked once, skipped if gate off)
 - [ ] 2 branches      — feat/<ticket>-<slug>(+ per-submodule suffix)
+  - detail: root  <parent branch>  <push state>
+  - detail: <suffix>  <that submodule's branch>  <push state>
 - [ ] 3 implement     — HUMAN GATE: write the code in the submodule branches, by hand or with /assign <ticket> (orchestrator never edits code)
 - [ ] 4 review        — /review-changes
 - [ ] 4.5 verify      — /verify (gate: behavior evidence for every ticket; UI fidelity too when Design gate = on)
@@ -117,12 +118,16 @@ Poller: <what is being waited on, e.g. the reporter's reply (silent 2)>
 - [ ] 7 bump          — root-PR pointers at the merged shas — /merge already does it; /bump-submodule <path>@<sha> --closes <ticket> only after a by-hand merge
 ```
 **`Status:` / `Next:` and the `  - detail:` line.** The `/stages` pane shows them as written, so rewrite them after every stage and **before every stop**:
-`waiting-user` at a gate (clarify, implement, merge, or an approval the dispatched skill waits for) with what it waits on, `failed` with the reason (the
-same one `pipeline-failure-<ticket>.md` holds), `running` while a stage is dispatched, `done` when the last stage is. `Next:` is Step 5's `Next:` line. An
-optional `  - detail: <counts>` line indented under a stage line (`3/5 tasks (be 3/3, fe 0/2)`, `verify PASS 4, INCOMPLETE 1`, `2 PRs open, 1 concern`)
+`waiting-user` at a gate (clarify, implement, merge, or an approval the dispatched skill waits for) with what it waits on (the pane draws this text under the next unfinished stage, so write it about that stage), `failed` with the reason (the
+same one `pipeline-failure-<ticket>.md` holds), `running` while a stage is dispatched, `done` when the last stage is. `Next:` is Step 5's `Next:` line — one concrete step, in your words, because while `Status:` is `waiting-user` the pane's `[ ok ]` button sends it to the agent as it is written (with a sentence making the agent check its condition first), so a condition belongs in the text (`/merge AR-1 once the reviewer signs off`). An
+optional `  - detail: <counts>` lines (any number, one fact each) indented under a stage line (`3/5 tasks (be 3/3, fe 0/2)`, `verify PASS 4, INCOMPLETE 1`, `2 PRs open, 1 concern`)
 shows how far inside that stage the run is — only numbers you read from a state file or a command result. A stage that `❌` failed carries its reason
-the same way (`  - detail: /review-changes exited 2 — …`). `Branch:`, `PRs:` (space-separated URLs), `Evidence:` and `Poller:` are context rows the pane draws when
-present (a PR becomes a link, the evidence path copies on a press); leave a line out until there is something true to put on it, and never write a value you did not read.
+the same way (`  - detail: /review-changes exited 2 — …`). The branches are the details of the `2 branches` stage — one line per repo, `root  <branch>  <push state>` then `<suffix>  <branch>  <push state>` (`fe  feat/AR-1-x-fe  ✅ pushed`), only branches you read from `probe.sh state`. The push state comes from that repo's `push=` there: `synced` → `✅ pushed`, `ahead:<n>` → `⬆️ <n> unpushed`, `none` → `⚠️ not pushed` (as of the last fetch/push, so re-read it whenever you refresh the file). A detail line carrying `⚠️` or `⬆️` puts a ⚠️ on its stage's row while the stage is closed, so write one on any detail line that shows a problem, and only then. `PRs:` (space-separated `<label>=<url>`: `root` for the parent repo's PR, and for a child PR the submodule's config `suffix` without its dash (`fe`, `be`) — a role the reader recognizes — else the submodule's name), `Evidence:` and `Poller:` are context rows the pane draws when
+present (a PR becomes a link; a press on the evidence row opens `jira-comment.md` or `concern-evidence.md` from that directory in Orca when one exists, else copies the path); leave a line out until there is something true to put on it, and never write a value you did not read.
+
+**Waits.** The pane lists the waits the plugin's skills run, read from their own state files while they still have something open — `Jira · the PO's answers to <n> open questions` (`/clarify`, `clarify-<ticket>.md`), `Jira · the reporter's reply on <n> concerns` (`/bugfix`, `bugfix-<ticket>.md`), `Slack · the reviewer's verdict on <n> of <m> PRs` (`/pr`, `pr-<ticket>.md`) — each with a `[ ping ]` button that sends the agent a message built from the situation (the counts, the silent poll windows, the follow-up round, the review round) asking it to draft a reminder for the user's confirmation. The button is withheld while a drafted message already waits for the user (`pending_comment` / `pending_action`) and until a poll window has passed since the last ask (`silent_ticks` ≥ 1), and rests for an hour after a press. Do not write those lines yourself. `Poller: <text>` (one line each, shown as written, no button) is only for a wait those files cannot show: the Bitbucket pipelines `/merge` waits on (`wait-pipelines.sh`). `/developer`'s Slack thread follow-up is the user's own, not a ticket's, and has no row.
+
+**Open questions and blockers.** The pane reads two of them itself and shows them: the number of open questions (the unchecked `- [ ]` items of `<Spec dir>/open-question.md`, counted as `OQ: <open> open of <all>` inside the `clarify` stage — so keep `Spec:` in the header; the same stage says `✎ draft waiting for you` and `PO silent for <n> poll windows` from `/clarify`'s own `.shipkit/clarify-<ticket>.md`, which this skill never writes) and the open PR concerns (the unchecked items under `## Concerns` of `.shipkit/pr-<ticket>.md`), drawn as `⛔ <n>` on the `prs` stage's row; a `❌` stage is its own blocker and shows as ✗. Only counts are drawn, each in the stage it belongs to. Do not copy those into the state file. For any other blocker — what `/developer` counts as one in `work-mode.md` (an `assign-failure-<ticket>.md` no later run supersedes, Jira or PR state that needs a person) — write one `Blocker: [<stage id>: ]<one line>` header line each — name the stage (`Blocker: 4: the reviewer bot is down`) or the pane puts it on the next unfinished one — and remove it when it is resolved. The pane draws `⛔ <n>` on that stage's row; a stage with no marker has no blocker in those records, which says nothing about anything they do not hold.
 
 `Design gate` is `unset` until Stage 1.5 asks; then `on`/`off`, remembered so resumes never re-ask.
 

@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 
-import { age, parse, prLabel } from './pipeline-pane'
+import { EVIDENCE_FILES, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
 
 const md = `# Pipeline state — AR-450
 ## Stages
@@ -31,8 +31,8 @@ test('parse reads Status, Next and a stage detail as written', () => {
   )
   expect(p?.status).toEqual({ state: 'waiting-user', text: '3 open questions block the plan' })
   expect(p?.next).toBe('/clarify AR-450, then re-run')
-  expect(p?.stages[1].detail).toBe('3/5 tasks (be 3/3, fe 0/2)')
-  expect(p?.stages[0].detail).toBe(undefined)
+  expect(p?.stages[1].details).toEqual(['3/5 tasks (be 3/3, fe 0/2)'])
+  expect(p?.stages[0].details).toEqual([])
   expect(p?.mtimeMs).toBe(1000)
 })
 
@@ -74,8 +74,12 @@ const full = md
 // `ageMs`: how long ago the file was last written (the pane's `updated … ago`); text null = no state file at all
 const world = ($: any, on: any) => {
   let file: { text: string; mtimeMs: number } | null = null
+  const files: Record<string, string> = {} // any other file the pane may read, by path (open-question.md, pr-<ticket>.md)
   on('fs.list', async () => ({ value: file ? [{ name: 'pipeline-AR-450.md', kind: 'file', size: 1, mtimeMs: file.mtimeMs, isLink: false }] : [] }))
-  on('fs.read', async () => ({ value: file?.text ?? '' }))
+  // the host hands hooks absolute paths: match a registered file by its tail
+  const find = (path: string) => Object.keys(files).find(k => path === k || path.endsWith(`/${k}`))
+  on('fs.read', async (_$, e) => ({ value: find(e.path) ? files[find(e.path)!] : (file?.text ?? '') }))
+  on('fs.exists', async (_$, e) => ({ value: find(e.path) !== undefined }))
   on('ui.open', async () => ({ value: undefined }))
   const clock = mock.clock(on, { now: NOW })
   const draw = async (surface: (typeof surfaces)[number], text: string | null, ageMs = 0) => {
@@ -83,7 +87,7 @@ const world = ($: any, on: any) => {
     await $.command.run({ command: 'stages', args: '' })
     return $.ui.mount({ plugin: 'shipkit', surface, component: 'Pane', requestId: 'pipeline', props: {} })
   }
-  return Object.assign(draw, { clock })
+  return Object.assign(draw, { clock, files })
 }
 const has = async (ui: any, text: RegExp) => (await ui.find({ type: 'Text', text })) !== undefined
 
@@ -207,30 +211,47 @@ test('closing the pane stops the animation: the frame stands still until the pan
 // ---- context rows and interaction ----
 
 const rich = full
-  .replace('## Stages', 'PRs: https://bitbucket.org/ws/api/pull-requests/12 https://bitbucket.org/ws/web/pull-requests/7\nEvidence: .shipkit/evidence/AR-450/\nPoller: waiting for the reporter (silent 2)\n## Stages')
+  .replace('## Stages', 'PRs: root=https://bitbucket.org/ws/shop/pull-requests/3 be=https://bitbucket.org/ws/api/pull-requests/12 fe=https://bitbucket.org/ws/web/pull-requests/7\nEvidence: .shipkit/evidence/AR-450/\nPoller: waiting for the reporter (silent 2)\n## Stages')
   .replace('- [x] 1 spec — /spec-from-ticket AR-450', '- [x] 1 spec — /spec-from-ticket AR-450\n  - detail: 14 requirements')
 
-test('parse reads Branch, PRs, Evidence and Poller; PR labels are short', () => {
+test('a stage keeps every detail line in order', () => {
+  const p = parse(md.replace('- [x] 1 spec — /spec-from-ticket AR-450', '- [x] 1 spec — x\n  - detail: root  feat/AR-450-x\n  - detail: fe    feat/AR-450-x-fe\n  - detail: be    feat/AR-450-x-be'))
+  expect(p?.stages[0].details).toEqual(['root  feat/AR-450-x', 'fe    feat/AR-450-x-fe', 'be    feat/AR-450-x-be'])
+})
+
+test('parse reads PRs, Evidence and every Poller line; PR labels are short', () => {
   const p = parse(rich)
-  expect(p?.branch).toBe('fix/AR-450-x')
-  expect(p?.prs).toEqual(['https://bitbucket.org/ws/api/pull-requests/12', 'https://bitbucket.org/ws/web/pull-requests/7'])
+  expect(p?.prs).toEqual([
+    { label: 'root', url: 'https://bitbucket.org/ws/shop/pull-requests/3' },
+    { label: 'be', url: 'https://bitbucket.org/ws/api/pull-requests/12' },
+    { label: 'fe', url: 'https://bitbucket.org/ws/web/pull-requests/7' },
+  ])
   expect(p?.evidence).toBe('.shipkit/evidence/AR-450/')
-  expect(p?.poller).toBe('waiting for the reporter (silent 2)')
-  expect(parse(md)).toMatchObject({ branch: null, prs: [], evidence: null, poller: null })
-  expect(parse(md.replace('## Stages', 'Branch: feat/AR-450-y\n## Stages'))?.branch).toBe('feat/AR-450-y')
+  expect(p?.pollers).toEqual(['waiting for the reporter (silent 2)'])
+  expect(parse(md)).toMatchObject({ prs: [], evidence: null, pollers: [] })
   expect([prLabel('https://bitbucket.org/ws/api/pull-requests/12'), prLabel('https://github.com/o/r/pull/9'), prLabel('https://x.test/a/b')]).toEqual(['#12', '#9', 'b'])
 })
 
-test('the pane draws Branch, Poller, one link per PR and the Evidence row', async ($, on) => {
+test('a PR without a label is named by its repo; one with no repo in the URL has none; non-URLs are dropped', () => {
+  expect(parsePr('https://bitbucket.org/ws/api/pull-requests/12')).toEqual([{ label: 'api', url: 'https://bitbucket.org/ws/api/pull-requests/12' }])
+  expect(parsePr('https://github.com/o/r/pull/9')).toEqual([{ label: 'r', url: 'https://github.com/o/r/pull/9' }])
+  expect(parsePr('https://x.test/a/b')).toEqual([{ label: null, url: 'https://x.test/a/b' }])
+  expect(parsePr('fe=https://x.test/a/b')).toEqual([{ label: 'fe', url: 'https://x.test/a/b' }])
+  expect([...parsePr('nope'), ...parsePr('fe=nope')]).toEqual([])
+  expect(repoOf('https://gitlab.com/g/p/-/merge_requests/4')).toBe('p')
+})
+
+test('the pane draws the declared Poller lines, one link per PR and the Evidence row', async ($, on) => {
   const draw = world($, on)
   for (const surface of surfaces) {
     const ui = await draw(surface, rich)
-    expect(await has(ui, /Branch: fix\/AR-450-x/)).toBe(true)
-    expect(await has(ui, /Poller: waiting for the reporter \(silent 2\)/)).toBe(true)
+    expect(await has(ui, /Branch:/)).toBe(false) // branches live in the stage that made them, not under the header
+    expect(await has(ui, /^⏳ waiting for the reporter \(silent 2\)$/)).toBe(true)
     expect(await ui.find({ type: 'Link', text: /#12/ })).toBeDefined()
     expect(await ui.find({ type: 'Link', text: /#7/ })).toBeDefined()
+    expect(await ui.find({ type: 'Link', text: /#3/ })).toBeDefined()
     expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/Evidence: \.shipkit\/evidence\/AR-450\//)
-    expect(await has(ui, /PRs: #12 #7/)).toBe(true)
+    expect(await has(ui, /PRs: root #3 · be #12 · fe #7/)).toBe(true)
     await ui.unmount()
   }
 })
@@ -263,5 +284,529 @@ test('a stage detail is open for the next and failed stage, closed otherwise, an
   const failed = rich.replace('- [ ] 4 review ❌ — x', '- [ ] 4 review ❌ — x\n  - detail: /review-changes exited 2, rerun it')
   const ui = await draw('terminal', failed)
   expect(await has(ui, /exited 2, rerun it/)).toBe(true) // failed stage: open though it is not the next one
+  await ui.unmount()
+})
+
+test('the status reason is drawn inside the next stage, between its row and its detail, not under the header', async ($, on) => {
+  const draw = world($, on)
+  for (const surface of surfaces) {
+    const ui = await draw(surface, full)
+    const order = async (re: RegExp) => (await ui.findAll({ type: 'Text' })).findIndex((t: any) => re.test(t.text))
+    const [header, row, reason, detail] = [await order(/AR-450/), await order(/3 implement/), await order(/3 open questions/), await order(/3\/5 tasks/)]
+    expect([header, row, reason, detail].every(i => i >= 0)).toBe(true)
+    expect(row).toBeLessThan(reason)
+    expect(reason).toBeLessThan(detail)
+    await ui.unmount()
+  }
+})
+
+test('a stage opened on one ticket does not open the stage with the same id on another ticket', async ($, on) => {
+  const draw = world($, on)
+  const other = rich.replace(/AR-450/g, 'AR-451')
+  let ui = await draw('terminal', rich)
+  await ui.press({ key: 'stage:1' })
+  expect(await has(ui, /14 requirements/)).toBe(true)
+  await ui.unmount()
+  ui = await draw('terminal', other)
+  expect(await has(ui, /AR-451/)).toBe(true)
+  expect(await has(ui, /14 requirements/)).toBe(false) // same stage id 1, other ticket: still closed
+  await ui.unmount()
+})
+
+test('branches are the details of the stage that made them: one line per repo, shown when the stage is opened', async ($, on) => {
+  const draw = world($, on)
+  const text = rich.replace('- [x] 1 spec — /spec-from-ticket AR-450', '- [x] 1 spec — x\n  - detail: root  feat/AR-450-x\n  - detail: fe    feat/AR-450-x-fe\n  - detail: be    feat/AR-450-x-be')
+  const ui = await draw('terminal', text)
+  expect(await has(ui, /feat\/AR-450-x-fe/)).toBe(false) // a done stage starts closed
+  await ui.press({ key: 'stage:1' })
+  for (const b of [/root {2}feat\/AR-450-x$/, /fe {4}feat\/AR-450-x-fe/, /be {4}feat\/AR-450-x-be/]) expect(await has(ui, b)).toBe(true)
+  await ui.unmount()
+})
+
+// ---- open questions and blockers ----
+
+const withSpec = md
+  .replace('## Stages', 'Flow: standard · Spec: specs/071-x · Scope: fe+be\n## Stages')
+  .replace('- [x] 1 spec — /spec-from-ticket AR-450', '- [x] 1 spec — /spec-from-ticket AR-450\n- [x] 1.2 clarify — /clarify AR-450')
+  .replace('- [ ] 4 review ❌ — x', '- [ ] 4 review ❌ — x\n- [ ] 5 prs — /pr')
+const OQ = 'specs/071-x/open-question.md'
+const PRC = '.shipkit/pr-AR-450.md'
+
+test('openItems keeps the unchecked items, optionally only under one heading', () => {
+  const md2 = '- [x] OQ-1 — done **Resolved: yes**\n- [ ] OQ-2 — open one\n## Concerns\n- [ ] c1\n- [x] c2\n## Other\n- [ ] not a concern\n'
+  expect(openItems(md2)).toEqual(['OQ-2 — open one', 'c1', 'not a concern'])
+  expect(openItems(md2, '## Concerns')).toEqual(['c1'])
+  expect(openItems('(none yet)')).toEqual([])
+})
+
+test('parse reads the Spec dir and every Blocker line', () => {
+  const p = parse(withSpec.replace('## Stages', 'Blocker: assign-failure-AR-450.md: fe worker failed, no later run\nBlocker: Jira AR-450 needs a person\n## Stages'))
+  expect(p?.spec).toBe('specs/071-x')
+  expect(p?.blockers).toEqual(['assign-failure-AR-450.md: fe worker failed, no later run', 'Jira AR-450 needs a person'])
+  expect(parse(md)).toMatchObject({ spec: null, blockers: [] })
+})
+
+// the clarify row is just its name; pressing it opens a summary of the open questions, the draft waiting for the user and the PO's silence
+const opened = async (ui: any, key = 'stage:1.2') => {
+  await ui.press({ key })
+  return ui
+}
+
+test('the clarify row opens up to the open-question count read from open-question.md, nothing claimed without a Spec line', async ($, on) => {
+  const draw = world($, on)
+  for (const surface of surfaces) {
+    draw.files[OQ] = '- [x] OQ-1 — asked **Resolved: yes**\n- [ ] OQ-2 — who sees the Transcript tab?\n- [ ] OQ-3 — mobile order?\n'
+    let ui = await draw(surface, withSpec)
+    expect(await has(ui, /1\.2 clarify ⚠️ ▾$/)).toBe(true) // closed: the stage name and a +, no numbers on the row
+    expect(await has(ui, /OQ/)).toBe(false)
+    await opened(ui)
+    expect(await has(ui, /OQ: 2 open of 3/)).toBe(true)
+    expect(await has(ui, /OQ-2|OQ-3|Transcript tab/)).toBe(false) // the count, not the questions
+    await opened(ui) // leave it closed for the next surface
+    await ui.unmount()
+
+    draw.files[OQ] = '- [x] OQ-1 — asked **Resolved: yes**\n'
+    ui = await draw(surface, withSpec)
+    await opened(ui)
+    expect(await has(ui, /OQ: 0 open of 1/)).toBe(true)
+    await opened(ui)
+    await ui.unmount()
+
+    delete draw.files[OQ] // clarify's own rule: no open-question.md = nothing open
+    ui = await draw(surface, withSpec)
+    await opened(ui)
+    expect(await has(ui, /OQ: none open/)).toBe(true)
+    await opened(ui)
+    await ui.unmount()
+
+    ui = await draw(surface, md) // no Spec: line (and no clarify stage): the pane says nothing about OQ
+    expect(await has(ui, /OQ/)).toBe(false)
+    await ui.unmount()
+  }
+})
+
+test('blockerStage: the stage a Blocker line names, else the next unfinished one', () => {
+  const st = parse(withSpec)!.stages
+  expect(blockerStage('4: reviewer unreachable', st)).toBe('4')
+  expect(blockerStage('1.2 — PO away', st)).toBe('1.2')
+  expect(blockerStage('Jira: AR-450 needs a person', st)).toBe('3') // "Jira" is no stage id: the next unfinished stage
+  expect(blockerStage('9: nothing here', st)).toBe('3')
+})
+
+test('blockers are counts in the stage they belong to; nothing is drawn when there are none', async ($, on) => {
+  const draw = world($, on)
+  for (const surface of surfaces) {
+    let ui = await draw(surface, withSpec.replace('- [ ] 4 review ❌ — x', '- [x] 4 review — x'))
+    expect(await has(ui, /⛔|Blockers/)).toBe(false)
+    await ui.unmount()
+
+    draw.files[PRC] = '## Concerns\n- [ ] reviewer: the handler has no workspace scope check\n- [x] fixed one\n## Other\n- [ ] not a concern\n'
+    const text = withSpec.replace('## Stages', 'Blocker: Jira AR-450 needs a person\nBlocker: 4: the reviewer bot is down\n## Stages')
+    ui = await draw(surface, text)
+    expect(await has(ui, /3 implement · ⛔ 1/)).toBe(true) // unlabeled: the next unfinished stage
+    expect(await has(ui, /4 review · ⛔ 1/)).toBe(true) // named stage (it is also the failed one)
+    expect(await has(ui, /5 prs · ⛔ 1/)).toBe(true) // the one open PR concern
+    expect(await has(ui, /Blockers:/)).toBe(false) // no header summary any more
+    expect(await has(ui, /needs a person|bot is down|workspace scope|not a concern/)).toBe(false) // counts only
+    await ui.unmount()
+    delete draw.files[PRC]
+  }
+})
+
+const CL = '.shipkit/clarify-AR-450.md'
+
+test('countItems counts open and all checklist items; parseClarify reads the draft and the silence', () => {
+  expect(countItems('- [x] OQ-1\n- [ ] OQ-2\n- [ ] OQ-3\ntext\n')).toEqual({ open: 2, total: 3 })
+  expect(countItems('(none)')).toEqual({ open: 0, total: 0 })
+  expect(parseClarify('pending_comment: null\nsilent_ticks: 0\n')).toEqual({ pending: false, silent: 0, rounds: 0 })
+  expect(parseClarify('pending_comment: .shipkit/drafts/c.md\nsilent_ticks: 2\nfollow_up_rounds: 3\n')).toEqual({ pending: true, silent: 2, rounds: 3 })
+  expect(parseClarify('silent_ticks: 3\npending_comment:\n  Hi Boris, three questions\n')).toEqual({ pending: true, silent: 3, rounds: 0 })
+  expect(parseClarify('# no fields')).toEqual({ pending: false, silent: 0, rounds: 0 })
+})
+
+test('the opened clarify row also says a drafted question is waiting for the user and how long the PO has been silent', async ($, on) => {
+  const draw = world($, on)
+  for (const surface of surfaces) {
+    draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
+    draw.files[CL] = 'pending_comment: .shipkit/drafts/clarify.md\nsilent_ticks: 2\n'
+    let ui = await draw(surface, withSpec)
+    expect(await has(ui, /draft waiting|PO silent/)).toBe(false) // closed: nothing but the name
+    await opened(ui)
+    expect(await has(ui, /OQ: 1 open of 2/)).toBe(true)
+    expect(await has(ui, /✎ draft waiting for you/)).toBe(true)
+    expect(await has(ui, /PO silent for 2 poll windows/)).toBe(true)
+    await opened(ui)
+    await ui.unmount()
+
+    draw.files[CL] = 'pending_comment: null\nsilent_ticks: 0\n'
+    ui = await draw(surface, withSpec)
+    await opened(ui)
+    expect(await has(ui, /OQ: 1 open of 2/)).toBe(true)
+    expect(await has(ui, /draft waiting|PO silent/)).toBe(false) // nothing pending, nobody silent
+    await opened(ui)
+    await ui.unmount()
+
+    delete draw.files[CL] // no clarify state file: nothing is claimed about a draft or silence
+    ui = await draw(surface, withSpec)
+    await opened(ui)
+    expect(await has(ui, /draft waiting|PO silent/)).toBe(false)
+    await opened(ui)
+    await ui.unmount()
+  }
+})
+
+// ---- arrows and warnings on closed rows ----
+
+test('a row with something to open shows ▾ when closed and ▴ when open; a row with nothing has neither', async ($, on) => {
+  const draw = world($, on)
+  const ui = await draw('terminal', rich)
+  expect(await has(ui, /1 spec ▾$/)).toBe(true) // done stage with a detail: closed
+  expect(await has(ui, /3 implement ▴$/)).toBe(true) // next stage: open
+  expect(await has(ui, /4 review/)).toBe(true)
+  expect(await has(ui, /[+−]$/)).toBe(false) // the old markers are gone
+  await ui.press({ key: 'stage:1' })
+  expect(await has(ui, /1 spec ▴$/)).toBe(true)
+  await ui.press({ key: 'stage:1' })
+  await ui.unmount()
+})
+
+test('a closed row warns ⚠️ when the stage has a problem inside: open questions, a draft, a silent PO, a branch not on origin', async ($, on) => {
+  const draw = world($, on)
+  const branches = (fe: string) =>
+    withSpec.replace('- [x] 1 spec — /spec-from-ticket AR-450', `- [x] 1 spec — x\n- [x] 2 branches — b\n  - detail: root  feat/x  ✅ pushed\n  - detail: fe    feat/x-fe  ${fe}`)
+  for (const surface of surfaces) {
+    // a branch that is not pushed, or has commits only here
+    for (const bad of ['⚠️ not pushed', '⬆️ 2 unpushed']) {
+      const ui = await draw(surface, branches(bad))
+      expect(await has(ui, /2 branches ⚠️ ▾$/)).toBe(true)
+      await ui.press({ key: 'stage:2' }) // opened: the details say it, no icon needed on the row
+      expect(await has(ui, /2 branches ▴$/)).toBe(true)
+      expect(await has(ui, /feat\/x-fe {2}/)).toBe(true)
+      await ui.press({ key: 'stage:2' })
+      await ui.unmount()
+    }
+    // everything pushed: nothing to warn about
+    let ui = await draw(surface, branches('✅ pushed'))
+    expect(await has(ui, /2 branches ▾$/)).toBe(true)
+    await ui.unmount()
+
+    // clarify: open questions, a waiting draft, a silent PO
+    draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
+    ui = await draw(surface, withSpec)
+    expect(await has(ui, /1\.2 clarify ⚠️ ▾$/)).toBe(true)
+    await ui.unmount()
+    draw.files[OQ] = '- [x] OQ-1 — a\n'
+    draw.files[CL] = 'pending_comment: .shipkit/drafts/c.md\nsilent_ticks: 0\n'
+    ui = await draw(surface, withSpec)
+    expect(await has(ui, /1\.2 clarify ⚠️ ▾$/)).toBe(true)
+    await ui.unmount()
+    draw.files[CL] = 'pending_comment: null\nsilent_ticks: 3\n'
+    ui = await draw(surface, withSpec)
+    expect(await has(ui, /1\.2 clarify ⚠️ ▾$/)).toBe(true)
+    await ui.unmount()
+    draw.files[CL] = 'pending_comment: null\nsilent_ticks: 0\n' // all answered, nothing waiting: no warning
+    ui = await draw(surface, withSpec)
+    expect(await has(ui, /1\.2 clarify ▾$/)).toBe(true)
+    await ui.unmount()
+    delete draw.files[OQ]
+    delete draw.files[CL]
+  }
+})
+
+// ---- the waits the plugin's skills run, and the ping button ----
+
+const BUG = '.shipkit/bugfix-AR-450.md'
+const PRL = '.shipkit/pr-AR-450.md'
+
+test('parseBugfix and parsePrLoop read what the loops are still waiting for, and whether a drafted message waits for the user', () => {
+  expect(parseBugfix('silent_ticks: 2\npending_comment: null\n## Concerns (QC comment 46702)\n- [x] 1 done\n- [ ] 2 open\n- [ ] 3 open\n## Boris decisions\n- [ ] not a concern\n')).toEqual({ open: 2, silent: 2, pending: false })
+  expect(parseBugfix('pending_comment: .shipkit/drafts/b.md\n## Concerns\n- [ ] 1\n')).toEqual({ open: 1, silent: 0, pending: true })
+  expect(parseBugfix('# nothing')).toEqual({ open: 0, silent: 0, pending: false })
+  const pr = '# PR loop state\nsilent_ticks: 1\nround: 2\npending_action: null\n## PR approvals\n- ai-roleplay-be #294 — lgtm@abc123\n- ai-roleplay #467 — pending\n- ai-roleplay-sdd #142 — changes\n## Concerns\n- [ ] x\n'
+  expect(parsePrLoop(pr)).toEqual({ waiting: 2, total: 3, round: 2, silent: 1, pending: false })
+  expect(parsePrLoop(pr.replace('pending_action: null', 'pending_action: post the reminder to Slack')).pending).toBe(true)
+  expect(parsePrLoop('# nothing')).toEqual({ waiting: 0, total: 0, round: 0, silent: 0, pending: false })
+})
+
+const none = { ticket: 'AR-450', oq: null, clarify: null, bug: null, pr: null }
+const pr1 = { waiting: 2, total: 3, round: 1, silent: 1, pending: false }
+
+test('waitingOn names who is awaited, only while a loop has something open', () => {
+  expect(waitingOn(none)).toEqual([])
+  expect(waitingOn({ ...none, oq: { open: 0, total: 5 }, clarify: { silent: 3, pending: false, rounds: 0 } })).toEqual([]) // all answered: nothing is awaited
+  const w = waitingOn({ ticket: 'AR-450', oq: { open: 2, total: 5 }, clarify: { silent: 2, pending: false, rounds: 0 }, bug: { open: 1, silent: 1, pending: false }, pr: pr1 })
+  expect(w.map(x => x.text)).toEqual([
+    "Jira · the PO's answers to 2 open questions (silent 2)",
+    "Jira · the reporter's reply on 1 concern (silent 1)",
+    "Slack · the reviewer's verdict on 2 of 3 PRs (round 1, silent 1)",
+  ])
+  expect(w.map(x => x.kind)).toEqual(['clarify', 'bugfix', 'pr'])
+})
+
+test('a ping is offered only when it makes sense: not while a draft waits, not before a poll window has passed', () => {
+  const clar = (c: Partial<{ silent: number; pending: boolean; rounds: number }>) => waitingOn({ ...none, oq: { open: 2, total: 5 }, clarify: { silent: 2, pending: false, rounds: 0, ...c } })[0]
+  expect(clar({}).ping).not.toBe(null)
+  expect(clar({ pending: true })).toMatchObject({ ping: null, hold: 'confirm the drafted message first' }) // a second draft would pile up
+  expect(clar({ silent: 0 })).toMatchObject({ ping: null, hold: 'too soon: no poll window has passed' }) // just asked
+  expect(clar({ pending: true, silent: 0 }).hold).toBe('confirm the drafted message first') // the draft comes first
+  const bug = (b: Partial<{ silent: number; pending: boolean }>) => waitingOn({ ...none, bug: { open: 2, silent: 1, pending: false, ...b } })[0]
+  expect(bug({}).ping).not.toBe(null)
+  expect(bug({ pending: true }).ping).toBe(null)
+  expect(bug({ silent: 0 }).ping).toBe(null)
+  const prw = (b: Partial<{ silent: number; pending: boolean }>) => waitingOn({ ...none, pr: { ...pr1, ...b } })[0]
+  expect(prw({}).ping).not.toBe(null)
+  expect(prw({ pending: true }).ping).toBe(null)
+  expect(prw({ silent: 0 }).ping).toBe(null)
+})
+
+test('the ping message follows the situation, from numbers read from the state files', () => {
+  const clar = (c: Partial<{ silent: number; rounds: number }>, open = 2) => waitingOn({ ...none, oq: { open, total: 5 }, clarify: { silent: 2, pending: false, rounds: 0, ...c } })[0].ping!
+  expect(clar({})).toMatch(/not answered 2 of 5 open questions on AR-450; they have been silent for 2 poll windows/)
+  expect(clar({})).not.toMatch(/round cap/)
+  expect(clar({})).not.toMatch(/how long it has been/) // a short silence: no need to count the days
+  expect(clar({ silent: 1 })).toMatch(/silent for 1 poll window \(24 h/) // one window: singular
+  expect(clar({ silent: 4 })).toMatch(/silent for 4 poll windows/)
+  expect(clar({ silent: 4 })).toMatch(/how long it has been since the last ask/) // a long one: the agent says so
+  expect(clar({ rounds: 3 })).toMatch(/follow-up round cap \(3\) is already reached/)
+  expect(clar({ rounds: 3 })).toMatch(/closing ask only/)
+  expect(clar({ rounds: 3 })).toMatch(/whether anyone else on the ticket could answer/)
+  expect(clar({}, 1)).toMatch(/1 of 5 open questions/)
+  for (const m of [clar({}), clar({ rounds: 3 })]) expect(m).toMatch(/confirmation before you post/) // never posted unconfirmed
+  const bug = waitingOn({ ...none, bug: { open: 3, silent: 2, pending: false } })[0].ping!
+  expect(bug).toMatch(/3 concerns on AR-450 still wait for an answer, and nobody has replied for 2 poll windows/)
+  expect(bug).toMatch(/whom each concern waits on/) // the reporter, or the PO for a product decision
+  expect(waitingOn({ ...none, bug: { open: 1, silent: 1, pending: false } })[0].ping).toMatch(/1 concern on AR-450 still waits for an answer/)
+  const pr = waitingOn({ ...none, pr: { waiting: 2, total: 3, round: 2, silent: 3, pending: false } })[0].ping!
+  expect(pr).toMatch(/2 of 3 PRs of AR-450 still have no reviewer verdict \(review round 2\)/)
+  expect(pr).toMatch(/quiet for 3 poll windows/)
+  expect(waitingOn({ ...none, pr: { ...pr1, silent: 1 } })[0].ping).toMatch(/quiet for 1 poll window \(/)
+  expect(pr).toMatch(/only the PRs that have no verdict/)
+})
+
+test('the pane lists the waits it can read; a ping button sends the message built from them, then rests', async ($, on) => {
+  const draw = world($, on)
+  const sent: { text: string; asUser?: boolean }[] = []
+  on('prompt.submit', async (_$, e) => (sent.push({ text: e.text, asUser: e.origin?.asUser }), { drop: 'test: not delivered' }))
+  draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\nfollow_up_rounds: 0\n'
+  draw.files[BUG] = 'silent_ticks: 1\n## Concerns (QC)\n- [ ] one\n'
+  draw.files[PRL] = 'silent_ticks: 1\nround: 1\n## PR approvals\n- be #1 — pending\n- fe #2 — lgtm@abc\n'
+  const ui = await draw('terminal', withSpec)
+  expect(await has(ui, /⏳ Jira · the PO's answers to 1 open question \(silent 2\)/)).toBe(true)
+  expect(await has(ui, /⏳ Jira · the reporter's reply on 1 concern \(silent 1\)/)).toBe(true)
+  expect(await has(ui, /⏳ Slack · the reviewer's verdict on 1 of 2 PRs \(round 1, silent 1\)/)).toBe(true)
+  expect(sent).toEqual([])
+  await ui.press({ key: 'ping:0' })
+  expect(sent).toHaveLength(1)
+  expect(sent[0].text).toMatch(/^The PO has not answered 1 of 2 open questions on AR-450; they have been silent for 2 poll windows/)
+  expect(sent[0].asUser).toBe(true)
+  expect(await has(ui, /^· pinged just now$/)).toBe(true) // the button rests: no second nudge on top of the first
+  expect(await ui.find({ key: 'ping:0' })).toBeUndefined()
+  await ui.press({ key: 'ping:2' })
+  expect(sent[1].text).toMatch(/1 of 2 PRs of AR-450 still have no reviewer verdict/)
+  await ui.unmount()
+  await draw.clock.advance(61 * 60 * 1000) // an hour later
+  const again = await draw('terminal', withSpec)
+  expect(await again.find({ key: 'ping:0' })).toBeDefined() // the PO may be nudged again
+  await again.unmount()
+})
+
+test('no button while a drafted message waits for the user or no poll window has passed; the line says why', async ($, on) => {
+  const draw = world($, on)
+  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: .shipkit/drafts/c.md\nsilent_ticks: 2\n'
+  let ui = await draw('terminal', withSpec)
+  expect(await has(ui, /^· confirm the drafted message first$/)).toBe(true)
+  expect(await ui.find({ key: 'ping:0' })).toBeUndefined()
+  await ui.unmount()
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 0\n'
+  ui = await draw('terminal', withSpec)
+  expect(await has(ui, /^· too soon: no poll window has passed$/)).toBe(true)
+  expect(await ui.find({ key: 'ping:0' })).toBeUndefined()
+  await ui.unmount()
+})
+
+test('once the PO has answered, no wait and no ping button remain', async ($, on) => {
+  const draw = world($, on)
+  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  draw.files[OQ] = '- [x] OQ-1 — a\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  expect(await has(ui, /⏳/)).toBe(false)
+  expect(await ui.find({ key: 'ping:0' })).toBeUndefined()
+  await ui.unmount()
+})
+
+// ---- the Evidence row opens the evidence comment in Orca ----
+
+const EV = '.shipkit/evidence/AR-450'
+
+test('the evidence files, best first', () => {
+  expect(EVIDENCE_FILES).toEqual(['jira-comment.md', 'concern-evidence.md'])
+})
+
+test('with an evidence comment on disk the Evidence row opens it in Orca, not the path copy', async ($, on) => {
+  const draw = world($, on)
+  const ran: string[][] = []
+  const copied: string[] = []
+  on('process.run', async (_$, e) => (ran.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
+  on('ui.copy', async (_$, e) => (copied.push(e.text), { value: { isCopied: true } }))
+  draw.files[`${EV}/jira-comment.md`] = '| /verify | …'
+  draw.files[`${EV}/concern-evidence.md`] = '| Concern | …' // both there: the Jira draft wins
+  const ui = await draw('terminal', rich.replace('.shipkit/evidence/AR-450/', `${EV}/`))
+  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to open draft comment\)/)
+  await ui.press({ key: 'evidence' })
+  expect(ran).toEqual([['orca', 'file', 'open', `${EV}/jira-comment.md`, '--focus']])
+  expect(copied).toEqual([])
+  await ui.unmount()
+})
+
+test('only the bugfix evidence table on disk: that one opens; none: the row says copy and copies the directory path', async ($, on) => {
+  const draw = world($, on)
+  const ran: string[][] = []
+  const copied: string[] = []
+  on('process.run', async (_$, e) => (ran.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
+  on('ui.copy', async (_$, e) => (copied.push(e.text), { value: { isCopied: true } }))
+  const text = rich.replace('.shipkit/evidence/AR-450/', `${EV}/`)
+  draw.files[`${EV}/concern-evidence.md`] = '| Concern | …'
+  let ui = await draw('terminal', text)
+  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to open draft comment\)/)
+  await ui.press({ key: 'evidence' })
+  expect(ran).toEqual([['orca', 'file', 'open', `${EV}/concern-evidence.md`, '--focus']])
+  await ui.unmount()
+
+  delete draw.files[`${EV}/concern-evidence.md`]
+  ui = await draw('terminal', text)
+  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to copy\)/)
+  await ui.press({ key: 'evidence' })
+  expect(ran).toHaveLength(1) // no Orca call without a file to open
+  expect(copied).toEqual([`${EV}/`])
+  await ui.unmount()
+})
+
+test('when Orca cannot open it (not running, not an Orca worktree, no such command) the path is copied instead', async ($, on) => {
+  const draw = world($, on)
+  const copied: string[] = []
+  on('process.run', async () => ({ value: { exitCode: 1, stdout: '', stderr: 'not an Orca worktree' } }))
+  on('ui.copy', async (_$, e) => (copied.push(e.text), { value: { isCopied: true } }))
+  draw.files[`${EV}/jira-comment.md`] = '| /verify | …'
+  const ui = await draw('terminal', rich.replace('.shipkit/evidence/AR-450/', `${EV}/`))
+  await ui.press({ key: 'evidence' })
+  expect(copied).toEqual([`${EV}/`])
+  await ui.unmount()
+})
+
+// ---- [ ok ] on Next: ----
+
+const nextState = (status: string, next = '/merge AR-450 once the reviewer signs off') =>
+  md.replace('## Stages', `Status: ${status}\nNext: ${next}\n## Stages`)
+
+// a parsed pipeline with the loops' state filled in, as the pane's refresh would
+const pl = (text: string, over: Record<string, unknown> = {}) => ({ ...parse(text)!, ...over }) as NonNullable<ReturnType<typeof parse>>
+const prs3 = { waiting: 0, total: 3, round: 1, silent: 0, pending: false }
+
+test('nextStep quotes the step in a frame that checks its condition first, and refuses a bad key or an empty step', () => {
+  const m = nextStep(pl(nextState('waiting-user · x')))
+  expect(m.hold).toBe(null)
+  expect(m.prompt).toMatch(/^Carry out the next step recorded for AR-450: "\/merge AR-450 once the reviewer signs off"\./)
+  expect(m.prompt).toMatch(/First check against the real state \(git, the PRs, Jira\)/)
+  expect(m.prompt).toMatch(/if it is not, tell me what is missing and do nothing else/)
+  expect(m.prompt).toMatch(/still needs my explicit go-ahead/) // the merge is the skill's gate, not the button's
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: '  two\n  lines   here ' })).prompt).toMatch(/"two lines here"/) // one line
+  expect(nextStep(pl(nextState('waiting-user · x', 'x'.repeat(500)))).prompt!.length).toBeLessThan(1100) // the step is cut
+  expect(nextStep(pl(nextState('waiting-user · x'), { ticket: 'ar 450; rm' }))).toEqual({ prompt: null, hold: null })
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: null }))).toEqual({ prompt: null, hold: null })
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: '   ' }))).toEqual({ prompt: null, hold: null })
+})
+
+test('nextStep holds back while a drafted message waits, and a /merge step while a PR has no lgtm or a concern is open', () => {
+  const base = pl(nextState('waiting-user · x'))
+  expect(nextStep({ ...base, clarify: { pending: true, silent: 0, rounds: 0 } }).hold).toBe('confirm the drafted message first')
+  expect(nextStep({ ...base, bug: { open: 1, silent: 0, pending: true } }).hold).toBe('confirm the drafted message first')
+  expect(nextStep({ ...base, prLoop: { ...prs3, pending: true } })).toEqual({ prompt: null, hold: 'confirm the drafted message first' })
+  expect(nextStep({ ...base, prLoop: { ...prs3, waiting: 2 } })).toEqual({ prompt: null, hold: '2 of 3 PRs have no lgtm yet' })
+  expect(nextStep({ ...base, prLoop: { ...prs3, waiting: 1 } }).hold).toBe('1 of 3 PRs has no lgtm yet')
+  expect(nextStep({ ...base, concerns: ['a', 'b'] }).hold).toBe('2 open PR concerns')
+  expect(nextStep({ ...base, prLoop: prs3, concerns: [] }).prompt).not.toBe(null) // all lgtm, nothing open: go
+  // the gate is for /merge: any other step is not held by unfinished PRs
+  const other = pl(nextState('waiting-user · x', 'answer the PO, then re-run /run-pipeline AR-450'), { prLoop: { ...prs3, waiting: 2 } })
+  expect(nextStep(other).prompt).not.toBe(null)
+})
+
+test('nextStep tells the agent the numbers the pane has read', () => {
+  const base = pl(nextState('waiting-user · x', 'wait for the PO'), {
+    oq: { open: 3, total: 5 },
+    prLoop: { ...prs3, waiting: 1 },
+    concerns: ['c'],
+    bug: { open: 2, silent: 0, pending: false },
+    blockers: ['one', 'two'],
+  })
+  const m = nextStep(base).prompt!
+  expect(m).toMatch(/Where things stand: stage 3 implement; 3 of 5 open questions still open; 1 of 3 PRs without lgtm; 1 open PR concern; 2 bug concerns open; 2 declared blockers\./)
+  expect(nextStep(pl(nextState('waiting-user · x', 'go'))).prompt).toMatch(/Where things stand: stage 3 implement\./) // only what exists
+  expect(nextStep(pl('# Pipeline state — AR-450\n## Stages\n- [x] 1 spec — x\nNext: done soon\n', { next: 'done soon' })).prompt).toMatch(/nothing else recorded/)
+})
+
+test('nextStep says what kind of step it is: merge gate, PO answers, bug fix, PR review, implement, or nothing special', () => {
+  const at = (stage: string, next: string, over: Record<string, unknown> = {}) =>
+    nextStep(pl(`# Pipeline state — AR-450\nStatus: waiting-user · x\nNext: ${next}\n## Stages\n- [ ] 9 ${stage} — x\n`, over)).prompt!
+  expect(at('merged', '/merge AR-450', { prLoop: prs3 })).toMatch(/This is the merge gate: before \/merge, confirm that every PR has lgtm for its current head/)
+  expect(at('prs', '/merge AR-450 once the reviewer signs off', { prLoop: prs3 })).toMatch(/merge gate/) // a /merge step is the gate whatever the stage
+  expect(at('clarify', 'wait for the PO')).toMatch(/folds in the PO's answers: read the new Jira comments/)
+  expect(at('bugfix', 'apply the decisions')).toMatch(/This is the bug-fix step: .* stop at a drafted comment for my confirmation/)
+  expect(at('prs', 'wait for the reviewer')).toMatch(/PR review step: follow \/pr's review loop .* do not merge/)
+  expect(at('implement', 'wait for /assign')).toMatch(/implement step: hand the tasks to workers as \/assign does/)
+  const plain = at('plan', 'run /plan-deep')
+  expect(plain).not.toMatch(/This is the/) // no kind: just the frame
+  for (const m of [at('merged', '/merge AR-450', { prLoop: prs3 }), at('clarify', 'x'), plain]) expect(m).toMatch(/First check against the real state/)
+})
+
+test('[ ok ] on Next: sends the step to the agent, then rests so it is not sent twice', async ($, on) => {
+  const draw = world($, on)
+  const sent: { text: string; asUser?: boolean }[] = []
+  on('prompt.submit', async (_$, e) => (sent.push({ text: e.text, asUser: e.origin?.asUser }), { drop: 'test: not delivered' }))
+  const ui = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
+  expect(await has(ui, /^Next: \/merge AR-450 once the reviewer signs off $/)).toBe(true)
+  expect(await has(ui, /^\[ ok \]$/)).toBe(true)
+  await ui.press({ key: 'next' })
+  expect(sent).toHaveLength(1)
+  expect(sent[0].text).toBe(nextStep(pl(nextState('waiting-user · x'))).prompt)
+  expect(sent[0].asUser).toBe(true)
+  expect(await ui.find({ key: 'next' })).toBeUndefined() // resting
+  expect(await has(ui, /^· sent just now$/)).toBe(true)
+  await ui.unmount()
+  await draw.clock.advance(11 * 60 * 1000)
+  const again = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
+  expect(await again.find({ key: 'next' })).toBeDefined() // ten minutes later it may be sent again
+  await again.unmount()
+})
+
+test('the pane reads the loops itself: a /merge step shows no button while a PR has no lgtm, and says why', async ($, on) => {
+  const draw = world($, on)
+  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  draw.files[PRL] = '## PR approvals\n- be #1 — lgtm@abc\n- fe #2 — pending\n'
+  let ui = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
+  expect(await ui.find({ key: 'next' })).toBeUndefined()
+  expect(await has(ui, /^· 1 of 2 PRs has no lgtm yet$/)).toBe(true)
+  await ui.unmount()
+  draw.files[PRL] = '## PR approvals\n- be #1 — lgtm@abc\n- fe #2 — lgtm@def\n'
+  ui = await draw('terminal', nextState('waiting-user · all signed off'))
+  expect(await ui.find({ key: 'next' })).toBeDefined() // every PR signed off: the gate is open
+  await ui.unmount()
+})
+
+test('no [ ok ] unless the run waits for the user: not while it runs, after a failure, when done, or with no status', async ($, on) => {
+  const draw = world($, on)
+  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  for (const status of ['running · implementing', 'failed · review blocked', 'done · all merged']) {
+    const ui = await draw('terminal', nextState(status))
+    expect(await has(ui, /^Next: /)).toBe(true)
+    expect(await ui.find({ key: 'next' })).toBeUndefined()
+    expect(await has(ui, /^· /)).toBe(false) // and no hold line either: it is not the user's turn
+    await ui.unmount()
+  }
+  const ui = await draw('terminal', md.replace('## Stages', 'Next: /merge AR-450\n## Stages')) // a Next with no Status at all
+  expect(await ui.find({ key: 'next' })).toBeUndefined()
   await ui.unmount()
 })
