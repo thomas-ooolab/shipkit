@@ -599,8 +599,38 @@ const startCollect = async ($: any): Promise<void> => {
     await update($, checked, (o: Checked) => ({ ticket: p.ticket, at, running: false, data: o?.data ?? null, error: why }))
     return refresh($, true)
   }
+  // cancelled while it was starting: nothing waits for it, and it is asked to stop
+  if ((await read($, checked))?.running !== true) return void (await askToStop($, id))
   collecting.set(id, p.ticket)
   $.clock.after(COLLECT_TIMEOUT_MS, () => finishCollect($, id, null)) // the checker took too long
+}
+
+// A cancel stops the checker the way the model stops a background agent, with the TaskStop tool on its id; the pane stops waiting at once too
+// (the answer, if one still comes, is ignored). If the tool refuses, the checker is sent a message to stop, and else it ends at its turn limit.
+const CANCELLED = 'cancelled'
+const askToStop = async ($: any, id: string): Promise<void> => {
+  try {
+    const r = await $.tool.call({ tool: 'TaskStop', task_id: id })
+    if (!r?.isError) return
+  } catch {
+    // the message below
+  }
+  try {
+    await $.session.send({ to: { agentId: id }, text: 'Stop now: run no more commands and answer {} .' })
+  } catch {
+    // it ends on its own
+  }
+}
+const cancelCollect = async ($: any): Promise<void> => {
+  const was = await read($, checked)
+  if (!was?.running) return
+  for (const [id, ticket] of [...collecting]) {
+    if (ticket !== was.ticket) continue
+    collecting.delete(id)
+    await askToStop($, id)
+  }
+  await update($, checked, (o: Checked) => (o ? { ...o, running: false, error: CANCELLED } : o))
+  await refresh($, true)
 }
 
 const stop = () => {
@@ -793,6 +823,8 @@ export const register: Register = on => {
       <Text dimColor>not checked yet </Text>
     ) : ck.state === 'running' ? (
       <Text color={C.accent}>{spun} checking{ck.model ? ` with ${ck.model}` : ''}{ck.hasData ? ` (the last check, ${age(now - ck.at)}, stays until it is done)` : ' (showing the state files)'}… </Text>
+    ) : ck.error === CANCELLED ? (
+      <Text color={C.warn}>⏹ check cancelled{ck.hasData ? `; showing the last one, ${age(now - ck.at)}` : '; showing the state files'} </Text>
     ) : ck.state === 'failed' ? (
       <Text color={C.warn}>⚠ the check failed ({ck.error}){ck.hasData ? `; showing the last one, ${age(now - ck.at)}` : '; showing the state files'} </Text>
     ) : (
@@ -813,7 +845,7 @@ export const register: Register = on => {
         </Box>
         <Box>
           {checkLine}
-          {p.check?.state === 'running' ? null : pill(els, 'recheck', 'refresh', () => startCollect($))}
+          {p.check?.state === 'running' ? pill(els, 'stopcheck', 'X', () => cancelCollect($)) : pill(els, 'recheck', 'refresh', () => startCollect($))}
         </Box>
         {!next && p.status?.text ? <Text color={color}>{p.status.text}</Text> : null}
         {p.prs.length && !p.stages.some(s => s.name === 'prs') ? (

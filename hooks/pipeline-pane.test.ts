@@ -1116,6 +1116,8 @@ test('a check that is running animates: its marker turns through the spinner fra
   })
   const ui = await draw('terminal', md, 1 * MIN) // a state file that is not live: only the check turns the spinner
   expect(await has(ui, /^⠋ checking \(showing the state files\)… $/)).toBe(true)
+  expect(await ui.find({ key: 'recheck' })).toBeUndefined() // while it runs, the button is cancel
+  expect(await ui.find({ key: 'stopcheck' })).toBeDefined()
   await draw.clock.advance(150)
   expect(await has(ui, /^⠙ checking/)).toBe(true)
   await draw.clock.advance(150)
@@ -1189,5 +1191,26 @@ test('a prs detail that only lists the open PRs is not drawn: the links say it, 
   await ui.press({ key: 'stage:5' })
   expect(await has(ui, /BE 12, FE 7 open/)).toBe(false)
   expect(await has(ui, /no reviewer verdict/)).toBe(true)
+  await ui.unmount()
+})
+
+test('cancel stops waiting for a running check: the pane goes back to the last answer or the files and offers refresh again', async ($, on) => {
+  const draw = world($, on)
+  let box: { value: unknown; version: number } = { version: 1, value: { ticket: 'AR-450', at: NOW, running: true, error: null, data: null } }
+  on('state.get', async (_$: any, e: any, next: any) => (e.key === 'checked' ? { value: box } : next(e)))
+  on('state.set', async (_$: any, e: any, next: any) => {
+    if (e.key !== 'checked') return next(e)
+    box = { value: e.value, version: box.version + 1 }
+    return { value: { isSet: true, version: box.version } }
+  })
+  const ui = await draw('terminal', md, 1 * MIN)
+  expect(await has(ui, /checking/)).toBe(true)
+  await ui.press({ key: 'stopcheck' })
+  expect(await has(ui, /^⏹ check cancelled; showing the state files $/)).toBe(true)
+  expect(await has(ui, /checking/)).toBe(false)
+  expect(await ui.find({ key: 'stopcheck' })).toBeUndefined()
+  expect(await ui.find({ key: 'recheck' })).toBeDefined()
+  await draw.clock.advance(450)
+  expect(await has(ui, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)).toBe(false) // and the spinner stops
   await ui.unmount()
 })
