@@ -761,12 +761,16 @@ export const register: Register = on => {
   })
 
   on('ui.close', async ($, e, next) => {
-    if (e.id === PANE) stop()
+    if (e.id === PANE) {
+      stop()
+      await cancelCollect($) // closed some other way (Esc, the host): the running check is stopped too
+    }
     return next(e)
   })
 
   on('session.end', async ($, e, next) => {
     stop()
+    await cancelCollect($)
     return next(e)
   })
 
@@ -777,8 +781,9 @@ export const register: Register = on => {
       els,
       'close',
       'Close',
-      () => {
+      async () => {
         stop() // the plugin's own $.ui.close skips its own ui.close hook
+        await cancelCollect($) // nobody is left to read a check that is still running
         $.ui.close({ id: PANE })
       },
       false,

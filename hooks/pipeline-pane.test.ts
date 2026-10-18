@@ -1214,3 +1214,21 @@ test('cancel stops waiting for a running check: the pane goes back to the last a
   expect(await has(ui, /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/)).toBe(false) // and the spinner stops
   await ui.unmount()
 })
+
+test('Close stops a running check (the ui.close and session.end hooks do the same; a test cannot raise those)', async ($, on) => {
+  const draw = world($, on)
+  let box: { value: any; version: number } = { version: 1, value: { ticket: 'AR-450', at: NOW, running: true, error: null, data: null } }
+  on('state.get', async (_$: any, e: any, next: any) => (e.key === 'checked' ? { value: box } : next(e)))
+  on('state.set', async (_$: any, e: any, next: any) => {
+    if (e.key !== 'checked') return next(e)
+    box = { value: e.value, version: box.version + 1 }
+    return { value: { isSet: true, version: box.version } }
+  })
+  on('ui.close', async () => ({ value: undefined }))
+  const ui = await draw('terminal', md, 1 * MIN)
+  expect(box.value.running).toBe(true)
+  await ui.press({ key: 'close' })
+  expect(box.value.running).toBe(false)
+  expect(box.value.error).toBe('cancelled')
+  await ui.unmount()
+})
