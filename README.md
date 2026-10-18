@@ -334,11 +334,14 @@ do not load this plugin (kiro workers) — so at the weekend `/assign` workers o
 
 ## Stages pane (mod)
 
-`/stages` opens a pane that lists the stages of the newest `.shipkit/pipeline-<ticket>.md` (`✓` done, `▸` next, `✗`
-failed) and refreshes after every turn. It is a Claude Code mod (`hooks/pipeline-pane.tsx`, named in `hooks/hooks.json`
-under `modules`), so it needs Claude Code 2.1.287 or later and draws in the terminal, the Desktop app and VS Code only;
-older versions and `claude -p` simply do not show it. It reads the state file and never writes it. Test it with
-`claude plugin test .`.
+`/stages` opens a pane on the newest `.shipkit/pipeline-<ticket>.md` in the session's directory, refreshed every few seconds while it is open
+and after every turn. It shows, as `run-pipeline` wrote them: the ticket, the `Flow:` label and a status badge (`⏸ waiting for you`, `● running`
+with a spinner while the file is fresh, `✗ failed`, `✓ done`) with its reason; the stages (`✓` done, `▸` next, `✗` failed); under a stage a
+`detail` line (task counts, verify result, a failure's cause) that opens and closes when the stage is pressed — open by default for the next and
+failed stage; `Next:`; the branch, one link per PR, the poller's state, and the evidence path (press to copy); and how long ago the file was
+touched, with a warning when a run that is not finished has been silent for 30 minutes. It is a Claude Code mod (`hooks/pipeline-pane.tsx`,
+named in `hooks/hooks.json` under `modules`), so it needs Claude Code 2.1.287 or later and draws in the terminal, the Desktop app and VS Code
+only; older versions and `claude -p` simply do not show it. It reads the state file and never writes it. Test it with `claude plugin test .`.
 
 ## Developing shipkit itself
 

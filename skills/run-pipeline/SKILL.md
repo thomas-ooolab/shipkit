@@ -96,6 +96,12 @@ Write `.shipkit/pipeline-<ticket>.md` (mark `[x]` confirmed-complete, `[ ]` pend
 ```markdown
 # Pipeline state — <ticket>
 Flow: standard · Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|unset> · Updated: <ISO-8601>
+Status: <running|waiting-user|failed|done> · <one line: what it waits on, or why it failed>
+Next: <the single next action>
+Branch: <branch>
+PRs: <pr url> <pr url>
+Evidence: <path of .shipkit/evidence/<ticket>/>
+Poller: <what is being waited on, e.g. the reporter's reply (silent 2)>
 
 ## Stages
 - [ ] 1 spec          — /spec-from-ticket <ticket>
@@ -110,6 +116,14 @@ Flow: standard · Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design
 - [ ] 6 merged        — GATE: /merge <ticket> lands the signed-off child PRs (orchestrator never merges)
 - [ ] 7 bump          — root-PR pointers at the merged shas — /merge already does it; /bump-submodule <path>@<sha> --closes <ticket> only after a by-hand merge
 ```
+**`Status:` / `Next:` and the `  - detail:` line.** The `/stages` pane shows them as written, so rewrite them after every stage and **before every stop**:
+`waiting-user` at a gate (clarify, implement, merge, or an approval the dispatched skill waits for) with what it waits on, `failed` with the reason (the
+same one `pipeline-failure-<ticket>.md` holds), `running` while a stage is dispatched, `done` when the last stage is. `Next:` is Step 5's `Next:` line. An
+optional `  - detail: <counts>` line indented under a stage line (`3/5 tasks (be 3/3, fe 0/2)`, `verify PASS 4, INCOMPLETE 1`, `2 PRs open, 1 concern`)
+shows how far inside that stage the run is — only numbers you read from a state file or a command result. A stage that `❌` failed carries its reason
+the same way (`  - detail: /review-changes exited 2 — …`). `Branch:`, `PRs:` (space-separated URLs), `Evidence:` and `Poller:` are context rows the pane draws when
+present (a PR becomes a link, the evidence path copies on a press); leave a line out until there is something true to put on it, and never write a value you did not read.
+
 `Design gate` is `unset` until Stage 1.5 asks; then `on`/`off`, remembered so resumes never re-ask.
 
 ## Step 4 — Run pending stages in order (skip completed ones)
