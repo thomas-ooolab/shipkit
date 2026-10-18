@@ -293,7 +293,13 @@ export const waitingOn = (a: {
 }
 
 // the files that hold an evidence comment, best first: /verify's draft for Jira, then the table /verify --concern wrote for /bugfix
+// (an older run wrote `jira-comment.md` or `concern-evidence.md`; /verify now writes one name, `jira-comment-<YYYYMMDD-HHMM>.md`, one file at a time)
 export const EVIDENCE_FILES = ['jira-comment.md', 'concern-evidence.md']
+const EVIDENCE_COMMENT = /^jira-comment-.+\.md$/
+
+// the evidence comment among a directory's files: the newest `jira-comment-<date-time>.md`, else an older name; null when there is none
+export const evidenceCommentIn = (files: { name: string; mtimeMs: number }[]): string | null =>
+  [...files].filter(f => EVIDENCE_COMMENT.test(f.name)).sort((a, b) => b.mtimeMs - a.mtimeMs || (a.name < b.name ? 1 : -1))[0]?.name ?? EVIDENCE_FILES.find(n => files.some(f => f.name === n)) ?? null
 
 // The `[ ok ]` button on `Next:`: the step the run recorded, sent to the agent as a message built from the situation.
 // `Next:` is free text the run wrote (it may carry a condition: "once the reviewer signs off"), so it goes in as a quotation inside a fixed
@@ -529,7 +535,7 @@ const COLLECTOR_PROMPT = `You check ONE shipkit pipeline against its real source
 3. For each repo and branch from step 1: bash S/bitbucket-api.sh GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22<branch>%22&state=OPEN" (workspace and repo from the claims' PR links or .shipkit/config.yml). The PR link is links.html.href.
 4. Reviewer verdict, on Slack and not on Bitbucket: read S/../skills/pr/config.json (slack.bot_review_channel.id), take thread_ts from pr-T.md (else search the channel for T) and read the thread with the Slack read tools. A PR is approved when the bot's last message on it says LGTM with no condition. If you cannot read it, add a ⚠️ detail on the prs stage and leave prLoop out.
 5. Jira: read T for the status and the last comments.
-6. The verify stage: /verify writes .shipkit/evidence/T/jira-comment.md (or concern-evidence.md for a bug fix) only after a PASS and deletes it on FAILED or INCOMPLETE. The file present means the last run passed (it may predate later commits); absent means not passed, and you cannot tell failed from not run: the stage is todo, with one detail "no verify evidence". Never write FAILED from a missing file.
+6. The verify stage: /verify writes .shipkit/evidence/T/jira-comment-<date-time>.md (the newest one counts) only after a PASS and deletes it on FAILED or INCOMPLETE. The file present means the last run passed (it may predate later commits); absent means not passed, and you cannot tell failed from not run: the stage is todo, with one detail "no verify evidence". Never write FAILED from a missing file.
 A stage is done only when its result exists (the spec file, branches on origin, PRs, files in .shipkit/evidence/T/).
 Answer ONE JSON object and nothing else; leave out a key you did not check. Keys: status {state: waiting-user|running|failed|done, text}, next, blockers ["<stage id>: <text>"], stages [{id, name, state: done|todo|failed, details [text]}] (every stage you were given, with the same ids, also one with no details; no others), prs [{label: root|fe|be or the repo name, url}] (https), oq {open, total}, concerns [text], clarify {pending, silent, rounds}, bug {open, silent, pending}, prLoop {waiting, total, round, silent, pending}. A blocker is only what stops the next step, written once, and starts with the id of the stage it blocks ("3: QC has not re-tested #8-#10"); never repeat a blocker in a stage's details or in the status text. A detail is a fragment of at most 80 characters, at most 3 per stage, a fact you read; start with ⚠️ for a problem and ⬆️ for a branch not on origin; on the prs stage never list PR numbers. status text and next: one line of at most 100 characters.`
 
@@ -695,10 +701,11 @@ const refresh = async ($: any, withSpin = false) => {
     p.clarify = clMd === null ? null : parseClarify(clMd)
     if (p.evidence) {
       const dir = p.evidence.replace(/\/+$/, '')
-      for (const f of EVIDENCE_FILES) if (!p.evidenceFile && (await $.fs.exists(`${dir}/${f}`).catch(() => false))) p.evidenceFile = `${dir}/${f}`
+      const files = ((await $.fs.list(dir).catch(() => [])) as { name: string; kind: string; mtimeMs: number }[]).filter(f => f.kind === 'file')
+      const comment = evidenceCommentIn(files)
+      if (comment) p.evidenceFile = `${dir}/${comment}`
       // no evidence comment yet: the newest file there (Orca cannot open a folder, so that is what a press focuses)
-      if (!p.evidenceFile) {
-        const files = ((await $.fs.list(dir).catch(() => [])) as { name: string; kind: string; mtimeMs: number }[]).filter(f => f.kind === 'file')
+      else {
         files.sort((a, b) => b.mtimeMs - a.mtimeMs)
         if (files[0]) p.evidenceLatest = `${dir}/${files[0].name}`
       }

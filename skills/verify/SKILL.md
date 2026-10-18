@@ -44,12 +44,12 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 1. **Evidence files:** `.shipkit/evidence/<TICKET>/<id>-<slug>-after.png|txt` (and `-before` when a
    bug was reproduced first). `<id>` = `REQ-NNN` or the concern number. No code, no git/Bitbucket call.
 2. **The one evidence comment on the ticket** — **feature runs only** (spec-driven, no `--concern`), only on
-   `PASS`. A normal run only **drafts** it into `.shipkit/evidence/<TICKET>/jira-comment.md` (Step 6) and sends
+   `PASS`. A normal run only **drafts** it into `.shipkit/evidence/<TICKET>/jira-comment-<date-time>.md` (Step 6) and sends
    nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right before
    it changes the ticket's status, once the draft passes Step 7's completeness check (no approval wait). It is created once; every later send
    **edits that same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
    and `--no-jira` never draft or send a Jira comment — the caller's own comment carries the evidence; a `--concern` run still writes
-   the evidence *table* for the caller to paste (`concern-evidence.md`, Step 6, *Concern runs*). (Optional: with `--ticket` and
+   the evidence *table* for the caller to paste (the same `jira-comment-<date-time>.md`, Step 6). (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
@@ -212,41 +212,14 @@ user, interactively and explicitly, may waive an `UNVERIFIED` check; the waiver 
 never in a Jira comment. Show the evidence, not just the table: for each `PASS`, open the PNG for the
 user (Read) and quote the key lines of the data file.
 
-## Step 6 — Prepare the evidence comment (feature runs only — nothing goes to Jira here)
-Applies when the checks came from the spec (no `--concern`), `--no-jira` is absent and the gate is `PASS`.
-`FAILED` / `INCOMPLETE` draft nothing and **delete** any older `jira-comment.md`, so `/merge` never sends proof
-of code that has since changed — fix or unblock first. **Verify never posts or edits a Jira comment in a normal
-run:** the evidence reaches the ticket only at the moment its status is changed (Step 7). The comment lists every named variant with its
-evidence and never a "not checked / only covered by a unit test" row. Concern runs (`--concern`, how `/bugfix` calls it) draft no
-comment — they write the table only, see *Concern runs* below.
-1. Draft **one** Jira comment that is **a single table and nothing else** (no intro, no prose; the screenshots
-   sit inside the table, in the evidence cells — never below it). One row per check, in this shape:
-   ```
-   | /verify | Requirement | FE/BE | Check | Result | Evidence |
-   |---|---|---|---|---|---|
-   | REQ-001 | <the requirement in business words> | FE | <what was done> | ✅ PASS | ![Screenshot 1 — REQ-001](/abs/path/REQ-001-after.png) |
-   | REQ-002 | <…> | BE | <what was done> | ✅ PASS | `GET /…/digest/weekly` → 200, `calls_total` = 1; data query: 1 |
-   | UI | Matches design-contract.md | FE | desktop / tablet / mobile | ✅ PASS | ![Screenshot 2 — UI](/abs/path/ui-desktop.png) |
-   ```
-   The `UI` row appears only when Part A ran. Every FE screenshot is a `![caption](path)` token in its row's
-   evidence cell (several per cell, space-separated), the caption naming its REQ; `jira-comment.py` uploads
-   it (reusing one already attached) and embeds it in the cell — no `--image`. The BE cell holds a **redacted** excerpt (method + path, status, the key fields that show the
-   requirement holds) — never a token, credential, real personal data or raw database dump; the full file
-   stays in `.shipkit/evidence/`. Write the headers (the first cell stays `/verify`) and the cells in the language of the ticket's comments. A pipe inside a
-   cell is written `\|`.
-   The header's first cell is the literal `/verify` — it is the marker that identifies this comment later.
-2. Save the draft to `.shipkit/evidence/<TICKET>/jira-comment.md` (the PNGs are already beside it) and report
-   `verify: evidence for <TICKET> ready — it will be sent by /merge just before the status change`. Stop there.
-
-### Concern runs (`--concern`)
-The caller owns the Jira comment; this skill owns what the proof looks like. On `PASS` (not with `--no-jira`) write
-`.shipkit/evidence/<TICKET>/concern-evidence.md`: **one table and nothing else**, one row per concern and per named variant —
-`| Concern | FE/BE | Check | Result | Evidence |`, headers and cells in the language of the ticket's comments, a pipe inside a cell
-written `\|`. FE → the screenshot itself in the Evidence cell as `![caption](/abs/path.png)` (opened and checked first, never
-below the table; `jira-comment.py` uploads and embeds it). BE → the observed result in business words ("the digest now shows
-12 calls, same as the call list"), no table or endpoint names; the raw request/response stays in the evidence file and the terminal.
-`FAILED` / `INCOMPLETE` delete any older `concern-evidence.md`. Nothing is sent and no `jira-comment.md` is written. Report
-`verify: concern evidence for <TICKET> ready — <path>`.
+## Step 6 — Prepare the evidence comment (nothing goes to Jira here)
+Applies when the gate is `PASS` and `--no-jira` is absent — a feature run (checks from the spec) and a `--concern` run alike —
+and again when the user asks for the Jira comment ("soạn jira") with the evidence of a `PASS` on disk. **REQUIRED:** Read
+`${CLAUDE_PLUGIN_ROOT}/skills/verify/evidence-table.md` and follow it: the one file name
+`.shipkit/evidence/<TICKET>/jira-comment-<YYYYMMDD-HHMM>.md`, the table for a feature and the table for a bug fix (FE proof is the
+embedded screenshot, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
+them. **Verify never posts or edits a Jira comment in a normal run:** a feature's evidence reaches the ticket only when `/merge`
+changes its status (Step 7); a bug fix's table is pasted by `/bugfix` into its own comment.
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` before it changes the status)
 **REQUIRED in send mode:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/send-evidence.md` and follow it. It reads the saved

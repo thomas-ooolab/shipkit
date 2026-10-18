@@ -68,7 +68,7 @@ Evidence: .shipkit/evidence/<ticket>/
   for the reporter; re-run `/run-pipeline <ticket> --bug` when it produced a fix."
 - **Stage 2 — verify** *(gate, only when the spec changed)*: `/verify --ticket <ticket> --req <REQ-NNN> … --no-jira` (the set above), otherwise exactly Stage 4.5 of `SKILL.md`
   (`FAILED` / `INCOMPLETE` stop the run, never waived in `AUTO=true`). `--no-jira`: no evidence comment is drafted — in this flow `/bugfix`
-  drafts the one Jira comment (Step 3.3, confirmed by the user before it posts), so `/merge` finds no `jira-comment.md` and sends nothing. Spec unchanged → mark `[x]` with `skipped: spec unchanged`; nothing is dispatched.
+  drafts the one Jira comment (Step 3.3, confirmed by the user before it posts), so `/merge` finds no `/verify` evidence draft (`jira-comment-*.md`) and sends nothing. Spec unchanged → mark `[x]` with `skipped: spec unchanged`; nothing is dispatched.
 - **Stage 3 — review:** `/review-changes --ticket <ticket>`; a blocking ⚠️ stops the run (`AUTO=true` surfaces, continues only if non-blocking).
 - **Stage 4 — prs:** `/pr <ticket> --target <pr_target>`; stops at the open PRs, review loop on `/pr`'s own pollers.
 - **Stage 5 — merged** *(gate)* and **Stage 6 — bump:** exactly Stages 6–7 of `SKILL.md`.

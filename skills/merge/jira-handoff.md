@@ -28,7 +28,7 @@ chose not to transition. Once the target transition is settled (config name foun
 and **before** calling `transitionJiraIssue`, run `/verify --ticket <TICKET> --send-evidence` (its Step 7: checks the
 draft is complete against the agreed format and, when it is, posts or edits the one comment — no approval wait).
 - Sent (`evidence comment posted|edited`) → go on to `transitionJiraIssue`.
-- No `.shipkit/evidence/<TICKET>/jira-comment.md` (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
+- No `.shipkit/evidence/<TICKET>/jira-comment-*.md` draft (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
   evidence draft", transition anyway.
 - The draft is **incomplete** (verify reports `evidence NOT sent — incomplete: …`) → a problem: `AskUserQuestion`
   naming what is missing, options "skip the evidence and transition anyway" / "stop — don't transition". Skip →

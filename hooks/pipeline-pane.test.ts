@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 
-import { mergeChecked, readCollected, restatesPrs, whyNoCheck, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
+import { evidenceCommentIn, mergeChecked, readCollected, restatesPrs, whyNoCheck, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
 
 const md = `# Pipeline state — AR-450
 ## Stages
@@ -727,6 +727,15 @@ const EV = '.shipkit/evidence/AR-450'
 
 test('the evidence files, best first', () => {
   expect(EVIDENCE_FILES).toEqual(['jira-comment.md', 'concern-evidence.md'])
+})
+
+test('the evidence comment is the newest jira-comment-<date-time>.md, else an older name, else none', () => {
+  const f = (name: string, mtimeMs = 1) => ({ name, mtimeMs })
+  expect(evidenceCommentIn([f('REQ-1-after.png', 9), f('jira-comment-20261018-1030.md', 2), f('jira-comment-20261018-2330.md', 3)])).toBe('jira-comment-20261018-2330.md')
+  expect(evidenceCommentIn([f('jira-comment-20261018-1030.md', 5), f('jira-comment-20261018-2330.md', 5)])).toBe('jira-comment-20261018-2330.md') // same mtime: the later name
+  expect(evidenceCommentIn([f('concern-evidence.md'), f('jira-comment.md')])).toBe('jira-comment.md') // an older run's names
+  expect(evidenceCommentIn([f('jira-comment-id'), f('REQ-1-after.png')])).toBe(null) // the saved comment id is not a draft
+  expect(evidenceCommentIn([])).toBe(null)
 })
 
 test('with an evidence comment on disk the Evidence row opens it in Orca, not the path copy', async ($, on) => {

@@ -3,7 +3,8 @@
 > Loaded by SKILL.md only in send mode (`--send-evidence`), which only `/merge` passes. Never run at any other point of a verify run.
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` before it changes the status)
-Reads the saved draft; drives no app and re-checks nothing. No `jira-comment.md` → send nothing and say
+Reads the saved draft; drives no app and re-checks nothing. The draft is the newest `.shipkit/evidence/<TICKET>/jira-comment-*.md`
+whose first header cell is `/verify` (a bug fix's table starts with `Concern` and is never sent from here). None → send nothing and say
 `no evidence draft — run /verify --ticket <TICKET> first`. A person running it by hand outside `/merge` is the
 only other case; never send at any other point of a verify run.
 1. **Find the existing evidence comment first — there is only ever one.** Look up its id:

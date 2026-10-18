@@ -1,7 +1,7 @@
 {
   "name": "shipkit",
   "description": "Lightweight spec-driven development. One ticket, one guard-railed pipeline — from a lean one-file spec to merged PRs across submodules.",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "author": { "name": "ooolab" },
   "types": "./types/index.d.ts"
 }
