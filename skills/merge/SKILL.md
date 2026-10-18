@@ -111,7 +111,7 @@ For each confirmed PR, in Part order, run the bundled script — never an inline
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/merge/merge-pr.sh" <workspace> <repo> <pr_id>
 ```
-It POSTs `.../pullrequests/<id>/merge` with `$BITBUCKET_USERNAME`/`$BITBUCKET_APP_PASSWORD` (an API token works as the password) and no explicit merge
+It POSTs `.../pullrequests/<id>/merge` with `$BITBUCKET_USERNAME` and `$BITBUCKET_APP_PASSWORD` or `$BITBUCKET_API_TOKEN` (an API token works as the password) and no explicit merge
 strategy (the repo's own Bitbucket default applies), follows an async merge to its end, and prints one line,
 `<repo> #<id> MERGED <full merge sha>`, exit 0. Any rejection (not approved, server-side check, conflict), any state
 other than MERGED, or a body it cannot parse → non-zero with the verbatim error on stderr: **1** Bitbucket said no,

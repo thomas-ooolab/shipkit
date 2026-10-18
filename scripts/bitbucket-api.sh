@@ -5,7 +5,7 @@
 #   usage: bash bitbucket-api.sh <GET|POST|PUT|DELETE> <path-under-2.0 | https://api.bitbucket.org/... url> [<json body file>]
 #   e.g.   bash bitbucket-api.sh GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22feat/AR-1-x%22&state=OPEN"
 #          bash bitbucket-api.sh POST "/repositories/<workspace>/<repo>/pullrequests" body.json
-#   env:   BITBUCKET_USERNAME  BITBUCKET_APP_PASSWORD   (required)
+#   env:   BITBUCKET_USERNAME  BITBUCKET_APP_PASSWORD   (required; BITBUCKET_API_TOKEN is read when the second is empty)
 #          The variable keeps its old name, but it may hold an API token: Bitbucket accepts either as the Basic-auth
 #          password. With an API token, BITBUCKET_USERNAME is the Atlassian account e-mail.
 #
@@ -18,8 +18,10 @@ set -u
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
   echo "usage: bitbucket-api.sh <GET|POST|PUT|DELETE> <path|url> [<json body file>]" >&2; exit 4
 fi
+# an API token is the credential Bitbucket issues now; the variable keeps its old name, so BITBUCKET_API_TOKEN stands in when it is empty
+BITBUCKET_APP_PASSWORD="${BITBUCKET_APP_PASSWORD:-${BITBUCKET_API_TOKEN:-}}"
 if [ -z "${BITBUCKET_USERNAME:-}" ] || [ -z "${BITBUCKET_APP_PASSWORD:-}" ]; then
-  echo "BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD not set (the second may be an API token; then the first is your Atlassian e-mail)" >&2; exit 4
+  echo "BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD (or BITBUCKET_API_TOKEN) not set (the second may be an API token; then the first is your Atlassian e-mail)" >&2; exit 4
 fi
 METHOD="$1"; TARGET="$2"; BODY="${3:-}"
 case "$TARGET" in

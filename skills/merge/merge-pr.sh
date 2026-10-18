@@ -5,7 +5,7 @@
 # status is this script's own, so a caller never has to read it through a pipe.
 #
 #   usage: merge-pr.sh <workspace> <repo> <pr_id>        (run with `bash`)
-#   env:   BITBUCKET_USERNAME  BITBUCKET_APP_PASSWORD     (required)   POLL_S (default 3)  POLL_MAX (default 40)
+#   env:   BITBUCKET_USERNAME  BITBUCKET_APP_PASSWORD     (required; BITBUCKET_API_TOKEN is read when the second is empty)   POLL_S (default 3)  POLL_MAX (default 40)
 #
 # No merge strategy is sent: the repo's own Bitbucket default applies. An async merge (HTTP 202) is followed
 # through its Location task URL until it finishes.
@@ -20,8 +20,10 @@ if [ "$#" -ne 3 ]; then
   echo "usage: merge-pr.sh <workspace> <repo> <pr_id>" >&2
   exit 4
 fi
+# an API token is the credential Bitbucket issues now; the variable keeps its old name, so BITBUCKET_API_TOKEN stands in when it is empty
+BITBUCKET_APP_PASSWORD="${BITBUCKET_APP_PASSWORD:-${BITBUCKET_API_TOKEN:-}}"
 if [ -z "${BITBUCKET_USERNAME:-}" ] || [ -z "${BITBUCKET_APP_PASSWORD:-}" ]; then
-  echo "BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD not set" >&2
+  echo "BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD (or BITBUCKET_API_TOKEN) not set" >&2
   exit 4
 fi
 

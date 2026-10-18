@@ -5,7 +5,7 @@ Why: a push to a PR branch notifies the people on that PR (Slack, e-mail), which
 locally stays allowed, and so does any push on a weekday — the hook does not even query the host then.
 How: for each `git push` in a Bash command it works out the branch(es) being pushed (explicit refspec, `HEAD`, or the
 current branch; `--all` / `--mirror` mean every local branch), asks the remote's host which branches have an open PR
-(Bitbucket: scripts/bitbucket-api.sh with BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD, an API token works; GitHub: `gh`),
+(Bitbucket: scripts/bitbucket-api.sh with BITBUCKET_USERNAME / BITBUCKET_APP_PASSWORD or BITBUCKET_API_TOKEN; GitHub: `gh`),
 and blocks when one of them does. A push of a branch with no open PR passes. If the host cannot be asked (no credentials,
 network, unknown host) the push is blocked too — "unknown" is not "no PR"; fix the cause or lift the guard.
 

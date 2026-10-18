@@ -10,6 +10,24 @@ export type Wait = {
   tail: string // the fixed rule appended to whatever the writer drafts
 }
 export type Status = { state: 'waiting-user' | 'running' | 'failed' | 'done'; text: string }
+// what the session model's check of a pipeline reported, field by field; a key that is absent was not checked, so the state file's value stands
+export type Collected = {
+  status?: Status | null
+  next?: string | null
+  blockers?: string[]
+  stages?: Stage[] // only the stages the state file also lists are taken, by id
+  prs?: Pr[]
+  oq?: { open: number; total: number } | null
+  concerns?: string[]
+  clarify?: { pending: boolean; silent: number; rounds: number } | null
+  bug?: { open: number; silent: number; pending: boolean } | null
+  prLoop?: { waiting: number; total: number; round: number; silent: number; pending: boolean } | null
+}
+// the check as the pane keeps it, by ticket: while it runs, the last good answer stays (`data`) so the pane keeps showing it
+export type Checked = { ticket: string; at: number; running: boolean; data: Collected | null; error: string | null } | null
+// what the pane says about its check: how it stands, when, and which values differ from the state file (`stage:<id>`, `detail:<id>:<line>`,
+// `status`, `next`, `blockers`, `prs`, `oq`, `concerns`, `waits`)
+export type Check = { state: 'running' | 'ok' | 'failed'; at: number; hasData: boolean; diff: string[]; error: string | null }
 export type Pipeline = {
   ticket: string
   flow: string | null
@@ -30,10 +48,11 @@ export type Pipeline = {
   waiting: Wait[] // waits read from /clarify's, /bugfix's and /pr's own state files, while their loop is still open
   mtimeMs: number
   stages: Stage[]
+  check: Check | null
 } | null
 
 declare module 'claude-code' {
   interface PluginState {
-    'shipkit': { pipeline: Pipeline; frame: number; open: Record<string, boolean>; pinged: Record<string, { at: number; sent: boolean }>; drafting: Record<string, string>; halted: Record<string, boolean> }
+    'shipkit': { pipeline: Pipeline; frame: number; open: Record<string, boolean>; pinged: Record<string, { at: number; sent: boolean }>; drafting: Record<string, string>; halted: Record<string, boolean>; checked: Checked }
   }
 }
