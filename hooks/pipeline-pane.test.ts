@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 
-import { EVIDENCE_FILES, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
+import { EVIDENCE_FILES, draftFrom, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
 
 const md = `# Pipeline state — AR-450
 ## Stages
@@ -75,7 +75,11 @@ const full = md
 const world = ($: any, on: any) => {
   let file: { text: string; mtimeMs: number } | null = null
   const files: Record<string, string> = {} // any other file the pane may read, by path (open-question.md, pr-<ticket>.md)
-  on('fs.list', async () => ({ value: file ? [{ name: 'pipeline-AR-450.md', kind: 'file', size: 1, mtimeMs: file.mtimeMs, isLink: false }] : [] }))
+  on('fs.list', async (_$: any, e: any) => {
+    if (/(^|\/)\.shipkit$/.test(String(e.path))) return { value: file ? [{ name: 'pipeline-AR-450.md', kind: 'file', size: 1, mtimeMs: file.mtimeMs, isLink: false }] : [] }
+    const dir = Object.keys(files).filter(k => String(e.path).endsWith(k.replace(/\/[^/]+$/, '')) || String(e.path) === k.replace(/\/[^/]+$/, ''))
+    return { value: dir.map((k, i) => ({ name: k.split('/').pop()!, kind: 'file', size: 1, mtimeMs: NOW + i, isLink: false })) } // later registered = newer
+  })
   // the host hands hooks absolute paths: match a registered file by its tail
   const find = (path: string) => Object.keys(files).find(k => path === k || path.endsWith(`/${k}`))
   on('fs.read', async (_$, e) => ({ value: find(e.path) ? files[find(e.path)!] : (file?.text ?? '') }))
@@ -250,7 +254,9 @@ test('the pane draws the declared Poller lines, one link per PR and the Evidence
     expect(await ui.find({ type: 'Link', text: /#12/ })).toBeDefined()
     expect(await ui.find({ type: 'Link', text: /#7/ })).toBeDefined()
     expect(await ui.find({ type: 'Link', text: /#3/ })).toBeDefined()
-    expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/Evidence: \.shipkit\/evidence\/AR-450\//)
+    expect((await ui.find({ key: 'evidence' }))?.text).toBe('.shipkit/evidence/AR-450/') // the path itself is the button
+    expect(await has(ui, /^Evidence: $/)).toBe(true)
+    expect(await has(ui, /^ \(copy path\)$/)).toBe(true)
     expect(await has(ui, /PRs: root #3 · be #12 · fe #7/)).toBe(true)
     await ui.unmount()
   }
@@ -559,34 +565,61 @@ test('a ping is offered only when it makes sense: not while a draft waits, not b
   expect(prw({ silent: 0 }).ping).toBe(null)
 })
 
-test('the ping message follows the situation, from numbers read from the state files', () => {
+test('the ping message is short, follows the situation, and carries the ticket, the numbers and the "show me first" rule', () => {
   const clar = (c: Partial<{ silent: number; rounds: number }>, open = 2) => waitingOn({ ...none, oq: { open, total: 5 }, clarify: { silent: 2, pending: false, rounds: 0, ...c } })[0].ping!
-  expect(clar({})).toMatch(/not answered 2 of 5 open questions on AR-450; they have been silent for 2 poll windows/)
-  expect(clar({})).not.toMatch(/round cap/)
-  expect(clar({})).not.toMatch(/how long it has been/) // a short silence: no need to count the days
-  expect(clar({ silent: 1 })).toMatch(/silent for 1 poll window \(24 h/) // one window: singular
-  expect(clar({ silent: 4 })).toMatch(/silent for 4 poll windows/)
-  expect(clar({ silent: 4 })).toMatch(/how long it has been since the last ask/) // a long one: the agent says so
-  expect(clar({ rounds: 3 })).toMatch(/follow-up round cap \(3\) is already reached/)
-  expect(clar({ rounds: 3 })).toMatch(/closing ask only/)
-  expect(clar({ rounds: 3 })).toMatch(/whether anyone else on the ticket could answer/)
+  expect(clar({})).toMatch(/^AR-450: the PO has not answered 2 of 5 open questions \(silent 2 poll windows of 24 h\)\. Draft one short Jira reminder tagging the PO/)
+  expect(clar({})).not.toMatch(/cap|how long/) // a short silence, no cap: nothing extra
+  expect(clar({ silent: 1 })).toMatch(/silent 1 poll window of 24 h\)/) // one window: singular
+  expect(clar({ silent: 4 })).toMatch(/silent 4 poll windows of 24 h\)/)
+  expect(clar({ silent: 4 })).toMatch(/Tell me here how long since the last ask/) // a long silence: the agent says so, outside the comment
+  expect(clar({ rounds: 3 })).toMatch(/follow-up cap \(3\) is reached/)
+  expect(clar({ rounds: 3 })).toMatch(/repeats the closing ask only/)
+  expect(clar({ rounds: 3 })).toMatch(/whether anyone else can answer/)
   expect(clar({}, 1)).toMatch(/1 of 5 open questions/)
-  for (const m of [clar({}), clar({ rounds: 3 })]) expect(m).toMatch(/confirmation before you post/) // never posted unconfirmed
+  for (const m of [clar({}), clar({ rounds: 3 })]) expect(m).toMatch(/Show me the draft before posting/) // never posted unconfirmed
   const bug = waitingOn({ ...none, bug: { open: 3, silent: 2, pending: false } })[0].ping!
-  expect(bug).toMatch(/3 concerns on AR-450 still wait for an answer, and nobody has replied for 2 poll windows/)
-  expect(bug).toMatch(/whom each concern waits on/) // the reporter, or the PO for a product decision
-  expect(waitingOn({ ...none, bug: { open: 1, silent: 1, pending: false } })[0].ping).toMatch(/1 concern on AR-450 still waits for an answer/)
+  expect(bug).toMatch(/^AR-450: 3 concerns still await an answer \(silent 2 poll windows of 24 h\)/)
+  expect(bug).toMatch(/for whom each waits on|whom each waits on/) // the reporter, or the PO for a product call
+  expect(waitingOn({ ...none, bug: { open: 1, silent: 1, pending: false } })[0].ping).toMatch(/AR-450: 1 concern still awaits an answer/)
   const pr = waitingOn({ ...none, pr: { waiting: 2, total: 3, round: 2, silent: 3, pending: false } })[0].ping!
-  expect(pr).toMatch(/2 of 3 PRs of AR-450 still have no reviewer verdict \(review round 2\)/)
-  expect(pr).toMatch(/quiet for 3 poll windows/)
-  expect(waitingOn({ ...none, pr: { ...pr1, silent: 1 } })[0].ping).toMatch(/quiet for 1 poll window \(/)
-  expect(pr).toMatch(/only the PRs that have no verdict/)
+  expect(pr).toMatch(/^AR-450: 2 of 3 PRs have no reviewer verdict \(round 2, quiet 3 poll windows of 24 h\)/)
+  expect(pr).toMatch(/links of those PRs only/)
+  expect(waitingOn({ ...none, pr: { ...pr1, waiting: 1 } })[0].ping).toMatch(/1 of 3 PRs has no reviewer verdict/)
+  // short: under 420 characters each
+  for (const m of [clar({}), clar({ rounds: 3 }), clar({ silent: 4 }), bug, pr]) expect(m.length).toBeLessThan(420)
 })
 
-test('the pane lists the waits it can read; a ping button sends the message built from them, then rests', async ($, on) => {
+// the writer's side of the buttons: a fake agent spawn that never answers (the test cannot raise a turn.complete), and the prompt box
+const bench = ($: any, on: any) => {
+  const seen = { registered: [] as any[], spawned: [] as any[], filled: [] as any[], submitted: [] as any[] }
+  let typed = '' // the prompt box, as the pane sees it through prompt.read / prompt.fill
+  on('agent.register', async (_$: any, e: any) => (seen.registered.push(e), { value: { agent: 'shipkit:prompt-writer' } }))
+  on('agent.spawn', async (_$: any, e: any) => (seen.spawned.push(e), { model: 'haiku', agentId: `a${seen.spawned.length}` }))
+  on('prompt.read', async () => ({ value: { text: typed, cursor: typed.length } }))
+  on('prompt.fill', async (_$: any, e: any) => (seen.filled.push(e), (typed = e.mode === 'append' ? typed + e.text : e.text), { isFilled: true }))
+  on('prompt.submit', async (_$: any, e: any) => (seen.submitted.push({ text: e.text, asUser: e.origin?.asUser }), { drop: 'test: not delivered' }))
+  return Object.assign(seen, { type: (x: string) => (typed = x), box: () => typed })
+}
+const COMPOSE_WAIT = 16 * 1000 // a bit over the pane's 15 s wait for the writer
+const COUNTDOWN = 4 * 1000 // a bit over the pane's 3 s countdown before it sends
+// press, let the fake writer time out and the countdown run out
+const settle = async (draw: any, pressed: Promise<unknown>) => {
+  await draw.clock.advance(COMPOSE_WAIT + COUNTDOWN)
+  await pressed
+}
+
+test('draftFrom puts the fixed rule after the writer\'s body and falls back to the template when the body is unusable', () => {
+  expect(draftFrom('  Please answer\nthe questions. ', 'Show me first.', 'TEMPLATE')).toBe('Please answer the questions. Show me first.')
+  expect(draftFrom('', 'Show me first.', 'TEMPLATE')).toBe('TEMPLATE')
+  expect(draftFrom('   ', 'Show me first.', 'TEMPLATE')).toBe('TEMPLATE')
+  expect(draftFrom(undefined, 'Show me first.', 'TEMPLATE')).toBe('TEMPLATE')
+  expect(draftFrom('x'.repeat(501), 'Show me first.', 'TEMPLATE')).toBe('TEMPLATE') // a runaway answer is not used
+  expect(draftFrom('x'.repeat(500), 't', 'TEMPLATE').endsWith(' t')).toBe(true)
+})
+
+test('a ping button has Haiku draft the message: a tool-less haiku writer, told the situation as data, the draft into the box, sent after the countdown, then it rests', async ($, on) => {
   const draw = world($, on)
-  const sent: { text: string; asUser?: boolean }[] = []
-  on('prompt.submit', async (_$, e) => (sent.push({ text: e.text, asUser: e.origin?.asUser }), { drop: 'test: not delivered' }))
+  const b = bench($, on)
   draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
   draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\nfollow_up_rounds: 0\n'
   draw.files[BUG] = 'silent_ticks: 1\n## Concerns (QC)\n- [ ] one\n'
@@ -595,25 +628,63 @@ test('the pane lists the waits it can read; a ping button sends the message buil
   expect(await has(ui, /⏳ Jira · the PO's answers to 1 open question \(silent 2\)/)).toBe(true)
   expect(await has(ui, /⏳ Jira · the reporter's reply on 1 concern \(silent 1\)/)).toBe(true)
   expect(await has(ui, /⏳ Slack · the reviewer's verdict on 1 of 2 PRs \(round 1, silent 1\)/)).toBe(true)
-  expect(sent).toEqual([])
-  await ui.press({ key: 'ping:0' })
-  expect(sent).toHaveLength(1)
-  expect(sent[0].text).toMatch(/^The PO has not answered 1 of 2 open questions on AR-450; they have been silent for 2 poll windows/)
-  expect(sent[0].asUser).toBe(true)
-  expect(await has(ui, /^· pinged just now$/)).toBe(true) // the button rests: no second nudge on top of the first
+  expect(b.spawned).toEqual([])
+  await settle(draw, ui.press({ key: 'ping:0' }))
+  expect(b.registered).toHaveLength(1)
+  expect(b.registered[0]).toMatchObject({ name: 'prompt-writer', model: 'haiku', tools: [] })
+  expect(b.spawned).toHaveLength(1)
+  expect(b.spawned[0]).toMatchObject({ tool: 'Agent', subagent_type: 'shipkit:prompt-writer', model: 'haiku', run_in_background: true })
+  expect(b.spawned[0].prompt).toMatch(/Intent: Draft one short Jira comment reminding the PO/)
+  expect(b.spawned[0].prompt).toMatch(/- ticket AR-450/)
+  expect(b.spawned[0].prompt).toMatch(/- 1 of 2 questions open/)
+  expect(b.spawned[0].prompt).toMatch(/- the PO has been silent for 2 poll windows of 24 h/)
+  expect(b.spawned[0].prompt).toMatch(/- ask nothing new/)
+  // no answer from the writer: the fixed template goes into the box, then (the box untouched) it is sent and the box cleared
+  expect(b.filled).toHaveLength(2)
+  expect(b.filled[0].text).toMatch(/^AR-450: the PO has not answered 1 of 2 open questions \(silent 2 poll windows of 24 h\)\. Draft one short Jira reminder tagging the PO/)
+  expect(b.filled[0].mode).toBe('replace') // an empty box: replace
+  expect(b.submitted).toEqual([{ text: b.filled[0].text, asUser: true }])
+  expect(b.filled[1].text).toBe('') // cleared after the send
+  expect(await has(ui, /^· sent just now$/)).toBe(true)
   expect(await ui.find({ key: 'ping:0' })).toBeUndefined()
-  await ui.press({ key: 'ping:2' })
-  expect(sent[1].text).toMatch(/1 of 2 PRs of AR-450 still have no reviewer verdict/)
   await ui.unmount()
-  await draw.clock.advance(61 * 60 * 1000) // an hour later
-  const again = await draw('terminal', withSpec)
-  expect(await again.find({ key: 'ping:0' })).toBeDefined() // the PO may be nudged again
-  await again.unmount()
+})
+
+test('the brief for each ping carries the situation: the follow-up cap, a long silence, the reviewer round', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 4\nfollow_up_rounds: 3\n'
+  draw.files[PRL] = 'silent_ticks: 2\nround: 2\n## PR approvals\n- be #1 — pending\n'
+  const ui = await draw('terminal', withSpec)
+  await settle(draw, ui.press({ key: 'ping:0' }))
+  expect(b.spawned[0].prompt).toMatch(/the follow-up cap \(3\) is reached: repeat the closing ask only, ask nothing new/)
+  expect(b.spawned[0].prompt).toMatch(/tell the person, outside the comment, how long it has been since the last ask/)
+  expect(b.spawned[0].prompt).toMatch(/tell the person whether anyone else on the ticket could answer/)
+  await settle(draw, ui.press({ key: 'ping:1' }))
+  expect(b.spawned[1].prompt).toMatch(/Intent: Write the short ping the user will send to the reviewer/)
+  expect(b.spawned[1].prompt).toMatch(/- 1 of 1 PR without a verdict/)
+  expect(b.spawned[1].prompt).toMatch(/- review round 2/)
+  expect(b.spawned[1].prompt).toMatch(/- the thread has been quiet for 2 poll windows of 24 h/)
+  await ui.unmount()
+})
+
+test('a draft is added after what the person has already typed, never over it', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  b.type('half a sentence I was writing')
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  await settle(draw, ui.press({ key: 'ping:0' }))
+  expect(b.filled[0]).toMatchObject({ mode: 'append' })
+  expect(b.filled[0].text.startsWith('\nAR-450: the PO has not answered')).toBe(true)
+  await ui.unmount()
 })
 
 test('no button while a drafted message waits for the user or no poll window has passed; the line says why', async ($, on) => {
   const draw = world($, on)
-  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  bench($, on)
   draw.files[OQ] = '- [x] OQ-1 — a\n- [ ] OQ-2 — b\n'
   draw.files[CL] = 'pending_comment: .shipkit/drafts/c.md\nsilent_ticks: 2\n'
   let ui = await draw('terminal', withSpec)
@@ -629,7 +700,7 @@ test('no button while a drafted message waits for the user or no poll window has
 
 test('once the PO has answered, no wait and no ping button remain', async ($, on) => {
   const draw = world($, on)
-  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  bench($, on)
   draw.files[OQ] = '- [x] OQ-1 — a\n'
   draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
   const ui = await draw('terminal', withSpec)
@@ -655,7 +726,7 @@ test('with an evidence comment on disk the Evidence row opens it in Orca, not th
   draw.files[`${EV}/jira-comment.md`] = '| /verify | …'
   draw.files[`${EV}/concern-evidence.md`] = '| Concern | …' // both there: the Jira draft wins
   const ui = await draw('terminal', rich.replace('.shipkit/evidence/AR-450/', `${EV}/`))
-  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to open draft comment\)/)
+  expect(await has(ui, /^ \(review draft comment\)$/)).toBe(true)
   await ui.press({ key: 'evidence' })
   expect(ran).toEqual([['orca', 'file', 'open', `${EV}/jira-comment.md`, '--focus']])
   expect(copied).toEqual([])
@@ -671,14 +742,14 @@ test('only the bugfix evidence table on disk: that one opens; none: the row says
   const text = rich.replace('.shipkit/evidence/AR-450/', `${EV}/`)
   draw.files[`${EV}/concern-evidence.md`] = '| Concern | …'
   let ui = await draw('terminal', text)
-  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to open draft comment\)/)
+  expect(await has(ui, /^ \(review draft comment\)$/)).toBe(true)
   await ui.press({ key: 'evidence' })
   expect(ran).toEqual([['orca', 'file', 'open', `${EV}/concern-evidence.md`, '--focus']])
   await ui.unmount()
 
   delete draw.files[`${EV}/concern-evidence.md`]
   ui = await draw('terminal', text)
-  expect((await ui.find({ key: 'evidence' }))?.text).toMatch(/\(press to copy\)/)
+  expect(await has(ui, /^ \(copy path\)$/)).toBe(true)
   await ui.press({ key: 'evidence' })
   expect(ran).toHaveLength(1) // no Orca call without a file to open
   expect(copied).toEqual([`${EV}/`])
@@ -706,26 +777,26 @@ const nextState = (status: string, next = '/merge AR-450 once the reviewer signs
 const pl = (text: string, over: Record<string, unknown> = {}) => ({ ...parse(text)!, ...over }) as NonNullable<ReturnType<typeof parse>>
 const prs3 = { waiting: 0, total: 3, round: 1, silent: 0, pending: false }
 
-test('nextStep quotes the step in a frame that checks its condition first, and refuses a bad key or an empty step', () => {
+test('nextStep quotes the step in a short frame that checks its condition first, and refuses a bad key or an empty step', () => {
   const m = nextStep(pl(nextState('waiting-user · x')))
   expect(m.hold).toBe(null)
-  expect(m.prompt).toMatch(/^Carry out the next step recorded for AR-450: "\/merge AR-450 once the reviewer signs off"\./)
-  expect(m.prompt).toMatch(/First check against the real state \(git, the PRs, Jira\)/)
-  expect(m.prompt).toMatch(/if it is not, tell me what is missing and do nothing else/)
-  expect(m.prompt).toMatch(/still needs my explicit go-ahead/) // the merge is the skill's gate, not the button's
+  expect(m.prompt).toMatch(/^Next step for AR-450: "\/merge AR-450 once the reviewer signs off"\./)
+  expect(m.prompt).toMatch(/First check, against git, the PRs and Jira, that what it waits for is true; if not, say what is missing and stop\./)
+  expect(m.prompt).toMatch(/Merge, push or Jira post only with my go-ahead\./) // the merge is the skill's gate, not the button's
+  expect(m.prompt!.length).toBeLessThan(420)
   expect(nextStep(pl(nextState('waiting-user · x'), { next: '  two\n  lines   here ' })).prompt).toMatch(/"two lines here"/) // one line
-  expect(nextStep(pl(nextState('waiting-user · x', 'x'.repeat(500)))).prompt!.length).toBeLessThan(1100) // the step is cut
-  expect(nextStep(pl(nextState('waiting-user · x'), { ticket: 'ar 450; rm' }))).toEqual({ prompt: null, hold: null })
-  expect(nextStep(pl(nextState('waiting-user · x'), { next: null }))).toEqual({ prompt: null, hold: null })
-  expect(nextStep(pl(nextState('waiting-user · x'), { next: '   ' }))).toEqual({ prompt: null, hold: null })
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: 'x'.repeat(500) })).prompt!.length).toBeLessThan(800) // the step is cut
+  expect(nextStep(pl(nextState('waiting-user · x'), { ticket: 'ar 450; rm' }))).toMatchObject({ prompt: null, hold: null })
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: null }))).toMatchObject({ prompt: null, hold: null })
+  expect(nextStep(pl(nextState('waiting-user · x'), { next: '   ' }))).toMatchObject({ prompt: null, hold: null })
 })
 
 test('nextStep holds back while a drafted message waits, and a /merge step while a PR has no lgtm or a concern is open', () => {
   const base = pl(nextState('waiting-user · x'))
   expect(nextStep({ ...base, clarify: { pending: true, silent: 0, rounds: 0 } }).hold).toBe('confirm the drafted message first')
   expect(nextStep({ ...base, bug: { open: 1, silent: 0, pending: true } }).hold).toBe('confirm the drafted message first')
-  expect(nextStep({ ...base, prLoop: { ...prs3, pending: true } })).toEqual({ prompt: null, hold: 'confirm the drafted message first' })
-  expect(nextStep({ ...base, prLoop: { ...prs3, waiting: 2 } })).toEqual({ prompt: null, hold: '2 of 3 PRs have no lgtm yet' })
+  expect(nextStep({ ...base, prLoop: { ...prs3, pending: true } })).toMatchObject({ prompt: null, hold: 'confirm the drafted message first' })
+  expect(nextStep({ ...base, prLoop: { ...prs3, waiting: 2 } })).toMatchObject({ prompt: null, hold: '2 of 3 PRs have no lgtm yet' })
   expect(nextStep({ ...base, prLoop: { ...prs3, waiting: 1 } }).hold).toBe('1 of 3 PRs has no lgtm yet')
   expect(nextStep({ ...base, concerns: ['a', 'b'] }).hold).toBe('2 open PR concerns')
   expect(nextStep({ ...base, prLoop: prs3, concerns: [] }).prompt).not.toBe(null) // all lgtm, nothing open: go
@@ -742,49 +813,53 @@ test('nextStep tells the agent the numbers the pane has read', () => {
     bug: { open: 2, silent: 0, pending: false },
     blockers: ['one', 'two'],
   })
-  const m = nextStep(base).prompt!
-  expect(m).toMatch(/Where things stand: stage 3 implement; 3 of 5 open questions still open; 1 of 3 PRs without lgtm; 1 open PR concern; 2 bug concerns open; 2 declared blockers\./)
-  expect(nextStep(pl(nextState('waiting-user · x', 'go'))).prompt).toMatch(/Where things stand: stage 3 implement\./) // only what exists
+  expect(nextStep(base).prompt).toMatch(/Now: stage 3 implement; 3 of 5 questions open; 1 of 3 PRs without lgtm; 1 open PR concern; 2 bug concerns open; 2 declared blockers\./)
+  expect(nextStep(pl(nextState('waiting-user · x', 'go'))).prompt).toMatch(/Now: stage 3 implement\./) // only what exists
   expect(nextStep(pl('# Pipeline state — AR-450\n## Stages\n- [x] 1 spec — x\nNext: done soon\n', { next: 'done soon' })).prompt).toMatch(/nothing else recorded/)
 })
 
-test('nextStep says what kind of step it is: merge gate, PO answers, bug fix, PR review, implement, or nothing special', () => {
+test('nextStep adds one short sentence for the kind of step: merge gate, PO answers, bug fix, PR review, implement; none otherwise', () => {
   const at = (stage: string, next: string, over: Record<string, unknown> = {}) =>
     nextStep(pl(`# Pipeline state — AR-450\nStatus: waiting-user · x\nNext: ${next}\n## Stages\n- [ ] 9 ${stage} — x\n`, over)).prompt!
-  expect(at('merged', '/merge AR-450', { prLoop: prs3 })).toMatch(/This is the merge gate: before \/merge, confirm that every PR has lgtm for its current head/)
-  expect(at('prs', '/merge AR-450 once the reviewer signs off', { prLoop: prs3 })).toMatch(/merge gate/) // a /merge step is the gate whatever the stage
-  expect(at('clarify', 'wait for the PO')).toMatch(/folds in the PO's answers: read the new Jira comments/)
-  expect(at('bugfix', 'apply the decisions')).toMatch(/This is the bug-fix step: .* stop at a drafted comment for my confirmation/)
-  expect(at('prs', 'wait for the reviewer')).toMatch(/PR review step: follow \/pr's review loop .* do not merge/)
-  expect(at('implement', 'wait for /assign')).toMatch(/implement step: hand the tasks to workers as \/assign does/)
+  expect(at('merged', '/merge AR-450', { prLoop: prs3 })).toMatch(/Merge gate: each PR needs lgtm on its current head, no open concern, green pipelines\./)
+  expect(at('prs', '/merge AR-450 once the reviewer signs off', { prLoop: prs3 })).toMatch(/Merge gate/) // a /merge step is the gate whatever the stage
+  expect(at('clarify', 'wait for the PO')).toMatch(/Fold the PO's answers into the open questions and the spec\./)
+  expect(at('bugfix', 'apply the decisions')).toMatch(/Apply the decisions given, fix, \/verify, then stop at a draft comment for me\./)
+  expect(at('prs', 'wait for the reviewer')).toMatch(/Follow \/pr's review loop; do not merge\./)
+  expect(at('implement', 'wait for /assign')).toMatch(/Hand the tasks to workers as \/assign does; no second run if workers are active\./)
   const plain = at('plan', 'run /plan-deep')
-  expect(plain).not.toMatch(/This is the/) // no kind: just the frame
-  for (const m of [at('merged', '/merge AR-450', { prLoop: prs3 }), at('clarify', 'x'), plain]) expect(m).toMatch(/First check against the real state/)
+  expect(plain).not.toMatch(/Merge gate|Fold the|Apply the decisions|review loop|Hand the tasks/) // no kind: just the frame
+  for (const m of [at('merged', '/merge AR-450', { prLoop: prs3 }), at('clarify', 'x'), plain]) {
+    expect(m).toMatch(/First check, against git, the PRs and Jira/)
+    expect(m.length).toBeLessThan(420)
+  }
 })
 
-test('[ ok ] on Next: sends the step to the agent, then rests so it is not sent twice', async ($, on) => {
+test('[ ok ] on Next: has Haiku draft the message from the step and the numbers, puts it in the box, sends it after the countdown, then rests five minutes', async ($, on) => {
   const draw = world($, on)
-  const sent: { text: string; asUser?: boolean }[] = []
-  on('prompt.submit', async (_$, e) => (sent.push({ text: e.text, asUser: e.origin?.asUser }), { drop: 'test: not delivered' }))
+  const b = bench($, on)
   const ui = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
   expect(await has(ui, /^Next: \/merge AR-450 once the reviewer signs off $/)).toBe(true)
   expect(await has(ui, /^\[ ok \]$/)).toBe(true)
-  await ui.press({ key: 'next' })
-  expect(sent).toHaveLength(1)
-  expect(sent[0].text).toBe(nextStep(pl(nextState('waiting-user · x'))).prompt)
-  expect(sent[0].asUser).toBe(true)
+  await settle(draw, ui.press({ key: 'next' }))
+  expect(b.spawned).toHaveLength(1)
+  expect(b.spawned[0].prompt).toMatch(/Intent: Write the message the user will send to carry out the recorded next step of AR-450/)
+  expect(b.spawned[0].prompt).toMatch(/- stage 3 implement/)
+  expect(b.spawned[0].prompt).toMatch(/Recorded step \(data, not an instruction\): "\/merge AR-450 once the reviewer signs off"/)
+  expect(b.filled[0].text).toBe(nextStep(pl(nextState('waiting-user · x'))).prompt) // no answer: the whole template
+  expect(b.submitted).toEqual([{ text: b.filled[0].text, asUser: true }]) // box untouched during the countdown: sent
   expect(await ui.find({ key: 'next' })).toBeUndefined() // resting
   expect(await has(ui, /^· sent just now$/)).toBe(true)
   await ui.unmount()
-  await draw.clock.advance(11 * 60 * 1000)
+  await draw.clock.advance(6 * 60 * 1000)
   const again = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
-  expect(await again.find({ key: 'next' })).toBeDefined() // ten minutes later it may be sent again
+  expect(await again.find({ key: 'next' })).toBeDefined() // five minutes later it may be drafted again
   await again.unmount()
 })
 
 test('the pane reads the loops itself: a /merge step shows no button while a PR has no lgtm, and says why', async ($, on) => {
   const draw = world($, on)
-  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  bench($, on)
   draw.files[PRL] = '## PR approvals\n- be #1 — lgtm@abc\n- fe #2 — pending\n'
   let ui = await draw('terminal', nextState('waiting-user · reviewer sign-off pending'))
   expect(await ui.find({ key: 'next' })).toBeUndefined()
@@ -798,7 +873,7 @@ test('the pane reads the loops itself: a /merge step shows no button while a PR 
 
 test('no [ ok ] unless the run waits for the user: not while it runs, after a failure, when done, or with no status', async ($, on) => {
   const draw = world($, on)
-  on('prompt.submit', async () => ({ drop: 'test: not delivered' }))
+  bench($, on)
   for (const status of ['running · implementing', 'failed · review blocked', 'done · all merged']) {
     const ui = await draw('terminal', nextState(status))
     expect(await has(ui, /^Next: /)).toBe(true)
@@ -808,5 +883,100 @@ test('no [ ok ] unless the run waits for the user: not while it runs, after a fa
   }
   const ui = await draw('terminal', md.replace('## Stages', 'Next: /merge AR-450\n## Stages')) // a Next with no Status at all
   expect(await ui.find({ key: 'next' })).toBeUndefined()
+  await ui.unmount()
+})
+
+// ---- the countdown before a draft is sent ----
+
+test('the draft is sent only after a countdown that shows [ cancel ]; editing the box during it stops the send', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  const pressed = ui.press({ key: 'ping:0' })
+  await draw.clock.advance(1000) // the writer gave nothing: the template is in the box and the countdown is under way
+  expect(b.submitted).toEqual([]) // not yet
+  expect(await has(ui, /^· sending in \d+s $/)).toBe(true)
+  expect(await ui.find({ key: 'cancel:AR-450:clarify' })).toBeDefined()
+  b.type(`${b.box()} (and I add a word)`) // the person edits the draft
+  await draw.clock.advance(COUNTDOWN)
+  await pressed
+  expect(b.submitted).toEqual([]) // they are working on it: nothing is sent
+  expect(b.box()).toMatch(/\(and I add a word\)$/) // and their edit is not wiped
+  expect(await has(ui, /^· drafted just now$/)).toBe(true)
+  await ui.unmount()
+})
+
+test('[ cancel ] stops the countdown and leaves the draft in the box', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  const pressed = ui.press({ key: 'ping:0' })
+  await draw.clock.advance(1000)
+  await ui.press({ key: 'cancel:AR-450:clarify' })
+  await draw.clock.advance(COUNTDOWN)
+  await pressed
+  expect(b.submitted).toEqual([])
+  expect(b.box()).toMatch(/^AR-450: the PO has not answered/) // still there, to send by hand
+  expect(await has(ui, /^· drafted just now$/)).toBe(true)
+  await ui.unmount()
+})
+
+test('a box that already held text is never sent from: the draft is only added after it', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  b.type('half a sentence I was writing')
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  await settle(draw, ui.press({ key: 'ping:0' }))
+  expect(b.submitted).toEqual([])
+  expect(b.box().startsWith('half a sentence I was writing\nAR-450: the PO has not answered')).toBe(true)
+  expect(await has(ui, /^· drafted just now$/)).toBe(true)
+  await ui.unmount()
+})
+
+test('with no evidence comment yet, a press opens the newest evidence file in the folder; an empty folder copies the path', async ($, on) => {
+  const draw = world($, on)
+  const ran: string[][] = []
+  const copied: string[] = []
+  on('process.run', async (_$, e) => (ran.push(e.argv), { value: { exitCode: 0, stdout: '', stderr: '' } }))
+  on('ui.copy', async (_$, e) => (copied.push(e.text), { value: { isCopied: true } }))
+  const text = rich.replace('.shipkit/evidence/AR-450/', `${EV}/`)
+  draw.files[`${EV}/REQ-001-list-after.png`] = 'png'
+  draw.files[`${EV}/REQ-002-total-after.txt`] = 'txt' // registered later = newer
+  let ui = await draw('terminal', text)
+  expect(await has(ui, /^ \(open latest evidence\)$/)).toBe(true)
+  await ui.press({ key: 'evidence' })
+  expect(ran).toEqual([['orca', 'file', 'open', `${EV}/REQ-002-total-after.txt`, '--focus']])
+  expect(copied).toEqual([])
+  await ui.unmount()
+
+  delete draw.files[`${EV}/REQ-001-list-after.png`]
+  delete draw.files[`${EV}/REQ-002-total-after.txt`]
+  ui = await draw('terminal', text)
+  expect(await has(ui, /^ \(copy path\)$/)).toBe(true)
+  await ui.press({ key: 'evidence' })
+  expect(ran).toHaveLength(1) // nothing to open
+  expect(copied).toEqual([`${EV}/`])
+  await ui.unmount()
+})
+
+test('whitespace is not an edit: a box that was only reflowed during the countdown is still sent', async ($, on) => {
+  const draw = world($, on)
+  const b = bench($, on)
+  draw.files[OQ] = '- [ ] OQ-2 — b\n'
+  draw.files[CL] = 'pending_comment: null\nsilent_ticks: 2\n'
+  const ui = await draw('terminal', withSpec)
+  const pressed = ui.press({ key: 'ping:0' })
+  await draw.clock.advance(1000)
+  b.type(`  ${b.box().replace(/ /g, '\n')}\n  `) // the same words, laid out differently
+  await draw.clock.advance(COUNTDOWN)
+  await pressed
+  expect(b.submitted).toHaveLength(1) // sent anyway
+  expect(await has(ui, /^· sent just now$/)).toBe(true)
   await ui.unmount()
 })

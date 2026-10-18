@@ -4,8 +4,10 @@ export type Pr = { label: string | null; url: string }
 export type Wait = {
   kind: 'clarify' | 'bugfix' | 'pr'
   text: string
-  ping: string | null // null: no ping now, and `hold` says why
+  ping: string | null // the whole message as a fixed template (the fallback); null: no ping now, and `hold` says why
   hold: string | null
+  brief: string // what the writer is told: the intent and the facts, as data
+  tail: string // the fixed rule appended to whatever the writer drafts
 }
 export type Status = { state: 'waiting-user' | 'running' | 'failed' | 'done'; text: string }
 export type Pipeline = {
@@ -23,6 +25,7 @@ export type Pipeline = {
   prs: Pr[]
   evidence: string | null
   evidenceFile: string | null // the evidence comment inside that dir, when /verify or /bugfix wrote one
+  evidenceLatest: string | null // else the newest file in that dir (a screenshot, a data file), when there is any
   pollers: string[] // `Poller:` lines the run declared (waits the pane cannot read from a state file)
   waiting: Wait[] // waits read from /clarify's, /bugfix's and /pr's own state files, while their loop is still open
   mtimeMs: number
@@ -31,6 +34,6 @@ export type Pipeline = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'shipkit': { pipeline: Pipeline; frame: number; open: Record<string, boolean>; pinged: Record<string, number> }
+    'shipkit': { pipeline: Pipeline; frame: number; open: Record<string, boolean>; pinged: Record<string, { at: number; sent: boolean }>; drafting: Record<string, string>; halted: Record<string, boolean> }
   }
 }
