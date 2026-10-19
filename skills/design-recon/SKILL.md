@@ -145,7 +145,8 @@ The `screenshot` tier needs **no** browser and **no** extension.
       an existing badge."
    e. No spec (user answered "mockup only") → still run 6b on what's on screen; unresolvable rows go to
       Open Questions, and the contract states `logic source: none`.
-7. `browser_take_screenshot` (full target, default state) → save as the contract's reference image
+7. `browser_take_screenshot` (full target, default state; full size, never shrunk — with the extension, `screenshot` at `scale: 1`, see
+   `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`) → save as the contract's reference image
    (`design-contract.reference.png` beside the spec) for `/verify`'s perceptual fallback. Save
    each click-revealed or forced-state screenshot from 5b/6c alongside it (e.g.
    `design-contract.reference-menu-open.png`).
@@ -198,7 +199,7 @@ Open Question. A spec with conditionals but a matrix holding only the default st
 
 ## Step 5b — Fidelity and placement (up front, next to the State matrix)
 Surface prototype-vs-reality problems **now**, not at `/verify`. Reuse
-`specs/NNN-slug/current-behaviour.md` + `current/*.png` when `/spec-from-ticket` Step 3c wrote them;
+`.shipkit/evidence/<TICKET>/current-behaviour.md` + `current/*.png` (same folder) when `/spec-from-ticket` Step 3c wrote them;
 otherwise run that step's items 1–2 for the screens this design draws (read-only browser, no submits).
 Principle: *the prototype of a feature sits in that feature* — drawn on the real screen where the
 feature lives, starting from it, not parked on another feature's page/tab.

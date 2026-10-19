@@ -1,6 +1,6 @@
 import { test, expect, mock } from 'claude-code/testing'
 
-import { evidenceCommentIn, mergeChecked, readCollected, restatesPrs, whyNoCheck, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
+import { evidenceCommentIn, latestEvidenceIn, mergeChecked, readCollected, restatesPrs, whyNoCheck, EVIDENCE_FILES, PING_AFTER_MS, draftFrom, span, age, blockerStage, nextStep, countItems, openItems, parseBugfix, parseClarify, parsePrLoop, waitingOn, parse, parsePr, prLabel, repoOf } from './pipeline-pane'
 
 const md = `# Pipeline state — AR-450
 ## Stages
@@ -1240,4 +1240,12 @@ test('Close stops a running check (the ui.close and session.end hooks do the sam
   expect(box.value.running).toBe(false)
   expect(box.value.error).toBe('cancelled')
   await ui.unmount()
+})
+
+test('the newest evidence file is /verify\'s own: cross-check, current behaviour and the comment id are not evidence of a verify run', () => {
+  const f = (name: string, mtimeMs: number, kind = 'file') => ({ name, kind, mtimeMs })
+  expect(latestEvidenceIn([f('REQ-001-after.png', 1), f('REQ-002-after.txt', 2), f('cross-check.md', 9), f('current-behaviour.md', 8), f('cross-check-post.md', 7), f('jira-comment-id', 6)])).toBe('REQ-002-after.txt')
+  expect(latestEvidenceIn([f('conflicts', 9, 'directory'), f('current', 8, 'directory'), f('ui-1280.png', 1)])).toBe('ui-1280.png') // subfolders (their screenshots) are not listed as files
+  expect(latestEvidenceIn([f('cross-check.md', 3), f('current-behaviour.md', 2)])).toBe(null) // nothing of /verify's: no file to open, the row copies the path
+  expect(latestEvidenceIn([])).toBe(null)
 })

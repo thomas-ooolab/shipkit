@@ -46,13 +46,14 @@ Read-only research (`--stage post` also runs the app, never edits it). Does **no
 the PO (that is `/clarify`).
 
 ## Write surface (the ONLY things written)
-1. `specs/NNN-slug/cross-check.md` — ledger + findings (format in Step 5).
+1. `.shipkit/evidence/<TICKET>/cross-check.md` — ledger + findings (format in Step 5); `mkdir -p` the folder.
 2. `specs/NNN-slug/open-question.md` — appended `[ticket-conflict]` items; create the file with the same
    header `spec-from-ticket` writes if it does not exist.
-3. `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` — Jira screenshots (Step 6).
-4. `--stage post` only: `.shipkit/evidence/<TICKET>/cross-check-post.md` and its run evidence beside it — never in the
-   spec dir (the spec folder holds the spec, not a discussion's verdict). Never `open-question.md`; PO questions stay
+3. `.shipkit/evidence/<TICKET>/conflicts/<OQ-N>-<KEY>.png` — Jira screenshots (Step 6).
+4. `--stage post` only: `.shipkit/evidence/<TICKET>/cross-check-post.md` and its run evidence beside it. Never `open-question.md`; PO questions stay
    DRAFTS in that file.
+The spec folder holds the spec's own files only: of the list above, only `open-question.md` goes there; the ledger, the findings and the
+screenshots are evidence, under `.shipkit/evidence/<TICKET>/`, never in the spec dir.
 **Forbidden side-effects:** no git mutation; no Jira/Bitbucket mutation (reads only); no code/test edits.
 
 ---
@@ -154,7 +155,7 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
 - nothing differs → `no conflict` with the sources listed.
 
 ## Step 5 — Write
-1. **`specs/NNN-slug/cross-check.md`:**
+1. **`.shipkit/evidence/<TICKET>/cross-check.md`:**
    ```markdown
    # Cross-check — <TICKET> (<stage>, <YYYY-MM-DD>)
    ## Ledger
@@ -211,9 +212,10 @@ type into Jira.
      return 'not-found'; })("<fragment>")
    ```
    `not-found` (formatting can split the text across nodes) → retry once with a shorter fragment.
-3. `computer` action `screenshot` with `save_to_disk: true`; open the saved image and confirm the yellow
-   mark with the quote is in view — no visible mark → retake once, else treat as no image (step 4). Only then
-   copy it to `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `mkdir -p` + `cp`. `tabs_close_mcp` the tab.
+3. `computer` action `screenshot` with `scale: 1` and `save_to_disk: true` (never a smaller `scale`: this image goes to the PO,
+   see `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`); open the saved image and confirm the yellow
+   mark with the quote is in view and the text is readable — no visible mark → retake once, else treat as no image (step 4). Only then
+   copy it to `.shipkit/evidence/<TICKET>/conflicts/<OQ-N>-<KEY>.png` with `mkdir -p` + `cp`. `tabs_close_mcp` the tab.
 4. Chrome not connected, not logged in, or still `not-found` → no image: keep the quote and the Jira
    link in `cross-check.md` and tell the user "take this screenshot by hand: <link>, highlight: <quote>".
    Still `not-found` with Chrome working → first re-check that the quote is an exact substring of the
@@ -228,7 +230,7 @@ In-flight inventory:   (table first: ticket/branch | where the code lives | over
 Claims:   <n> checked (<c> cut)   Sources: <j> Jira · <s> specs · <f> code files
 Findings: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked
 <one line per ticket-conflict: OQ-N · REQ-ID · KEY-A vs KEY-B · screenshots: yes/no>
-Written:  specs/NNN-slug/cross-check.md  (+ open-question.md, conflicts/*.png)
+Written:  .shipkit/evidence/<TICKET>/cross-check.md  (+ conflicts/*.png there, and open-question.md in the spec dir)
 Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to ask" only when 0 unchecked;
           any unchecked source, unscanned or unpushed in-flight work → "incomplete: <sources>; not a 'no conflict' result"
 ```

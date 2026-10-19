@@ -18,6 +18,9 @@
   background, not the one on screen; it cannot type a password except a test account the user typed in chat or
   one you seeded for a localhost app. **Tell the user before bringing Chrome to the foreground** — it takes over
   their screen.
+- **Evidence images are captured at scale 1.** The extension's `computer` action `screenshot` / `zoom` with `scale: 1` and
+  `save_to_disk: true`, never a smaller `scale`; Playwright's `browser_take_screenshot` has no scale and its file is never
+  shrunk afterwards. See `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`.
 - **Evidence images come only from the browser tool** (`browser_take_screenshot` or the extension's screenshot).
   Never a full-screen `screencapture`, or `-R` on any region that isn't a window you opened yourself, nor any
   other image the browser tool did not produce: it captures whatever sits on top of the screen, other windows and

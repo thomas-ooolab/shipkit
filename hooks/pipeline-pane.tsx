@@ -297,6 +297,14 @@ export const waitingOn = (a: {
 export const EVIDENCE_FILES = ['jira-comment.md', 'concern-evidence.md']
 const EVIDENCE_COMMENT = /^jira-comment-.+\.md$/
 
+// files in the evidence folder that are not /verify's evidence: /cross-check's ledger and findings, /spec-from-ticket's current behaviour, and the
+// saved Jira comment id. (Their screenshots sit in the `conflicts/` and `current/` subfolders, which a listing of files does not reach.)
+const NOT_VERIFY_EVIDENCE = /^(cross-check(-post)?|current-behaviour)\.md$|^jira-comment-id$/
+
+// the newest of /verify's evidence files (a screenshot, a data file): Orca cannot open a folder, so that is what a press focuses
+export const latestEvidenceIn = (files: { name: string; kind?: string; mtimeMs: number }[]): string | null =>
+  [...files].filter(f => (f.kind ?? 'file') === 'file' && !NOT_VERIFY_EVIDENCE.test(f.name)).sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.name ?? null
+
 // the evidence comment among a directory's files: the newest `jira-comment-<date-time>.md`, else an older name; null when there is none
 export const evidenceCommentIn = (files: { name: string; mtimeMs: number }[]): string | null =>
   [...files].filter(f => EVIDENCE_COMMENT.test(f.name)).sort((a, b) => b.mtimeMs - a.mtimeMs || (a.name < b.name ? 1 : -1))[0]?.name ?? EVIDENCE_FILES.find(n => files.some(f => f.name === n)) ?? null
@@ -704,10 +712,10 @@ const refresh = async ($: any, withSpin = false) => {
       const files = ((await $.fs.list(dir).catch(() => [])) as { name: string; kind: string; mtimeMs: number }[]).filter(f => f.kind === 'file')
       const comment = evidenceCommentIn(files)
       if (comment) p.evidenceFile = `${dir}/${comment}`
-      // no evidence comment yet: the newest file there (Orca cannot open a folder, so that is what a press focuses)
+      // no evidence comment yet: the newest of /verify's own evidence files, never another skill's file in the same folder
       else {
-        files.sort((a, b) => b.mtimeMs - a.mtimeMs)
-        if (files[0]) p.evidenceLatest = `${dir}/${files[0].name}`
+        const latest = latestEvidenceIn(files)
+        if (latest) p.evidenceLatest = `${dir}/${latest}`
       }
     }
     p.concerns = prMd === null ? [] : openItems(prMd, '## Concerns')

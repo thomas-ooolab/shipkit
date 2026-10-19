@@ -45,14 +45,15 @@ One more excuse that belongs to this skill:
 
 ## Step 1c — Fidelity and placement gate (before any question is drafted or planned)
 
-If the ticket carries a design/prototype and `specs/NNN-slug/current-behaviour.md` doesn't exist yet,
+If the ticket carries a design/prototype and `.shipkit/evidence/<TICKET>/current-behaviour.md` doesn't exist yet,
 run `spec-from-ticket` Step 3c first (and `design-recon` Step 5b for the contract) — don't reimplement
 them here. Then, before asking the PO business questions:
 - Every `[design-omission]` item in `open-question.md` goes out in the seed as a plain-language
   question: what the design shows, what the product has today, and "can you draw it on the real
   screen?". Say plainly it's a design omission, not something dev got wrong. Never choose a
   placement for the PO's feature, and say what we build meanwhile.
-- Attach the real-screen screenshots from `specs/NNN-slug/current/` to that comment with
+- Attach the real-screen screenshots from `.shipkit/evidence/<TICKET>/current/` to that comment (open each first: one that was captured below
+  scale 1 or whose text cannot be read is retaken at scale 1, never attached — `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`) with
   `--image <path>:<one-line caption>` (or `![caption](/abs/path.png)` on its own line in the draft).
   Show the images in the draft you confirm with me; `--dry-run` uploads nothing.
 - Shape of the design-omission part of that comment: the placement question comes first and is a single question; at most one
@@ -64,9 +65,9 @@ them here. Then, before asking the PO business questions:
   in plain language: the two rules in the PO's own words, which
   ticket each came from and roughly when, what the product does today, and "which one applies, or do both
   apply to different people?". Never say which is right, never use field/endpoint/file names. Attach
-  `specs/NNN-slug/conflicts/<OQ-N>-<KEY>.png` with `--image <path>:<one-line caption>`; no screenshot
+  `.shipkit/evidence/<TICKET>/conflicts/<OQ-N>-<KEY>.png` (a scale-1 capture, see above) with `--image <path>:<one-line caption>`; no screenshot
   exists (Chrome wasn't available) → quote each rule and add the Jira link, and say so when showing me
-  the draft. Missing `cross-check.md` while the ticket has authorisation requirements → run
+  the draft. Missing `.shipkit/evidence/<TICKET>/cross-check.md` while the ticket has authorisation requirements → run
   `/cross-check <TICKET>` first, don't reimplement it here.
 
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)

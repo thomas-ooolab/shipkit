@@ -62,10 +62,12 @@ if asked.
 2. `specs/NNN-slug/open-question.md` (Step 5, only if Step 3b found blocking items; Step 5b appends `[ticket-conflict]` items) — business-language
    questions for the PO, consumed by `/clarify`.
 3. `reporter_account_id` in the spec's own frontmatter (Step 5; the value is read in Step 1b). Nothing in `.shipkit/config.yml` — the reporter belongs to this ticket, not to the project.
-4. `specs/NNN-slug/current-behaviour.md` + `specs/NNN-slug/current/*.png` (Step 3c, only when the
-   ticket touches an existing screen/flow or carries a design/prototype).
-5. `specs/NNN-slug/cross-check.md` + `specs/NNN-slug/conflicts/*.png` (Step 5b, written by
+4. `.shipkit/evidence/<TICKET>/current-behaviour.md` + `.shipkit/evidence/<TICKET>/current/*.png` (Step 3c, only when the
+   ticket touches an existing screen/flow or carries a design/prototype) — research evidence, not part of the spec.
+5. `.shipkit/evidence/<TICKET>/cross-check.md` + `.shipkit/evidence/<TICKET>/conflicts/*.png` (Step 5b, written by
    `/cross-check`), and the `blocked on OQ-N` marker added to the affected `REQ-NNN` line in `spec.md`.
+The spec folder `specs/NNN-slug/` holds the spec's own files only (`spec.md`, `open-question.md`); the research behind them —
+current behaviour, the cross-check and their screenshots — goes under `.shipkit/evidence/<TICKET>/`.
 **Forbidden side-effects:** no git mutation (read-only `status`/`log`/`diff`); no Jira/Bitbucket
 mutation of any kind (reads only — never comment, transition, or edit); no code/test changes.
 
@@ -178,8 +180,9 @@ context, and implementation pays for it.
 1. **Understand the current feature first.** For every existing screen/flow the ticket touches, find
    it in the real submodule source (route → page → component) and list its real fields, labels, steps,
    states and entry point. When the app can run (`run` skill / Playwright MCP, read-only — never submit
-   or mutate), open it and save a screenshot to `specs/NNN-slug/current/<screen>.png`. Write
-   `specs/NNN-slug/current-behaviour.md`: one section per screen — `entry point | fields+labels |
+   or mutate), open it and save a screenshot to `.shipkit/evidence/<TICKET>/current/<screen>.png` (at scale 1, readable at full size: `/clarify` attaches it to
+   Jira, `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`). Write
+   `.shipkit/evidence/<TICKET>/current-behaviour.md` (`mkdir -p` the folder): one section per screen — `entry point | fields+labels |
    steps | states | screenshot | (verified in <file>:<line>)`. Cannot run → say so, cite code only.
    Then grep the source for **every other screen that creates or edits the same entities** the
    feature touches (routes, pages, modals, wizards) — including ones the ticket never mentions. When
@@ -194,13 +197,13 @@ context, and implementation pays for it.
      another feature's page/tab, mock panels that don't resemble the real editor, and a new feature
      that must live in two existing screens but is drawn for one.
 3. **Each mismatch becomes an `open-question.md` item** tagged `[design-omission]`, business language,
-   naming the real screen and pointing at its `current/*.png`: what the design shows, what the product
+   naming the real screen and pointing at its `current/*.png` (under `.shipkit/evidence/<TICKET>/`): what the design shows, what the product
    has today, and the question for the PO ("which screen should this live on — can you redraw it
    there?"). It is a design omission, not a dev defect — say so. Never choose a placement for the PO's
    feature; state what gets built meanwhile (`blocked` or `built on <real screen> pending design`).
    PO-facing wording stays in the product's own words: it never names spec files (`current-behaviour.md`)
    or says the app could not run — the screenshots (when taken) are the evidence.
-4. Add a pointer under the spec's `## Contracts`: `Current behaviour: current-behaviour.md`.
+4. Add a pointer under the spec's `## Contracts`: `Current behaviour: .shipkit/evidence/<TICKET>/current-behaviour.md`.
 
 ## Step 4 — Classify, then interview (one batched question)
 Classify each spec field against the evidence ledger as **Present** (cited source answers it),
@@ -275,7 +278,7 @@ shipkit · spec-from-ticket <ticket> — <title>
 Scope:   <scope>  (services: <list>)  · Tier: <tier>
 Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specified])
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
-Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (specs/NNN-<slug>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
+Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (.shipkit/evidence/<TICKET>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
 Reporter: <displayName> (<accountId>) → spec frontmatter reporter_account_id   (or: empty — <reason>)
 Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those block a sound plan)
          then /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>

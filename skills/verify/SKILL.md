@@ -136,9 +136,9 @@ outside the page goes through `capture-native-popup.js`; a local login uses a de
 For each check, reproduce its scenario end to end on the running system, then also run the **adjacent happy
 path** (the neighbouring flow it could have broken) and watch the console/network (FE) or logs/status codes (BE)
 for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`:
-- **FE → a screenshot (PNG)** from the browser tool (Step 2) of the page in the state the requirement expects, after driving the exact steps
+- **FE → a screenshot (PNG)** from the browser tool (Step 2), **at scale 1** (never a smaller `scale`: `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`), of the page in the state the requirement expects, after driving the exact steps
   (plus a `-before.png` of the bug when you reproduced one first). **Open the PNG yourself (Read) and confirm it
-  shows the expected behavior** — a screenshot of the login page, the wrong screen, or an unchanged bug is not
+  shows the expected behavior and is readable at its size** — a screenshot of the login page, the wrong screen, or an unchanged bug is not
   evidence; discard it and retake. **Make the proof the obvious thing in the image.** A reader who wasn't there
   must see in two seconds what you are proving, so: ① scroll the proving element into view and **ring it** — with
   the page script of whichever tool takes the shot — Playwright MCP `browser_evaluate` then
