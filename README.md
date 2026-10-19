@@ -207,7 +207,7 @@ renders). shipkit closes this with a measure-based loop:
 /verify --ticket AR-123 --url <route>   ← Half 2: render the BUILT UI at every breakpoint,
       │                                            diff computed styles vs the contract, gate PASS/FAILED
       ▼                                            with expected → actual → fix. Responsive breakage fails.
-   fix → re-run until PASS → /review-changes → /pr
+   fix → re-run until PASS → /review-changes (if not run yet on these commits) → /pr
 ```
 
 **Three artifact tiers**, auto-detected: an **HTML file** or **public URL** → exact computed-style

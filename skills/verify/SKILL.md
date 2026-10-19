@@ -206,7 +206,7 @@ verify: PASS — <n> checks verified with evidence[; built UI matches design-con
 verify: FAILED: <n> blocking (<k> logic, <u> ui, <b> responsive) (<m> advisory)
 verify: INCOMPLETE: <n> unverified — <blockers>
 ```
-Then: `<PASS ⇒ ready for /review-changes | fix the ❌ and re-run /verify | unblock the ⚠️ (or tell me to waive that check) and re-run>`.
+Then: `<PASS ⇒ next: /review-changes if it has not run on the current commits (verify and review may run in either order, see How it fits the pipeline) | fix the ❌ and re-run /verify | unblock the ⚠️ (or tell me to waive that check) and re-run>`.
 `INCOMPLETE` is **not** a pass, and not a place to stop: build what is missing (Step 3) and re-run first. Only the
 user, interactively and explicitly, may waive an `UNVERIFIED` check; the waiver is stated in the report to them,
 never in a Jira comment. Show the evidence, not just the table: for each `PASS`, open the PNG for the
