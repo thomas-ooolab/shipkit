@@ -23,6 +23,7 @@ concern (`/verify --concern`, evidence under `.shipkit/evidence/<ticket>/`). Nev
 standard flow, **scoped to what the fix changed**: `--req REQ-NNN …` = the ids on the changed lines outside `## Tasks`, plus the
 `[REQ-NNN]` tag of each fix task the branch added there (`{fix`), plus the requirements that cite a changed `## Contracts` entry.
 A change no requirement can be named for → no `--req` (the whole ticket), and the state line says so. Otherwise that stage is skipped.
+No `spec.md` (`probe.sh state` → `SPEC=none`: a stand-alone bug ticket, where `/bugfix` fixes through a free-form `/assign` and its Step 1b is a no-op) → there is nothing to diff: the spec is unchanged and this stage is skipped.
 
 ## Derive state (Step 2 for a bug)
 `probe.sh state <ticket>` plus the same Bitbucket PR lookup as Step 2, with `fix/<ticket>-` in place of `feat/<ticket>-` (keep `feat/` when the fix went onto the ticket's own unmerged feature branch).

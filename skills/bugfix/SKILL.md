@@ -82,11 +82,21 @@ A ticket can have concerns in different buckets at once — classify each on its
    report: it opens a kiro terminal per submodule, which commits to the feature branch and never pushes (`--no-push` keeps
    `/assign` from pushing too) — so the fix is verified before anything leaves the machine; a `FAILED` verify means new
    tasks and another `/assign`, never a claim in Jira. If `/assign`
-   asks about a submodule already in progress, that is the user's answer, not yours. `probe.sh state` gives `SPEC=none`,
-   or `/assign` stops for any other reason → **stop and tell the user why** (one line, in the user's language); never fall back to
+   asks about a submodule already in progress, that is the user's answer, not yours.
+   **`probe.sh state` gives `SPEC=none`** (a stand-alone bug ticket: the bug report is the ticket description, there is no feature
+   spec, and `/run-pipeline --bug` never creates one) **→ run `/assign` in free-form mode instead of stopping.** Per real-defect
+   concern, `cd` into the affected submodule (the repo root on a single-repo topology), run
+   `/assign "<brief>" --agent kiro --no-push` there, then `cd` back: free-form mode takes the repo `git rev-parse --show-toplevel`
+   prints as its one target, and `--worktree current` still resolves to this worktree from inside a submodule. The brief carries the
+   concern in the tester's words, the root cause `superpowers:systematic-debugging` found (`file:line`), the branch name
+   `probe.sh branch <TICKET> <submodule|parent> --fix` prints (create it from the tracking branch if missing, else continue on it),
+   "regression test first", and "run the repo's tests, commit, never push". No `spec.md` is created or edited. Everything else in
+   this step stays: kiro writes the fix, `/verify --concern` proves it before any push, a `FAILED` verify means a new brief and
+   another `/assign`.
+   `/assign` stops for any other reason → **stop and tell the user why** (one line, in the user's language); never fall back to
    fixing inline — the flag means kiro writes the fix, and an inline fix by claude is not what was asked. Inline is only
    for a run without `--agent kiro`.
-   **1b. Keep `spec.md` true.** After the fix, compare what the code now does with the ticket's spec (`probe.sh state` → `SPEC`):
+   **1b. Keep `spec.md` true.** `SPEC=none` → nothing to keep true: skip this step (`/run-pipeline --bug` reads that as "spec unchanged"). After the fix, compare what the code now does with the ticket's spec (`probe.sh state` → `SPEC`):
    a `REQ-NNN`, a `## Contracts` entry or a `## Plan` decision that no longer matches is edited **in place** (the fix tasks stay in `## Tasks`; no
    new spec, no `/plan-deep`, no `/clarify`). Every such edit needs a source — the PO's chosen option or a dated Jira decision, cited by comment id in
    the tick comment; an edit nobody decided is a Needs-a-product-decision concern, not a fix. The code was wrong and the spec was right → the spec is
