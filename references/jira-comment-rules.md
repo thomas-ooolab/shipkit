@@ -46,3 +46,13 @@ sent — and its item is not "resolved this tick" until it actually posts.
 | "No one replied to the draft, but it's clearly right" | Silence isn't approval. No reply = no post, this tick. |
 | "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
 | "Confirming breaks the autonomous loop" | It pauses posting, not the whole skill. Polling resumes normally once posted. |
+
+## Numbering, and reading the comment back
+Jira renumbers every list from 1 unless the list carries its start number, and a blank line or a heading ends a list. `jira-comment.py`
+now writes each block's first number (`attrs.order`), but a question list that a heading or a paragraph cuts apart is still several lists.
+So number across topics in one of two ways: keep the "N. " lines together in one block, or — what `/clarify` and `/bugfix` do for
+questions — label each one with its `OQ-N` from `open-question.md` (`OQ-3. …`; one merged from several: `OQ-3 / OQ-19. …`). The code is
+stable and never renumbered, so Jira, the spec and `open-question.md` all search alike, and "OQ-N." does not match the script's `N. ` list
+pattern, so Jira never renumbers it. **After posting, read the comment back and check the numbers:** the id the script prints proves nothing about them.
+`GET <JIRA_URL>/rest/api/3/issue/<TICKET>/comment/<id>` (credentials to curl on stdin, `curl -K -`, never on its command line), then
+check every `orderedList` and its `attrs.order` in the body. A wrong number → `jira-comment.py edit <TICKET> <id> --file <draft.md>`.

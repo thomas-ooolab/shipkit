@@ -14,7 +14,7 @@ Exit: 0 ok, 2 bad usage, 3 env missing, 4 Jira rejected (incl. failed upload / m
 5 posted but a mention did not come back.
 
 Markdown subset: @[Name](accountId)  @[](accountId) (name looked up)  **bold**  `code`
-[text](https://url)  "- " bullets  "1. " ordered  "# " headings  blank line = paragraph,
+[text](https://url)  "- " bullets  "1. " ordered (each block counts on from its own first number)  "# " headings  blank line = paragraph,
 single newline = hard break  pipe tables ("| a | b |" + "|---|---|" + rows; first row = header,
 "\\|" = a literal pipe).
 Images: a line `![caption](/abs/path.png)` becomes an inline image (italic caption paragraph above
@@ -154,7 +154,10 @@ def build_adf(md, names, images=None):
             kind, pat = "orderedList", r"\d+\. "
         if kind:
             items = [{"type": "listItem", "content": [{"type": "paragraph", "content": inline(re.sub("^" + pat, "", l), names)}]} for l in ls]
-            blocks.append({"type": kind, "content": items})
+            block = {"type": kind, "content": items}
+            if kind == "orderedList":  # Jira restarts at 1 unless told: a list cut by a heading or a paragraph keeps counting from its first number
+                block["attrs"] = {"order": int(re.match(r"\d+", ls[0]).group())}
+            blocks.append(block)
             continue
         h = re.match(r"(#{1,6}) (.*)", ls[0])
         if h:
@@ -442,6 +445,15 @@ def self_test():
     assert any(n.get("marks", [{}])[0].get("type") == "link" for n in p)
     assert {"type": "hardBreak"} in p
     assert len(c[2]["content"]) == 2 and len(c[3]["content"]) == 2
+    # a numbered list cut by a paragraph (or a heading) keeps its numbers: each block starts from its own first number
+    d = build_adf("1. first\n\nSome words between\n\n2. second\n\n## Topic\n\n3. third\n4. fourth", lambda i: i)
+    c = d["content"]
+    assert [b["type"] for b in c] == ["orderedList", "paragraph", "orderedList", "heading", "orderedList"], c
+    assert [b["attrs"]["order"] for b in c if b["type"] == "orderedList"] == [1, 2, 3], c
+    assert "attrs" not in build_adf("- a\n- b", lambda i: i)["content"][0]  # a bullet list has no order
+    # an "OQ-N." label is not a list item: it stays text, so Jira never renumbers it
+    d = build_adf("OQ-3. first\n\nOQ-3 / OQ-19. second", lambda i: i)
+    assert [b["type"] for b in d["content"]] == ["paragraph", "paragraph"], d
     d = build_adf("Before\n![Shot one](/x/a.png)\nAfter @[Ann](a:1)\n\n![](/x/b.png)",
                   lambda i: i, lambda p: ("uuid-" + p[-5:], 640, 480))
     t = [b["type"] for b in d["content"]]

@@ -79,8 +79,8 @@ The local state file is not the source of truth for "has this been seeded" — t
    - **Nothing found** → proceed below, this is a genuine first seed.
 1. Read `open-question.md` → list of questions, each already in business-language / lettered-option format (`spec-from-ticket` and `plan-deep` both write to this file).
 2. Translate any that still read technical (they shouldn't, if `spec-from-ticket` wrote them, but re-check) into plain business language per the rule above.
-3. Draft ONE comment tagging the PO with every open question, then confirm it with me per the Hard Rule above. If unconfirmed this turn, write it as `pending_comment` in the state file below and stop — don't launch the background poller yet.
-4. Once approved, post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (see Step 1.3). Note the `id` it prints as `last_checked_comment_id`, and clear `pending_comment`.
+3. Draft ONE comment tagging the PO with every open question, each labelled with its `OQ-N` from `open-question.md` (`OQ-3. …`; merged from several: `OQ-3 / OQ-19. …`) — the code is stable, so Jira, the spec and `open-question.md` search alike, and Jira never renumbers it. Then confirm it with me per the Hard Rule above. If unconfirmed this turn, write it as `pending_comment` in the state file below and stop — don't launch the background poller yet.
+4. Once approved, post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (see Step 1.3). Note the `id` it prints as `last_checked_comment_id`, and clear `pending_comment`. Then read the comment back to check the numbers of any plain numbered list (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`, *Numbering*).
 5. Write `.shipkit/clarify-<ticket>.md`:
    ```markdown
    # Clarify loop state — <ticket>
