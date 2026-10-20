@@ -65,8 +65,8 @@ Evidence: .shipkit/evidence/<ticket>/
 - **Stage 1 — bugfix:** dispatch `/bugfix <ticket> [<comment-id>]` (add `--agent kiro` when the run was given it). It writes
   its own state and Jira comments, each one confirmed by the user; the reporter-wait loop is its own background poller and
   is **not** a gate here. Continue to Stage 2 once the stage table above reads complete. Every concern was a not-a-defect
-  explanation or a PO decision (no commit beyond the target) → **stop**: "No fix to ship for <ticket> — `/bugfix` keeps waiting
-  for the reporter; re-run `/run-pipeline <ticket> --bug` when it produced a fix."
+  explanation, a PO decision or a hand-off to another owner (no commit beyond the target) → **stop**: "No fix to ship for <ticket> — `/bugfix` keeps waiting
+  for the reporter; re-run `/run-pipeline <ticket> --bug` when it produced a fix." When a concern was handed off, the message also names each owner and ticket (`handed off: <concern> → <owner>, <ticket>`).
 - **Stage 2 — verify** *(gate, only when the spec changed)*: `/verify --ticket <ticket> --req <REQ-NNN> … --no-jira` (the set above), otherwise exactly Stage 4.5 of `SKILL.md`
   (`FAILED` / `INCOMPLETE` stop the run, never waived in `AUTO=true`). `--no-jira`: no evidence comment is drafted — in this flow `/bugfix`
   drafts the one Jira comment (Step 3.3, confirmed by the user before it posts), so `/merge` finds no `/verify` evidence draft (`jira-comment-*.md`) and sends nothing. Spec unchanged → mark `[x]` with `skipped: spec unchanged`; nothing is dispatched.
