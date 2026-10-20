@@ -50,6 +50,23 @@ sent — and its item is not "resolved this tick" until it actually posts.
 | "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
 | "Confirming breaks the autonomous loop" | It pauses posting, not the whole skill. Polling resumes normally once posted. |
 
+## Claims about today's behaviour — every draft, ours as well as the PO's words
+A sentence in our draft that states as fact what the product, its data, the code or another ticket does or says now ("today X reads
+Y", "right now trials keep 90 days", "the digest already skips…", "<KEY> says…") is a today-claim. A question, the other person's own
+words, or a proposal ("we'd build it so that…") is not. Before the draft is shown, every today-claim is one of:
+- **backed** by a `file:line` read in the real code during this tick (not `specs/` or `docs/`), or by the quoted Jira comment with its
+  id and link;
+- **rewritten** as an open question ("which score does the call list show?");
+- **dropped**.
+
+"I assume", "probably" and "the spec says" are not backing. Code that could not be reached (no checkout, app not running) → rewrite
+the claim as a question and mark it `unchecked: <reason>`. Same standard as `/developer`'s "answer only what is verified".
+
+The backing never goes into the comment (Rule 1 forbids file names there). Show it next to the draft as a **Claims** list, one line per
+today-claim: `<claim> -> <file:line> | <Jira link> | rewritten as a question | dropped | unchecked: <reason>`. A draft with a today-claim
+and no Claims line is not shown for approval; a draft that is only questions has no Claims list. Build the list from the text that
+came out of `humanize-text.md`, not from the draft before it.
+
 ## Numbering, and reading the comment back — for every comment posted with `jira-comment.py`
 This part is for **any** skill's comment that carries a numbered list (the script is shared), not only `/clarify` and `/bugfix`. Jira
 renumbers every list from 1 unless the list carries its start number, and a blank line or a heading ends a list. `jira-comment.py` writes

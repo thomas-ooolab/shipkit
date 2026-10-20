@@ -290,7 +290,8 @@ changes, never as the trigger). The spec may be absent; that does not skip this.
    toolchain when a generator fails on a newer local one.
 
 **Output** — write `.shipkit/evidence/<TICKET>/cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`, then the line `Comments: <id>[, <id>…]` naming every comment this run
-reconciled — `/clarify` checks it), then report, starting
+reconciled; a file from an earlier run keeps the ids already on that line and this run's are added, so the line only grows —
+`/clarify` and `/bugfix` check it), then report, starting
 with the **In-flight inventory** table (Step 1b), then:
 1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
 2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,
