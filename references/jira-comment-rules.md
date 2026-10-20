@@ -50,10 +50,10 @@ sent — and its item is not "resolved this tick" until it actually posts.
 | "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
 | "Confirming breaks the autonomous loop" | It pauses posting, not the whole skill. Polling resumes normally once posted. |
 
-## Claims about today's behaviour — every draft, ours as well as the PO's words
+## Claims about today's behaviour and the scope of proposals — every draft, ours as well as the PO's words
 A sentence in our draft that states as fact what the product, its data, the code or another ticket does or says now ("today X reads
 Y", "right now trials keep 90 days", "the digest already skips…", "<KEY> says…") is a today-claim. A question, the other person's own
-words, or a proposal ("we'd build it so that…") is not. Before the draft is shown, every today-claim is one of:
+words, or a proposal that names no scope ("we'd build it so that…") is not (a proposal that does is covered by *Scope of a proposal* below). Before the draft is shown, every today-claim is one of:
 - **backed** by a `file:line` read in the real code during this tick (not `specs/` or `docs/`), or by the quoted Jira comment with its
   id and link;
 - **rewritten** as an open question ("which score does the call list show?");
@@ -66,6 +66,15 @@ The backing never goes into the comment (Rule 1 forbids file names there). Show 
 today-claim: `<claim> -> <file:line> | <Jira link> | rewritten as a question | dropped | unchecked: <reason>`. A draft with a today-claim
 and no Claims line is not shown for approval; a draft that is only questions has no Claims list. Build the list from the text that
 came out of `humanize-text.md`, not from the draft before it.
+
+**Scope of a proposal.** A proposal or option in our draft that names a scope ("every screen", "everywhere", "all reports", "only X") is
+a scope-claim: it says how far the change reaches. Before the draft is shown, read the code for every consumer of the thing it changes —
+the same sweep as `${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md` Step 3c ("every route that reads or acts on the entity": list,
+detail, actions, jobs, exports, integrations) — and add a Claims line `<scope word> -> <n> consumers: <file:line>, …`. A consumer the
+proposal does not cover, or that would behave differently under it, becomes its own question in the same comment (with its `OQ-N`), or
+the proposal is narrowed to the places that were read ("the call list and the digest", not "every screen"). A consumer counts when it reads the same field or value, on the same record or on a related one (an older record type, an export, a job); never leave one out because it is not a screen or not the same record, ask about it. It is settled without
+asking only when a quoted decision (Jira comment id and link) already settles it. Code that could not be reached → don't propose the
+scope: ask which places should change, and mark the Claims line `unchecked: <reason>`. A proposal that names no scope needs no sweep.
 
 ## Numbering, and reading the comment back — for every comment posted with `jira-comment.py`
 This part is for **any** skill's comment that carries a numbered list (the script is shared), not only `/clarify` and `/bugfix`. Jira
