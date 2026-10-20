@@ -67,7 +67,7 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 ## Step 1 — Locate
 Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default), `plan` or `post`; every further word (`post` only) is
-the id of a comment to reconcile. Run
+the id of a comment to reconcile, or `description` for the ticket's own description. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC`. `post` → after Step 1b skip
 Steps 2–7: follow **Discussion mode** below (`SPEC=none` is fine there). Otherwise
 `SPEC=none` → stop: "No spec for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the whole `spec.md`. The Jira project key
@@ -254,7 +254,7 @@ reached — none of those is a discussion. It is not a step of `/run-pipeline`, 
 `/review-changes`; the user (or a skill that triages such comments) calls it with the ticket, naming the point (comment
 link or id) if there is one.
 
-**Inputs.** The raised point first: key, comment id, date, author, link and the claim it makes (quoted). Then the
+**Inputs.** The raised point first: key, comment id, date, author, link and the claim it makes (quoted). For `description` the point is the ticket's own description: author = its reporter, date = its created date, link = `<base_url>/browse/<KEY>`, and the `Comments:` line names it as `description`. Then the
 sources that discuss the same entity — the ticket's comments and replies, the parent epic and sibling tickets
 (order every decision by date; cite comment id + date), the spec — and the code's behaviour today per role
 (`file:line`; per affected submodule, a `git diff <tracking branch>...HEAD` only to see what the branch already
