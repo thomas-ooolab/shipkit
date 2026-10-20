@@ -47,7 +47,8 @@ that single write is the user's own call and is allowed — only through the san
 URL mode, like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait. (Observer
 mode drafts first — see *Observer mode*; everything else here applies to both.) The post goes out as
 the user, so write the way they type: first person, plain sentences, no bolded outline, no stock
-phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents.
+phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` and run every
+Slack and Jira draft through it before it is shown or posted.
 
 **Post only through the user token** (never the Slack MCP `slack_send_message` — it posts as the
 wrong identity). Reply in the thread (`thread_ts` = root, always; the one exception is a top-level DM,

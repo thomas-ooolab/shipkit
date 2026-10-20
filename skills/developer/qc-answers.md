@@ -41,7 +41,8 @@ You answer from the seat of the developer who built it.
 
 ### Answering a batch (several questions on one ticket)
 - **Order.** Draft one answer at a time into a scratchpad file; the user approves each; then compile ONE
-  Jira comment and post it. Touch no code until every answer is drafted.
+  Jira comment and post it. Touch no code until every answer is drafted. Each answer goes through
+  `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` before the user sees it.
 - **Numbered answers.** Answers kept in the QC's numbering go in one block of "N. " lines: if a heading or a paragraph splits the list,
   `jira-comment.py` still counts on from each block's first number. After posting, read the comment back over REST to check the numbers
   shown (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`, *Numbering*).

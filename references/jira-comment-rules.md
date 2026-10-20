@@ -18,6 +18,9 @@ outline, not a numbered list of items, no stock phrases ("please advise", "I hop
 investigated…", "kindly confirm"). Several items in one comment still read as one person talking — run them together or
 split with "also", not a heading per item.
 
+**REQUIRED:** before showing a draft for approval, Read `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` and run the draft through
+it (`humanizer:humanizer`); the text shown, approved and posted is the checked rewrite.
+
 Bad: "**Question 1:** Please confirm the retention period for Enterprise workspaces.\n**Question 2:** Please confirm whether the weekly digest should include workspaces with zero calls.\nKindly advise at your earliest convenience."
 Good: "Two things I need from you — how long should Enterprise workspaces keep call recordings, a year or unlimited? And should the weekly digest still go out to workspaces that had zero calls that week, or skip them?"
 

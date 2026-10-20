@@ -45,9 +45,9 @@ A concern that's actually correct doesn't become "needs a decision" just because
 
 These are not symmetric. A Slack thread reply is fast-moving, cheap to follow up on, and read only by the reviewer and whoever's in the review channel; a Jira comment is a durable, org-visible record on the ticket itself, and the one that pulls the PO in to make a call. Slack messages post without waiting on me. Jira comments still do.
 
-**Slack: draft it, tag correctly, post it (per *Posting to Slack*) — no approval wait.** Fixing a real defect never needed approval (that's code); now the message describing it, the tick-reply summary, the not-an-issue explanation, and the sign-off ack don't either. Still apply the tagging rule below and the debate/classification discipline elsewhere in this skill — "no approval needed" is not "skip the thinking," it's "don't pause for a yes before sending."
+**Slack: draft it, tag correctly, post it (per *Posting to Slack*) — no approval wait.** Fixing a real defect never needed approval (that's code); now the message describing it, the tick-reply summary, the not-an-issue explanation, and the sign-off ack don't either. Still apply the tagging rule below and the debate/classification discipline elsewhere in this skill — "no approval needed" is not "skip the thinking," it's "don't pause for a yes before sending." Every Slack draft, the seed ping included, goes through `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` before it posts.
 
-**Jira: still draft → show me → wait for explicit approval → post.** A wake with no reply yet means no post this tick.
+**Jira: still draft → show me → wait for explicit approval → post.** A wake with no reply yet means no post this tick. The draft shown for approval is the one that went through `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md`.
 
 1. Draft the comment.
 2. Show me the exact text, verbatim.

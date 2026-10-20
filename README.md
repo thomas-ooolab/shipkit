@@ -277,6 +277,8 @@ listed in the template `/bootstrap` writes.
 
 **Rule for every skill: write to Jira/Slack through this plugin's scripts (`scripts/jira-comment.py`, `scripts/post-slack.js`); use a Claude connector (Atlassian/Slack MCP) only to read, or as a last-resort fallback when the script's env vars are missing.**
 
+Free-form text posted as you (a Jira comment, a Slack reply or DM) is run through the `humanizer:humanizer` skill first, with mentions, links, ticket codes and list numbers checked afterwards (`references/humanize-text.md`). Install the humanizer plugin for it; without it the draft posts unedited.
+
 Skills that comment on Jira (`clarify`, `bugfix`, `pr`, `plan-deep`) post through
 `scripts/jira-comment.py`, because the Atlassian MCP `addCommentToJiraIssue` stores @mentions as plain
 text and notifies nobody. The script uses REST API v3 and sends real mention nodes.
