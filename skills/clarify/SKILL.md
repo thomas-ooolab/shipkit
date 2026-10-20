@@ -67,7 +67,8 @@ them here. Then, before asking the PO business questions:
   apply to different people?". Never say which is right, never use field/endpoint/file names. Attach
   `.shipkit/evidence/<TICKET>/conflicts/<OQ-N>-<KEY>.png` (a scale-1 capture, see above) with `--image <path>:<one-line caption>`; no screenshot
   exists (Chrome wasn't available) → quote each rule and add the Jira link, and say so when showing me
-  the draft. Missing `.shipkit/evidence/<TICKET>/cross-check.md` while the ticket has authorisation requirements → run
+  the draft. Missing `.shipkit/evidence/<TICKET>/cross-check.md` while a requirement carries a claim of kind (a), (b) or (c)
+  (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*) → run
   `/cross-check <TICKET>` first, don't reimplement it here.
 
 ## Step 2 — Seed (only if no seed comment already exists on this ticket)
@@ -98,7 +99,8 @@ The local state file is not the source of truth for "has this been seeded" — t
    files and any Jira comment/spec reference to it. Carry over the `[no-precedent]` tag verbatim on any
    item that has one (see spec-from-ticket/plan-deep) — it's what tells Step 3.4 to treat that item's
    eventual answer as lower-confidence. `follow_up_rounds` counts ticks where Step 3.4
-   fired a genuinely-new question (bucket 2) — see the round cap in Step 3.4.
+   fired a genuinely-new question (bucket 2) — see the round cap in Step 3.4. Step 3.4's gate may add
+   `gate: skipped <comment-id> - <reason>` lines, one per comment.
 
 ## Step 3 — Loop body (every time the background poller reports new activity, or right after seeding)
 
@@ -114,20 +116,24 @@ The local state file is not the source of truth for "has this been seeded" — t
    - **4** — Jira rejected the request (bad auth / wrong ticket key) → tell the user, don't silently keep retrying.
 2. Read the state file.
 3. Fetch Jira comments on the ticket newer than `last_checked_comment_id` (`getJiraIssue` with comments) — the poller only told you *something* changed, not *what*; read the actual content here. **Check each new comment's author against the spec's `reporter_account_id` first.** A reply from someone other than the tagged PO is not automatically authoritative — same Jira ticket, different person than the one asked. Don't fold a mismatched-author reply into `open-question.md` as a resolved answer; when drafting this tick's comment/summary (step 5 below), say plainly who the tagged PO was and who actually replied, and let the user decide whether to treat it as authoritative, wait for the named PO, or escalate. **Also re-read `open-question.md`** and diff it against the state file's checklist — a later `/plan-deep` run (or a manual edit) can append new items after this ticket was already seeded, and those need to reach the PO in this tick's comment too, not sit unasked. Any item in the file not yet in the state file's checklist is new: add it to today's batch the same as a bucket-2 item below (it doesn't count against `follow_up_rounds` — that counter is only for questions *this skill itself* generated in response to a PO reply, not ones `spec-from-ticket`/`plan-deep` already decided were needed).
-4. Reset `silent_ticks` to 0. **Gate first:** if a reply states a rule about who may see or do what (role, permission, data scope), or a
-   threshold, limit, state or notification, that may contradict an earlier dated decision, the spec or another ticket's PO
-   comment, run `/cross-check <TICKET> --stage post` on that reply (link or id) before checking anything off. A confirmed
-   conflict → the question stays open with a bracketed note (`(conflicts with <KEY> comment <id>)`) and the conflict goes
-   into this tick's drafted comment as the question; no conflict → bucket as usual. A reply with no such rule skips the
-   gate. Then match each open question against what the new comment(s) said; every question they touch falls into exactly one bucket:
+4. Reset `silent_ticks` to 0. **Gate first — a precondition, not a judgment.** Every new PO comment from step 3 needs one of
+   these before step 5 drafts anything, and again before step 7 posts:
+   - `.shipkit/evidence/<TICKET>/cross-check-post.md` exists and its `Comments:` line names that comment's id; or
+   - the state file carries `gate: skipped <comment-id> - <one-line reason: the reply states no claim of kind (a), (b) or (c)>`.
+
+   Neither → run `/cross-check <TICKET> --stage post <comment-id>…` (every id that has neither) before checking anything off.
+   Kinds (a), (b), (c) are the claim kinds in `${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*;
+   read them there, they are not restated here. A confirmed conflict → the question stays open with a bracketed note
+   (`(conflicts with <KEY> comment <id>)`) and the conflict goes into this tick's drafted comment as the question; no
+   conflict → bucket as usual. Then match each open question against what the new comment(s) said; every question they touch falls into exactly one bucket:
    - **Clearly answered** → before checking it off, separate what the PO actually decided from how they happened to phrase it. A PO answering in casual/UI-sounding words ("dropdown", "a popup", "checkbox list") is very often describing a business rule (cardinality, required/optional, the fixed value set) in whichever UI term came to mind, not approving an implementation. If `specs/NNN-slug/design-contract.md` doesn't exist for this ticket (no design reference), do not record the UI word as a confirmed spec — fold in the business rule only, and note the replier's literal wording separately as unconfirmed phrasing, not as a design decision. If the item carries `[no-precedent]` (no existing precedent anywhere in the codebase — the reply is inventing a definition, not confirming one), keep the tag on the resolved line and say so explicitly in this tick's comment/summary: this is lower-confidence than a normal answered question, since there's nothing in the codebase to validate the reply against. Then check it off in both the state file and `open-question.md` (keep the answer verbatim next to the item so it's traceable — don't delete the resolved line, mark it resolved).
    - **Raises a genuinely new business ambiguity** → first check whether it's actually a **sub-detail of an already-open question** (fold it into that item's discussion instead of creating a new one — most PO replies that sound like "one more thing" are refining something already asked, not opening new ground). Only if it's a genuinely distinct gap: append it to `open-question.md` as the next `OQ-N` (continue the file's existing numbering — never renumber or reuse an id) and to the state file's checklist, phrased business-plain, subject to the round cap below.
    - **Neither** — the PO replied but didn't answer and didn't raise a new business question (vague reply, "let me get back to you", punts the question to a third party or another team) → leave the question open, but add a short bracketed status note after it in the state file, e.g. `(blocked — PO checking with platform team)`, so the next tick has context instead of re-asking cold.
 
    **Round cap on new questions — no unbounded branching.** If this tick would add a genuinely-new bucket-2 question, increment `follow_up_rounds` first. If it would now exceed 3: do **not** add the new question this way. Instead, fold it into a single closing summary — everything still open, including this last item, phrased as one consolidated ask — and say so to the user: "hit the follow-up cap (3 rounds) — asking everything outstanding in one final comment instead of opening another round; if the PO's answer raises something further, that's a manual follow-up, not another auto-generated tick." This mirrors `pr`'s `max_rounds` — the point is the same: a chain of one-new-question-per-reply is a design smell, not a feature.
-5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here.
-6. Confirm the draft with me per the Hard Rule above before posting. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
-7. Once approved, post it via the script (Step 1.3), update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
+5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here. Draft only once the gate in step 4 holds for every new comment id.
+6. Confirm the draft with me per the Hard Rule above before posting, and show every `gate: skipped` line of this tick next to it so a wrong skip is visible. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
+7. Once approved, check the step 4 gate once more for every new comment id, then post it via the script (Step 1.3), update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
 
 ## Step 4 — Continue or stop
 

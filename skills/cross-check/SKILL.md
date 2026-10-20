@@ -1,7 +1,7 @@
 ---
 name: cross-check
-description: "Use when a ticket's requirements say who may see or do what, set a threshold, limit, state or notification, or change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. With --stage post, also for reconciling a point raised in a discussion with QC, PO or others (a tester comment, a PO answer, a later dated decision) against the spec, the Jira discussion and the code. Raises [ticket-conflict] questions for the PO. Trigger: /cross-check <ticket> [--stage spec|plan|post]. Examples: \"/cross-check AR-526\", \"/cross-check AR-488 --stage post\", \"does this ticket contradict an older one?\""
-argument-hint: "<jira-ticket> [--stage spec|plan|post]"
+description: "Use when a ticket's requirements say who may see or do what, set a threshold, limit, state or notification, or change an existing feature, and another Jira ticket, an earlier spec or the running code may say something different — before trusting a spec, before planning, or when two screens disagree. With --stage post, also for reconciling a point raised in a discussion with QC, PO or others (a tester comment, a PO answer, a later dated decision) against the spec, the Jira discussion and the code. Raises [ticket-conflict] questions for the PO. Trigger: /cross-check <ticket> [--stage spec|plan|post] [<comment-id>...]. Examples: \"/cross-check AR-526\", \"/cross-check AR-488 --stage post\", \"does this ticket contradict an older one?\""
+argument-hint: "<jira-ticket> [--stage spec|plan|post] [<comment-id>...]"
 ---
 
 # shipkit · cross-check
@@ -66,7 +66,8 @@ screenshots are evidence, under `.shipkit/evidence/<TICKET>/`, never in the spec
 If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 ## Step 1 — Locate
-Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default), `plan` or `post`. Run
+Parse `$ARGUMENTS`: ticket → `TICKET`; `--stage` is `spec` (default), `plan` or `post`; every further word (`post` only) is
+the id of a comment to reconcile. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" state <TICKET>` → `SPEC`. `post` → after Step 1b skip
 Steps 2–7: follow **Discussion mode** below (`SPEC=none` is fine there). Otherwise
 `SPEC=none` → stop: "No spec for <TICKET> — run `/spec-from-ticket <TICKET>` first." Read the whole `spec.md`. The Jira project key
@@ -288,7 +289,8 @@ changes, never as the trigger). The spec may be absent; that does not skip this.
    build failures); in zsh write `"${ref}:path"` — `"$ref:path"` is a path modifier; pin the project's
    toolchain when a generator fails on a newer local one.
 
-**Output** — write `.shipkit/evidence/<TICKET>/cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`), then report, starting
+**Output** — write `.shipkit/evidence/<TICKET>/cross-check-post.md` (`# Cross-check (post) — <TICKET> (<YYYY-MM-DD>)`, then the line `Comments: <id>[, <id>…]` naming every comment this run
+reconciled — `/clarify` checks it), then report, starting
 with the **In-flight inventory** table (Step 1b), then:
 1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
 2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,

@@ -53,8 +53,8 @@ One more excuse that belongs to this skill:
 
 ## Step 2 — Classify each concern into exactly one bucket
 
-**Gate first — a concern about a rule, not a malfunction.** If the tester's/QC's comment says who may see or do what (a
-role, permission, data scope), or a threshold, limit, state or notification, should differ from what the spec or the
+**Gate first — a concern about a rule, not a malfunction.** If the tester's/QC's comment states a claim of kind (a), (b) or
+(c) (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*) that differs from what the spec or the
 ticket's other discussion says, it is a point raised in a discussion — run `/cross-check <TICKET> --stage post` on it,
 naming the comment (link or id), **before** choosing a bucket: the comment alone proves neither that the code is wrong
 nor that the spec is. Then: verdict `fix first` → Real defect; `ask PO` or any `[ticket-conflict]` → Needs a product

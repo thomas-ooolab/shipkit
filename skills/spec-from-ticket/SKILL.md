@@ -266,8 +266,8 @@ situation) — same business-language bar as `/clarify`'s own comments, not a co
 the gap.
 
 ## Step 5b — Cross-check against other tickets, specs and code
-Runs when any requirement says who may see or do what (role, permission, data scope), sets a threshold,
-limit, state or notification, or changes an existing feature; otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
+Runs when any requirement carries a claim of kind (a), (b) or (c) (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`,
+*Step 2 — Select claims*); otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
 REQ-IDs now exist). For every `[ticket-conflict]` it appended to `open-question.md`, add
 ` — blocked on OQ-N` to the REQ-NNN line(s) in that item's `blocks:` list in `spec.md`; never resolve the
 conflict yourself and never pick the later ticket. Read its `Findings:` line for the report.
@@ -278,7 +278,7 @@ shipkit · spec-from-ticket <ticket> — <title>
 Scope:   <scope>  (services: <list>)  · Tier: <tier>
 Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specified])
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
-Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (.shipkit/evidence/<TICKET>/cross-check.md)   — or "skipped: no access/existing-feature requirement"
+Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (.shipkit/evidence/<TICKET>/cross-check.md)   — or "skipped: no requirement with a claim of kind (a), (b) or (c)"
 Reporter: <displayName> (<accountId>) → spec frontmatter reporter_account_id   (or: empty — <reason>)
 Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those block a sound plan)
          then /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
