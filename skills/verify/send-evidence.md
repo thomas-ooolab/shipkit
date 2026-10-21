@@ -22,7 +22,7 @@ only other case; never send at any other point of a verify run.
    evidence comment"**, for the record, and go straight to step 3. Any one fails → send **nothing**; report
    `Jira <TICKET>: evidence NOT sent — incomplete: <which row / what is missing>` (a problem, so the caller asks).
 3. Send it (PNG only, each opened and checked before it is embedded):
-   - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`
+   - first post: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (Jira writes go through the scripts only: `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`)
      then save the printed comment id to `.shipkit/evidence/<TICKET>/jira-comment-id`;
    - re-run: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" edit <TICKET> <COMMENT_ID> --file <draft.md>`
      — the body is replaced in place; the table always shows the **latest** result of every row.

@@ -41,7 +41,7 @@ code and no Jira/Slack content — it creates the Orca worktree, runs the few gi
 into the worktree's claude terminal, and hands the work to the agents there, which own every code write.
 One more: when the user explicitly asks in the conversation ("post the comment", "ping <name> on Slack"),
 that single write is the user's own call and is allowed — only through the sanctioned paths
-(`jira-comment.py`, `post-slack.js`; never the Atlassian or Slack MCP write tools) and only what was asked.
+(`jira-comment.py`, `post-slack.js`; never the Atlassian or Slack MCP write tools — `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`) and only what was asked.
 
 ## Hard rule: post directly, speak as the user
 URL mode, like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait. (Observer

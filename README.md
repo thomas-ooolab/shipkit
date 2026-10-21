@@ -188,7 +188,7 @@ while the socket reconnects (~2s) are not replayed. Check the scripts without Sl
 `node scripts/wait-for-slack-event.js --self-test`, `node skills/developer/observe-slack.js --self-test`,
 `node scripts/post-slack.js --self-test`. `post-slack.js` also edits a message you already posted:
 `node scripts/post-slack.js edit <channel_id> <ts> < new-text` (`chat.update`; same `chat:write` scope, your own
-messages only, text only — attachments stay).
+messages only, text only — attachments stay). It also deletes one: `node scripts/post-slack.js delete <channel_id> <ts>` (`chat.delete`, your own messages only; prints `OK` or `SLACK_ERROR: <error>`).
 
 ## Design fidelity loop (UI tickets with a mockup)
 

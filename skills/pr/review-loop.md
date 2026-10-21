@@ -7,6 +7,7 @@
 Fixed reviewer for this phase: the Slack user and channel in `skills/pr/config.json` — `slack.bot_reviewer_user_id` (`<reviewer_id>` below), `slack.bot_reviewer_handle`, `slack.bot_review_channel.id` (`<channel_id>`) and `.name` (the review channel). Read them from there once and keep them in the state file; never type them as literals.
 
 ## Posting to Slack (every post in this phase)
+Every write to Slack or Jira goes through the plugin's scripts, never an MCP write tool (`${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`).
 The reviewer bot ignores messages sent through the Slack MCP and only answers Slack **user-token**
 posts, and the review channel may be externally shared (Slack Connect) so MCP sends are blocked there. **Never use
 `slack_send_message`.** Every post — seed ping, tick reply, sign-off ack — goes through the shared

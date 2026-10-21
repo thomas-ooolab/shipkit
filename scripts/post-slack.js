@@ -3,6 +3,7 @@
 //
 //   usage: node post-slack.js <channel_id> <thread_ts|-> [file ...]   < message text on stdin
 //          node post-slack.js edit <channel_id> <ts>                  < new message text on stdin
+//          node post-slack.js delete <channel_id> <ts>
 //          node post-slack.js --self-test
 //
 // <thread_ts> is the ROOT; `-` only for a top-level DM. No files -> chat.postMessage. With files ->
@@ -17,6 +18,11 @@
 // `edit` replaces the text of a message the token's owner posted (chat.update, scope chat:write — nothing new):
 // prints `OK ts=<ts>`; someone else's message -> `SLACK_ERROR: cant_update_message`; a closed edit window or a
 // wrong ts -> `edit_window_closed` / `message_not_found` (exit 4). Text only: a message's attachments stay as they are.
+//
+// `delete` removes a message the token's owner posted (chat.delete, scope chat:write — nothing new): prints `OK`;
+// someone else's message -> `SLACK_ERROR: cant_delete_message`, a wrong ts or channel -> `message_not_found` /
+// `channel_not_found` (exit 4). No stdin. `<channel_id>` must be the channel's own id (a DM is `D…`, not the user id):
+// when a text post to a user id lands in a DM, the DM's id is printed on stderr as `channel=<id>` — keep it for delete.
 //
 // Text goes via stdin and the token via env, so neither lands in argv / shell history. Never prints the token.
 // SLACK_API_BASE exists only so --self-test can point at a local mock.
@@ -74,6 +80,7 @@ async function post({ api = API, token, channel, thread, text, files = [] }) {
   const sizes = files.map(checkFile); // validate everything before posting anything
   if (!files.length) {
     const j = await slack(api, token, 'chat.postMessage', { channel, ...(thread && { thread_ts: thread }), text });
+    if (j.channel && j.channel !== channel) console.error(`channel=${j.channel}`); // a DM sent to a user id: delete/edit need this id
     return j.ts;
   }
   const ids = [];
@@ -99,15 +106,28 @@ async function edit({ api = API, token, channel, ts, text }) {
   return (await slack(api, token, 'chat.update', { channel, ts, text })).ts;
 }
 
+async function del({ api = API, token, channel, ts }) {
+  await slack(api, token, 'chat.delete', { channel, ts });
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const editing = args[0] === 'edit';
-  const [channel, thread, ...files] = editing ? args.slice(1) : args;
+  const deleting = args[0] === 'delete';
+  const [channel, thread, ...files] = editing || deleting ? args.slice(1) : args;
   const token = process.env.SLACK_REVIEW_TOKEN;
   if (!token) { console.error('SLACK_REVIEW_TOKEN is not set — export the user token (xoxp-…, scopes chat:write, files:write).'); process.exit(3); }
-  if (!channel || !thread || (editing && files.length)) {
-    console.error('usage: post-slack.js <channel_id> <thread_ts|-> [file ...] < text\n       post-slack.js edit <channel_id> <ts> < new text');
+  if (!channel || !thread || ((editing || deleting) && files.length)) {
+    console.error('usage: post-slack.js <channel_id> <thread_ts|-> [file ...] < text\n       post-slack.js edit <channel_id> <ts> < new text\n       post-slack.js delete <channel_id> <ts>');
     process.exit(2);
+  }
+  if (deleting) {
+    try { await del({ token, channel, ts: thread }); console.log('OK'); } catch (e) {
+      if (!(e instanceof Fail)) throw e;
+      console.error(e.message);
+      process.exit(e.code);
+    }
+    return;
   }
   const text = fs.readFileSync(0, 'utf8').trim();
   if (!text && (editing || !files.length)) { console.error(editing ? 'nothing to edit in: empty text' : 'nothing to post: empty text and no files'); process.exit(2); }
@@ -136,6 +156,7 @@ async function selfTest() {
       const out = {
         'chat.postMessage': { ok: true, ts: '1.000001' },
         'chat.update': m === 'chat.update' && JSON.parse(b).ts === 'locked' ? { ok: false, error: 'cant_update_message' } : { ok: true, ts: '9.000009' },
+        'chat.delete': m === 'chat.delete' && JSON.parse(b).ts === 'locked' ? { ok: false, error: 'cant_delete_message' } : { ok: true },
         'files.getUploadURLExternal': { ok: true, file_id: 'F1', upload_url: `http://127.0.0.1:${srv.address().port}/upload` },
         'files.completeUploadExternal': { ok: true, files: [{ id: 'F1', shares: { public: { C1: [{ ts: '2.000002' }] } } }] },
       }[m] ?? { ok: false, error: 'unknown_method' };
@@ -183,6 +204,13 @@ async function selfTest() {
   assert.deepStrictEqual(JSON.parse(calls[0].b), { channel: 'C1', ts: '9.000009', text: 'new' });
   await assert.rejects(edit({ api, token: 't', channel: 'C1', ts: 'locked', text: 'x' }),
     (e) => e.code === 4 && /cant_update_message/.test(e.message), "someone else's message -> exit 4");
+
+  calls.length = 0;
+  await del({ api, token: 't', channel: 'C1', ts: '9.000009' });
+  assert.deepStrictEqual(calls.map((c) => c.m), ['chat.delete'], 'delete -> chat.delete');
+  assert.deepStrictEqual(JSON.parse(calls[0].b), { channel: 'C1', ts: '9.000009' });
+  await assert.rejects(del({ api, token: 't', channel: 'C1', ts: 'locked' }),
+    (e) => e.code === 4 && /cant_delete_message/.test(e.message), "someone else's message -> exit 4");
   srv.close(); fs.rmSync(dir, { recursive: true });
   console.log('self-test ok');
 }

@@ -22,7 +22,7 @@ also a standalone command — this is a convenience orchestrator, not a hard req
 > instructions.
 
 ## Bounded scope
-This orchestrates; it does not implement, review, or edit code itself. If asked to "just build it"
+This orchestrates; it does not implement, review, or edit code itself. Any write to Slack or Jira goes through the plugin's scripts, never an MCP write tool (`${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`). If asked to "just build it"
 with no spec, redirect: "Run `/spec-from-ticket <ticket>` first, then `/run-pipeline <ticket>`."
 
 ## Write surface (the ONLY things the orchestrator writes directly)

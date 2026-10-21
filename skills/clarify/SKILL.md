@@ -22,6 +22,8 @@ State lives in `.shipkit/clarify-<ticket>.md` at the SDD root repo, so a re-invo
 **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md` and follow all three rules — here "item" = an open
 question. Applies to the seed comment and every per-tick comment, acknowledgments included.
 
+**REQUIRED:** every write to Slack or Jira goes through the plugin's scripts, never an MCP write tool: `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`.
+
 One more excuse that belongs to this skill:
 
 | Excuse | Reality |
@@ -134,6 +136,18 @@ The local state file is not the source of truth for "has this been seeded" — t
 5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here. Draft only once the gate in step 4 holds for every new comment id. Apply *Claims about today's behaviour and the scope of proposals* (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`) to every statement of what the product does today and every proposal that names a scope.
 6. Save the draft as `.shipkit/clarify-<ticket>-draft.md` (overwriting the last tick's), then confirm it with me per the Hard Rule above before posting, and show every `gate: skipped` line of this tick next to it so a wrong skip is visible, plus the draft's Claims list. If unconfirmed this turn, set `pending_comment` to that path, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
 7. Once approved, check the step 4 gate once more for every new comment id, then post it via the script (Step 1.3), update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
+
+## Step 3b — Nudge the PO (only when the user asks)
+
+Never on your own: only when the user says to ping or remind the PO about a comment already posted.
+1. Draft two sentences at most, with the link to the Jira comment waiting for them (`<JIRA_URL>/browse/<TICKET>?focusedCommentId=<id of that comment>`).
+   Run it through `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md`, show the exact text to the user and wait for approval.
+2. Find the PO's Slack user id the way `/developer` resolves a participant (`slack_search_users` / `slack_read_user_profile`, read-only, by the name and
+   email Jira holds for `reporter_account_id`). A Slack name nobody has shown to be the same person as the Jira name is not a match: show the candidate
+   (name, title, email if any) and have the user confirm the recipient before anything is sent.
+3. Send it once with `node "${CLAUDE_PLUGIN_ROOT}/scripts/post-slack.js" <PO's Slack user id> - <<'EOF' … EOF` — never an MCP send tool
+   (`${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`). Keep the `ts` it prints and the `channel=D…` it prints on stderr: a message sent by
+   mistake is removed with `post-slack.js delete <channel id> <ts>`, never a hand-made API call.
 
 ## Step 4 — Continue or stop
 

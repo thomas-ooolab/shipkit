@@ -52,7 +52,7 @@ draft is complete against the agreed format and, when it is, posts or edits the 
 2. **Fetch assignable users** for the ticket (the Atlassian MCP has no such lookup —
    `lookupJiraAccountId` is an unfiltered name search — so use REST with the `JIRA_URL`/`JIRA_EMAIL`/
    `JIRA_API_TOKEN` the sibling skills already require):
-   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" assignable <TICKET>` (prints a JSON array of the active users)
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" assignable <TICKET>` (prints a JSON array of the active users; Jira writes go through the scripts only: `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`)
    → keep `accountId`, `displayName` of active users. Creds unset, HTTP error or empty list → do
    **not** guess an assignee: leave it as is, add the reason to `JIRA_NOTE`, go to 10.5.
 3. **Assignee (QC).** `jira.qc_account_id` when set and in the fetched list → that account. Else the history sample is

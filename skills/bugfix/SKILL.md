@@ -23,6 +23,8 @@ State lives in `.shipkit/bugfix-<ticket>.md`.
 reported concern. They apply to the first comment and every per-tick comment, status notes and acknowledgments included. A
 `pending_comment` concern is not checked off until its comment has actually posted.
 
+**REQUIRED:** every write to Slack or Jira goes through the plugin's scripts, never an MCP write tool: `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`.
+
 Business-language example for this skill — Bad: "`CanViewCallReview` gates on `c.RecordedAt.After(m.AssignedAt)`, so this is by design." Good: "That's how it's built today — a manager only sees calls recorded after they joined the team, not the team's full history before that. Wanted to check: should managers see everything the team ever recorded, or only what happened since they joined?"
 
 One more excuse that belongs to this skill:

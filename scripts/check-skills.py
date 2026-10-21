@@ -5,6 +5,7 @@ Usage: python3 -I scripts/check-skills.py [--self-test]      exit 0 ok · 1 find
 Checks: `name` equals the directory; `description` is present, starts with "Use when", is <= 1024 characters, and gives
 a Trigger line only when the skill takes arguments; a skill whose Trigger shows arguments has an `argument-hint`.
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
+A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
 """
 import json, re, sys
 from pathlib import Path
@@ -47,6 +48,12 @@ def missing_refs(text):
     return [p for p in sorted(set(re.findall(r"\$\{CLAUDE_PLUGIN_ROOT\}/([\w./-]+\.(?:json|js|md|sh|py|txt|swift))", text)))
             if not (ROOT / p).exists()]
 
+def writes_lint(texts):
+    """A skill whose files call a Slack/Jira write script must point at the shared rule for writing through scripts."""
+    if re.search(r"jira-comment\.py|post-slack\.js", texts) and "write-through-scripts.md" not in texts:
+        return ["calls post-slack.js / jira-comment.py but never points at references/write-through-scripts.md"]
+    return []
+
 def self_test():
     good = '---\nname: x\ndescription: "Use when a thing. Trigger: /x <t>"\nargument-hint: "<t>"\n---\nbody\n'
     assert lint("x", good) == []
@@ -55,6 +62,8 @@ def self_test():
     assert any("argument-hint" in f for f in lint("x", good.replace('argument-hint: "<t>"\n', "")))
     assert any("chars" in f for f in lint("x", good.replace("a thing", "a" * 1100)))
     assert missing_refs("see ${CLAUDE_PLUGIN_ROOT}/scripts/nope-xyz.sh and ${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh") == ["scripts/nope-xyz.sh"]
+    assert writes_lint("run post-slack.js") != [] and writes_lint("jira-comment.py post") != []
+    assert writes_lint("run post-slack.js; see references/write-through-scripts.md") == [] and writes_lint("no writes here") == []
     print("check-skills: self-test ok")
 
 def main():
@@ -65,6 +74,8 @@ def main():
     for f in files:
         text = f.read_text()
         out = lint(f.parent.name, text) if f.name == "SKILL.md" else []
+        if f.name == "SKILL.md":
+            out += writes_lint("\n".join(p.read_text() for p in sorted(f.parent.glob("*.md"))))
         out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)]
         rel = f.relative_to(ROOT)
         if out:
