@@ -15,10 +15,12 @@ tablet 768 + mobile 375 — responsive is mandatory, never skipped):
    then `browser_evaluate` the contents of `${CLAUDE_PLUGIN_ROOT}/scripts/recon-extract.js`.
 3. Record `document.documentElement.scrollWidth > window.innerWidth` → **horizontal overflow** flag.
 For each state the contract records (hover/focus/active), drive it and re-extract that node.
-**Forcing a state.** A state the contract or the design shows (a low-confidence or disputed badge, a pill, an empty list…) that the local
-data does not have is forced, not skipped: in Playwright, `page.route` the API call and patch its response (`route.fetch()` then
-`route.fulfill({ response, json })`) — the database is never written. A state that still cannot be measured is `UNVERIFIED`: the gate is
-`INCOMPLETE`, never `PASS`.
+**Reaching a state.** A state the contract or the design shows (a low-confidence or disputed badge, a pill, an empty list…) that the local
+data does not have is reached, not skipped, the way `SKILL.md` builds a missing variant (*Variant matrix*): use what the product already
+offers (another record, a role, a flag, a URL), else seed it on the user's yes or ask. Only when the state is one API response that cannot be
+produced for real, or the user declines seeding, may that response be patched in the page (e.g. Playwright `page.route`; never a database
+write); the report then marks the state `simulated`, because a fake response can hide a state the backend never produces. A state reached
+by none of these is `UNVERIFIED`: the gate is `INCOMPLETE`, never `PASS`.
 `browser_take_screenshot` at each breakpoint for the report + perceptual fallback.
 
 ### A2 — Diff against the contract
@@ -48,7 +50,7 @@ A UI can match desktop pixel-for-pixel and still FAIL here — that's intended.
 ### A3 — 1-to-1 against the running design (REQUIRED when the contract's `artifact:` is an html file or a url, or the design can be served)
 The contract lists only the regions and tokens recon chose; this step catches what it left out.
 1. Open the design next to the build: an html artifact is served as in `/design-recon` Step 4a (`recon.sh serve`, stopped afterwards), a
-   url is navigated. Same viewport (1280, 768, 375), same persona and same state as the build — forced as in A1 where local data lacks it.
+   url is navigated. Same viewport (1280, 768, 375), same persona and same state as the build — reached as in A1 where local data lacks it.
 2. Extract **every** element of the region in both (`recon-extract.js` on the region root, not only the nodes the contract lists) and diff
    structurally: the element list first (tag/role/text, in order), then each element's computed style by the A2 rule. An element on one
    side only → `blocking`.
@@ -65,4 +67,4 @@ proportionate", "group tokens per region" or "same class, so advisory" for `fide
 |---|---|
 | "Same Tailwind class, so it's advisory" | Not under `exact`: the computed values differ and the user sees the difference. `advisory` is for `fidelity: low`. |
 | "The contract doesn't list that element" | The contract is what recon chose to write down. A3 compares the whole region. |
-| "Local data has no such state, skip it" | Force it (A1). A state that cannot be measured is `UNVERIFIED`, and the gate is `INCOMPLETE`, never `PASS`. |
+| "Local data has no such state, skip it" | Reach it (A1). A state that cannot be measured is `UNVERIFIED`, and the gate is `INCOMPLETE`, never `PASS`. |
