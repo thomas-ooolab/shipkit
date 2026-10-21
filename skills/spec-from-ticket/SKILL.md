@@ -165,6 +165,7 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 |---|---|
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
+| "An option like 'it retries automatically' is a natural way to put it" | An ability named in an option is a claim about the system. Search for it; if it isn't there, write "does not exist today" or drop the option — never offer the PO something that cannot happen. |
 | "Asking about every referenced component is excessive" | Only ones Step 3 item 5 couldn't verify reach here — this isn't every AC, just the undefined ones. |
 
 ## Step 3c — Current behaviour + design fidelity & placement
@@ -264,6 +265,10 @@ Cite the id everywhere this question is referenced — Requirements' `blocked on
 the whole file. Each item must read the way a non-technical PO would understand it (what's being asked, in what
 situation) — same business-language bar as `/clarify`'s own comments, not a code-shaped description of
 the gap.
+
+**Options in an item.** REQUIRED: Read `${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md` before writing any option into an item:
+an option that presupposes an ability of the system (retry, redo, re-score, undo, notify…) is confirmed in code (`file:line`) or stated as not
+existing, and the checked facts are kept apart from the dev's proposals.
 
 ## Step 5b — Cross-check against other tickets, specs and code
 Runs when any requirement carries a claim of kind (a), (b) or (c) (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`,

@@ -139,6 +139,12 @@ assumes already exists? Three outcomes only:
   `/clarify` knows any reply defines B from scratch rather than confirming something real. Tell the
   user in Step 6; recommend `/clarify`.
 
+**Writing the item.** REQUIRED: Read `${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md` before writing any option into it.
+
+**A blocked task carries no default.** No "if the answer is A" branch, no task drafted on the likely answer, no line such as "open-question
+defaults the plan is written to" in `## Key decisions`: a default is a decision made for the PO. Write `blocked on OQ-N — see
+open-question.md` and say what is unknown. Work that does not depend on the answer is its own task, with no dependency on it.
+
 Never draft C assuming B "will probably be there" or "is a minor detail to sort out during
 implementation" — an unverified prerequisite is exactly what this gate exists to catch.
 
@@ -147,6 +153,8 @@ implementation" — an unverified prerequisite is exactly what this gate exists 
 | "The spec's Requirements already assume B exists" | The spec's assumption is unverified too (see Verify-don't-trust rule) — this gate is what actually checks it. |
 | "I'll fold B into C's task, it's small" | Folding a prerequisite into the dependent task hides scope and skips the check for whether B is even implementation-only or a business call. Give it its own task or escalate it. |
 | "Asking would stall the plan" | An assumed-but-wrong B stalls the PR review instead, later and more expensively. Escalate now. |
+| "A default lets the work start early" | A default is a decision made for the PO. Blocked stays blocked; split off whatever does not depend on the answer. |
+| "An option like 'it retries automatically' is a natural way to put it" | An ability named in an option is a claim about the system. Search for it; if it isn't there, write "does not exist today" or drop the option. |
 
 **Cross-check gate.** If any Requirement carries a claim of kind (a), (b) or (c)
 (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*), run `/cross-check <TICKET> --stage plan` now — the grounding digest above is already in context, so it
@@ -206,4 +214,4 @@ to `<SPEC>/spec.md` (status: planned)."
   (`spec.md`), so review = the PR diff. No labels; `status:` frontmatter carries plan state.
 - **A blocked task is not a task to draft around.** If the dependency-chain gate marks a task blocked,
   leave it blocked in `## Tasks` — don't quietly reorder or reword the plan so the gap stops being
-  visible.
+  visible, and don't write a default branch or a "defaults" line for it either.

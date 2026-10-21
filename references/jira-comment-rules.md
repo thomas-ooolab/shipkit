@@ -53,7 +53,7 @@ sent — and its item is not "resolved this tick" until it actually posts.
 ## Claims about today's behaviour and the scope of proposals — every draft, ours as well as the PO's words
 A sentence in our draft that states as fact what the product, its data, the code or another ticket does or says now ("today X reads
 Y", "right now trials keep 90 days", "the digest already skips…", "<KEY> says…") is a today-claim. A question, the other person's own
-words, or a proposal that names no scope ("we'd build it so that…") is not (a proposal that does is covered by *Scope of a proposal* below). Before the draft is shown, every today-claim is one of:
+words, or a proposal that names no scope ("we'd build it so that…") is not (a proposal that does is covered by *Scope of a proposal* below). An option or proposal that presupposes something the system can already do — retry, redo, re-score, undo, notify, resend, schedule — is a today-claim about that ability, however it is phrased as a choice. Example: "B: the call is held back until the record is saved, and the save is retried automatically" claims a retry exists; its Claims line is `automatic retry of the save -> not found (<file>:<line> says nothing re-drives a failed save) | rewritten as a question: "should a failed save be retried? Today it is not"`. Before the draft is shown, every today-claim is one of:
 - **backed** by a `file:line` read in the real code during this tick (not `specs/` or `docs/`), or by the quoted Jira comment with its
   id and link;
 - **rewritten** as an open question ("which score does the call list show?");
