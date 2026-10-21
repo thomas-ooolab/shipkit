@@ -200,7 +200,7 @@ Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked   — or "skip
 Next:    /run-pipeline <ticket>   (or implement, then /review-changes → /pr)
          (run /clarify <ticket> first if Open Qs > 0 — blocked tasks can't be implemented yet)
 ```
-If the user wants it, add one Jira comment (post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>`; no mentions needed, so the MCP tool is an acceptable fallback): "📋 shipkit plan written
+If the user wants it, add one Jira comment (post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file .shipkit/plan-deep-<TICKET>-draft.md`; no mentions needed, so the MCP tool is an acceptable fallback): "📋 shipkit plan written
 to `<SPEC>/spec.md` (status: planned)."
 
 ## Gotchas

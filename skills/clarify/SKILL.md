@@ -40,7 +40,7 @@ One more excuse that belongs to this skill:
    existed → fall back to `jira.reporter_account_id` in `.shipkit/config.yml` if it has one. Neither → stop and tell the user
    to run `/spec-from-ticket <ticket>` first.
    **Every comment this skill posts must @mention that account.** Write `@[Name](<reporter_account_id>)`
-   in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` — it sends a real ADF mention (the MCP tool stores mentions as
+   in the draft and post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file .shipkit/clarify-<ticket>-draft.md` — it sends a real ADF mention (the MCP tool stores mentions as
    plain text, so nobody is notified). The script verifies the mention came back. If `JIRA_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` are unset (script exits 3), fall back to `addCommentToJiraIssue` and warn the user that mentions will NOT notify anyone. Exit 5 = posted but a mention didn't land — tell the user (the comment id is still printed).
 
 ## Step 1c — Fidelity and placement gate (before any question is drafted or planned)
@@ -80,8 +80,8 @@ The local state file is not the source of truth for "has this been seeded" — t
    - **Nothing found** → proceed below, this is a genuine first seed.
 1. Read `open-question.md` → list of questions, each already in business-language / lettered-option format (`spec-from-ticket` and `plan-deep` both write to this file). An item's `checked:` and `proposed:` sub-lines are for the dev: never copy them into the comment, and a proposed option goes out only as the *Claims* rule allows.
 2. Translate any that still read technical (they shouldn't, if `spec-from-ticket` wrote them, but re-check) into plain business language per the rule above.
-3. Draft ONE comment tagging the PO with every open question, each labelled with its `OQ-N` from `open-question.md` (`OQ-3. …`; merged from several: `OQ-3 / OQ-19. …`) — the code is stable, so Jira, the spec and `open-question.md` search alike, and Jira never renumbers it. Apply *Claims about today's behaviour and the scope of proposals* (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`) to every statement of what the product does today and every proposal that names a scope. Then confirm it with me per the Hard Rule above, with the Claims list next to the draft. If unconfirmed this turn, write it as `pending_comment` in the state file below and stop — don't launch the background poller yet.
-4. Once approved, post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file <draft.md>` (see Step 1.3). Note the `id` it prints as `last_checked_comment_id`, and clear `pending_comment`. Then read the comment back to check the numbers of any plain numbered list (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`, *Numbering*).
+3. Draft ONE comment tagging the PO with every open question, each labelled with its `OQ-N` from `open-question.md` (`OQ-3. …`; merged from several: `OQ-3 / OQ-19. …`) — the code is stable, so Jira, the spec and `open-question.md` search alike, and Jira never renumbers it. Apply *Claims about today's behaviour and the scope of proposals* (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`) to every statement of what the product does today and every proposal that names a scope. Save it as `.shipkit/clarify-<ticket>-draft.md` (never the scratchpad or `/tmp`: `jira-comment-rules.md`, *Where the draft lives*), then confirm it with me per the Hard Rule above, with the Claims list next to the draft. If unconfirmed this turn, set `pending_comment` in the state file below to that path and stop — don't launch the background poller yet.
+4. Once approved, post with `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/jira-comment.py" post <TICKET> --file .shipkit/clarify-<ticket>-draft.md` (see Step 1.3). Note the `id` it prints as `last_checked_comment_id`, and clear `pending_comment`. Then read the comment back to check the numbers of any plain numbered list (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`, *Numbering*).
 5. Write `.shipkit/clarify-<ticket>.md`:
    ```markdown
    # Clarify loop state — <ticket>
@@ -89,7 +89,7 @@ The local state file is not the source of truth for "has this been seeded" — t
    last_checked_comment_id: <id>
    silent_ticks: 0
    follow_up_rounds: 0
-   pending_comment: null
+   pending_comment: null   # or .shipkit/clarify-<ticket>-draft.md while a draft waits for approval
 
    ## Open questions
    - [ ] OQ-1 — <question text>
@@ -132,7 +132,7 @@ The local state file is not the source of truth for "has this been seeded" — t
 
    **Round cap on new questions — no unbounded branching.** If this tick would add a genuinely-new bucket-2 question, increment `follow_up_rounds` first. If it would now exceed 3: do **not** add the new question this way. Instead, fold it into a single closing summary — everything still open, including this last item, phrased as one consolidated ask — and say so to the user: "hit the follow-up cap (3 rounds) — asking everything outstanding in one final comment instead of opening another round; if the PO's answer raises something further, that's a manual follow-up, not another auto-generated tick." This mirrors `pr`'s `max_rounds` — the point is the same: a chain of one-new-question-per-reply is a design smell, not a feature.
 5. Draft exactly one Jira comment covering everything the PO said this tick: acknowledge it (a bucket-3 non-answer still gets a brief acknowledgment — a PO reply must never go unanswered), plus any new/re-synced question from this tick. Reaching this step already means a new PO comment exists (Step 3.1's exit 2 branch handles the "nothing new" case) — don't skip drafting here. Draft only once the gate in step 4 holds for every new comment id. Apply *Claims about today's behaviour and the scope of proposals* (`${CLAUDE_PLUGIN_ROOT}/references/jira-comment-rules.md`) to every statement of what the product does today and every proposal that names a scope.
-6. Confirm the draft with me per the Hard Rule above before posting, and show every `gate: skipped` line of this tick next to it so a wrong skip is visible, plus the draft's Claims list. If unconfirmed this turn, write it to `pending_comment`, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
+6. Save the draft as `.shipkit/clarify-<ticket>-draft.md` (overwriting the last tick's), then confirm it with me per the Hard Rule above before posting, and show every `gate: skipped` line of this tick next to it so a wrong skip is visible, plus the draft's Claims list. If unconfirmed this turn, set `pending_comment` to that path, rewrite the state file with everything else already updated (checked-off questions, `silent_ticks`, etc.), and stop here — don't relaunch the poller until it's posted.
 7. Once approved, check the step 4 gate once more for every new comment id, then post it via the script (Step 1.3), update `last_checked_comment_id` to the newest comment ID seen (this is also the `<after_comment_id>` for the next poller launch), clear `pending_comment`, rewrite the state file, then relaunch the poller per Step 3.1 to keep waiting.
 
 ## Step 4 — Continue or stop

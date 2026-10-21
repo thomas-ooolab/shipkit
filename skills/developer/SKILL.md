@@ -34,7 +34,7 @@ transition, edit, create) or Bitbucket, and never runs a command that changes th
 an environment. The only writes it may make are the thread reply (*post directly*, below — files
 attached to it are read from disk, never created),
 `.shipkit/developer-<channel_id>-<thread_ts>.md`, `.shipkit/developer-daily.md` (the *Daily briefing* marker),
-and draft answers in the session scratchpad (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
+and draft answers in `.shipkit/developer-<TICKET>-draft.md` (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
 in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket from the briefing*: this session still writes no
 code and no Jira/Slack content — it creates the Orca worktree, runs the few git commands that prepare that new worktree
 (rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the fixed messages

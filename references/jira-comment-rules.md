@@ -39,6 +39,12 @@ If the poller's notification arrives unattended (nobody has replied to the draft
 `pending_comment` in the state file, and stop — don't relaunch the poller, since nothing new has been posted to poll replies
 against. The next turn picks up from `pending_comment`, confirms it, and relaunches the poller only once it is posted.
 
+**Where the draft lives.** The draft is a file in the project's `.shipkit/`, next to the skill's state file: `.shipkit/<skill>-<ticket>-draft.md`
+(`bugfix-AR-1-draft.md`, `clarify-AR-1-draft.md`). Never the session scratchpad, `/tmp` or the repo root: a new session or worktree must still
+find it. `pending_comment` in the state file holds that relative path (or `null`), and the post is `jira-comment.py post <TICKET> --file <that
+path>`. Images in the draft keep absolute paths into `.shipkit/evidence/<TICKET>/`. `/verify`'s evidence table
+(`.shipkit/evidence/<TICKET>/jira-comment-*.md`) is a different file and stays where it is.
+
 **No exceptions:** not for "just an acknowledgment" or "just a fixed-and-pushed note"; not because the wording is obviously
 right; not because posting now and mentioning it in the summary afterward is faster. A drafted-but-unapproved comment is not
 sent — and its item is not "resolved this tick" until it actually posts.
@@ -49,6 +55,7 @@ sent — and its item is not "resolved this tick" until it actually posts.
 | "No one replied to the draft, but it's clearly right" | Silence isn't approval. No reply = no post, this tick. |
 | "I'll post now and flag it in my summary" | Posting is the action that needs approval, not the summary after. |
 | "Confirming breaks the autonomous loop" | It pauses posting, not the whole skill. Polling resumes normally once posted. |
+| "A scratchpad / tmp file is quicker for the draft" | The next session or worktree can't find it and `pending_comment` points at nothing. The draft lives in `.shipkit/`. |
 
 ## Claims about today's behaviour and the scope of proposals — every draft, ours as well as the PO's words
 A sentence in our draft that states as fact what the product, its data, the code or another ticket does or says now ("today X reads
@@ -85,4 +92,4 @@ questions, not for other skills — label each question with its `OQ-N` from `op
 `OQ-3 / OQ-19. …`). The code is stable and never renumbered, so Jira, the spec and `open-question.md` all search alike, and "OQ-N." does
 not match the script's `N. ` list pattern, so Jira never renumbers it. **After posting, read the comment back and check the numbers:** the id the script prints proves nothing about them.
 `GET <JIRA_URL>/rest/api/3/issue/<TICKET>/comment/<id>` (credentials to curl on stdin, `curl -K -`, never on its command line), then
-check every `orderedList` and its `attrs.order` in the body. A wrong number → `jira-comment.py edit <TICKET> <id> --file <draft.md>`.
+check every `orderedList` and its `attrs.order` in the body. A wrong number → `jira-comment.py edit <TICKET> <id> --file .shipkit/<skill>-<ticket>-draft.md`.
