@@ -52,9 +52,9 @@ allowlist below replaces the previous one." A terminal serves one submodule and 
    `terminal send`. A brief can't land in a shell: Orca launches the agent itself. `claude` always gets `--model sonnet --effort medium`
    (implementing a brief is routine coding); kiro gets neither flag — it runs with the model of its own config (the CLI takes them only for Claude,
    Codex, Cursor, Antigravity and Muse).
-2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart: unsupported`. The
+2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart` (`unsupported` for kiro, `observed` for claude). The
    terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
-   agent took the brief** (Orca cannot observe kiro's turn), so make **one** read-only confirmation: the worker's first
+   agent took the brief** (Orca cannot observe kiro's turn; for claude `turnStart: observed` already is the confirmation), so for kiro make **one** read-only confirmation: the worker's first
    message in `check`, or `wait-for-agent.sh <handle> --once` → `SCREEN=working` (read a few times, 5 s apart). `shell` /
    `login` / `limit` / `gone` → `❌ agent did not start`; anything else is a checkpoint, never a resend.
 3. `worker-start` **non-zero** (or `ok: false`) → `❌ agent did not start` with the receipt's `error.code` /
