@@ -21,6 +21,8 @@
 #   SCREEN=working    the agent is working
 #   SCREEN=attention  stopped on a y/n or numbered permission prompt — a person answers it
 #   SCREEN=login      "Not logged in" / "isn't available" with no agent UI
+#   SCREEN=limit      kiro's out-of-quota notice is among the last screen lines (pattern LIMIT in the python below) — the agent
+#                     stopped mid-task and will not continue until its quota returns
 #   SCREEN=shell      no agent UI and the last line looks like a shell prompt
 #   SCREEN=unknown    nothing recognisable yet (TUI still drawing, or an unfamiliar screen) — read again
 #   SCREEN=gone       terminal closed / stale handle / orca unreachable (exit 3)
@@ -45,6 +47,10 @@ trap 'rm -f "$body_file" "$screen_file"' EXIT
 # Program on stdin, data as argv files (a `python3 -` heredoc consumes stdin for the program itself).
 verdict=$(python3 - "$body_file" "$screen_file" <<'PY'
 import json, re, sys
+# kiro's out-of-quota notice, copied from a real worker screen (stopped mid-task, terminal still `running`):
+#   "• You've reached your monthly usage limit. Please return next month to continue building. (Request ID: …)"
+# Only this wording is verified. When another wording shows up, add it HERE — nowhere else matches it.
+LIMIT = re.compile(r"reached your monthly usage limit")
 try:
     with open(sys.argv[1]) as f:
         d = json.load(f)
@@ -88,7 +94,8 @@ ready = box_top is not None or bool(re.search(r"ask a question or describe a tas
 shell = bool(live) and re.search(r"[$%#>»➜❯]\s*$", live[-1]) is not None
 login = re.search(r"Not logged in|isn't available|is not available|not available|login required", "\n".join(live[-20:]), re.I)
 
-if working: v = "WORKING"
+if LIMIT.search(blob): v = "LIMIT"
+elif working: v = "WORKING"
 elif attn: v = "ATTENTION"
 elif ready: v = "READY"
 elif login: v = "LOGIN"
@@ -100,7 +107,7 @@ PY
 
 case "$verdict" in
   WORKING) screen=working ;; ATTENTION) screen=attention ;; READY) screen=agent ;;
-  LOGIN) screen=login ;; SHELL) screen=shell ;; NONE) screen=unknown ;; *) screen=gone ;;
+  LOGIN) screen=login ;; LIMIT) screen=limit ;; SHELL) screen=shell ;; NONE) screen=unknown ;; *) screen=gone ;;
 esac
 echo "SCREEN=$screen"
 echo "--- last screen lines (terminal $HANDLE)"

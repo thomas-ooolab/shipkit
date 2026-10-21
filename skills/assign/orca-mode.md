@@ -56,7 +56,7 @@ allowlist below replaces the previous one." A terminal serves one submodule and 
    terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
    agent took the brief** (Orca cannot observe kiro's turn), so make **one** read-only confirmation: the worker's first
    message in `check`, or `wait-for-agent.sh <handle> --once` → `SCREEN=working` (read a few times, 5 s apart). `shell` /
-   `login` / `gone` → `❌ agent did not start`; anything else is a checkpoint, never a resend.
+   `login` / `limit` / `gone` → `❌ agent did not start`; anything else is a checkpoint, never a resend.
 3. `worker-start` **non-zero** (or `ok: false`) → `❌ agent did not start` with the receipt's `error.code` /
    `failedStage` / `residualResources`. A refusal before any launch (e.g. `agent_unconfigured`) leaves nothing behind. A
    start that launched leaves a terminal owned by that worker (`worker-list` shows it `reclaimable`): release it with
@@ -66,7 +66,7 @@ allowlist below replaces the previous one." A terminal serves one submodule and 
 
 **Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
 pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
-1800000 --json` via Bash `run_in_background: true` (the output file is written and a notification arrives when it ends),
+600000 --json` via Bash `run_in_background: true` (the output file is written and a notification arrives when it ends),
 so a mixed run waits on `check` and the claude `Agent` notifications together. The output can hold more than one JSON
 document: parse every one (a `raw_decode` loop) and use the one that carries `result.deliveryId` / `messages`. A consuming
 `check` **replays** its delivery until `check --ack <delivery_id>`. Process every message, then ack — and settle each
@@ -84,12 +84,22 @@ worker *before* acking:
   left undecided stays `reclaimable`.
 - **`escalation`** → show it to the user once, answer nothing for them. (This message type was not reproduced.)
 - Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
-  --timeout-ms 1800000 --json` acks and waits for the next one in one call.
+  --timeout-ms 600000 --json` acks and waits for the next one in one call.
 Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
 accepted (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
 --terminal-state reclaimable --json` must be empty.
 
-**An empty wait is a checkpoint, not a failure.** After three consecutive empty waits (90 minutes), enumerate:
+**Every empty wait (10 minutes) is a screen look.** `check --wait` returns nothing while kiro is stuck or out of quota, so each empty wait
+runs `wait-for-agent.sh <handle> --once` for every worker not yet settled (read-only: nothing is sent, nothing is killed).
+- `SCREEN=limit` (kiro's out-of-quota notice; the pattern is `LIMIT` in that script) → **stop waiting for that worker now**:
+  `❌ agent hit its usage limit — terminal <handle>`, then audit its submodule before anything else (`git -C <PATH> log --oneline
+  origin/<target>..HEAD`, `git -C <PATH> status --short`: which commits exist, whether the tree is dirty), then the fallback below. The
+  other workers keep running; a wave still settles as a whole.
+- `SCREEN=agent` (an idle input box) on two consecutive looks, for a worker that took its brief and sent no `worker_done` →
+  `❌ agent idle without worker_done — terminal <handle>`: it stopped without reporting. Audit git the same way, then the fallback below.
+- Any other state is only counted (`waits=n`, below).
+
+**An empty wait is a checkpoint, not a failure.** After nine consecutive empty waits (90 minutes), enumerate:
 `worker-list --run <RUN>` and `wait-for-agent.sh <handle> --once` per worker. kiro's liveness is always `unverifiable`
 (`missing_status`) — the screen read is the only signal, and absence never authorizes stopping, abandoning, retrying or
 releasing. `attention` (a permission prompt), `login`, `shell`, `gone` → report once with the handle (`❌ agent did not
@@ -99,14 +109,14 @@ relaunch: `worker-stop` / `worker-abandon` only on positive proof the agent exit
 whose last turn sent no `worker_done`).
 
 **kiro fallback → claude (always asked, never automatic).** A kiro submodule that ends `❌ agent did not start`,
-`❌ agent did not finish — gone|login|shell`, or hit the 90-minute wait (and the `whoami` failure above) →
-AskUserQuestion naming the submodule, the state and the terminal handle: "Run `<NAME>` with claude instead?" (`whoami`
+`❌ agent did not finish — gone|login|shell`, `❌ agent hit its usage limit`, `❌ agent idle without worker_done`, or hit the 90-minute wait (and the `whoami` failure above) →
+AskUserQuestion naming the submodule, the state, the terminal handle and — for a limit or idle stop — the git audit (commits found, dirty files): "Run `<NAME>` with claude instead?" (`whoami`
 failure: the whole run) — `["Switch this submodule to claude", "Leave it ❌", "Retry kiro"]`. Non-interactive → leave it
 `❌`. On a switch: release the failed kiro worker (`worker-release` — reclaimable after a failed start — or `worker-stop`
-on proven exit; never `terminal close`; `worker-retain` instead if the user wants to read it), spawn a background
-**claude `Agent`** for that submodule (Agent-mode dispatch from this session — **no** claude terminal; no `whoami`), and
+on proven exit; never `terminal close`; `worker-retain` instead if the user wants to read it — and always for a limit stop, whose kiro is still running), spawn a background
+**claude `Agent`** for that submodule (Agent-mode dispatch from this session with `model: "sonnet"`, `effort: "medium"` — **no** claude terminal; no `whoami`), and
 open its `BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
-continue from it; don't redo or discard it." Mark it `kiro → claude` in the state file; the other submodules stay on
+continue from it; don't redo or discard it." After a limit or idle stop, the brief also carries the audit: the commits found and the dirty files. Mark it `kiro → claude` in the state file; the other submodules stay on
 kiro. `attention`, `❌ no commit`, `❌ not accepted` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as
 they are.
 Leave terminals open so the user can read them (`worker-retain`); record the handles in the state file. Checkpoint with

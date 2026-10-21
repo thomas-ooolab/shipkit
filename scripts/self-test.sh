@@ -27,5 +27,15 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "skip  node scripts (node not installed)"
 fi
+screen_of() { # <screen line>... -> the SCREEN= verdict wait-for-agent.sh gives a canned terminal tail (a stub orca prints it)
+  local stub; stub=$(mktemp)
+  { echo '#!/usr/bin/env bash'; echo "cat <<'J'"
+    python3 -I -c 'import json,sys; print(json.dumps({"ok": True, "result": {"terminal": {"status": "running", "tail": sys.argv[1:]}}}))' "$@"
+    echo J; } >"$stub"
+  chmod +x "$stub"; ORCA_CLI_COMMAND="$stub" bash scripts/wait-for-agent.sh h --once | head -1; rm -f "$stub"
+}
+rule='────────────────────────'; trust='Trust All Tools active, confirmations are off · /quit to exit'
+run "wait-for-agent.sh: usage limit"   test "$(screen_of "• You've reached your monthly usage limit. Please return next month to continue building. (Request ID: x)" "▸ Credits: turn 1" "$rule" "$trust" "$rule")" = SCREEN=limit
+run "wait-for-agent.sh: idle box"      test "$(screen_of "• Write file:///x" "$rule" "$trust" "$rule")" = SCREEN=agent
 for f in scripts/*.sh skills/*/*.sh .githooks/pre-commit; do run "bash -n $f" bash -n "$f"; done
 exit "$fail"
