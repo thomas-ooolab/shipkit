@@ -198,11 +198,11 @@ Region: primary button (button.bg-blue-600)
   ✗ [blocking] bg:      contract bg-blue-600 (#2563eb) → built bg-blue-500 (#3b82f6)   fix: bg-blue-600
   ✗ [blocking] hover:   contract hover:bg-blue-700 → built (no hover change)           fix: hover:bg-blue-700
   ✗ [blocking] responsive@375: horizontal overflow (scrollWidth 412 > 375)            fix: min-w-0 / flex-wrap
-  ⚠ [advisory] radius:  contract rounded-lg (8px) → built rounded-md (6px)            fix: rounded-lg
+  ✗ [blocking] radius:  contract rounded-lg (8px) → built rounded-md (6px)            fix: rounded-lg
 ```
 Terminal line (grep-stable; `FAILED` outranks `INCOMPLETE`):
 ```
-verify: PASS — <n> checks verified with evidence[; built UI matches design-contract.md across desktop/tablet/mobile]
+verify: PASS — <n> checks verified with evidence[; built UI matches design-contract.md and the running design across desktop/tablet/mobile]
 verify: FAILED: <n> blocking (<k> logic, <u> ui, <b> responsive) (<m> advisory)
 verify: INCOMPLETE: <n> unverified — <blockers>
 ```

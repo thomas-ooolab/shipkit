@@ -6,6 +6,7 @@ tier: ""                     # html | url | screenshot
 fidelity: ""                 # exact (computed styles) | low (screenshot-estimated)
 palette: ""                  # project | default (which token set values snapped to)
 reference: ""                # design-contract.reference.png | <image path>
+elements: ""                 # design-contract.elements.json: every element of every captured state
 captured: ""                 # e.g. "desktop 1280, tablet 768, mobile 375; states: hover, focus"
 ---
 
@@ -17,7 +18,7 @@ parentheses means the snap was inexact (`exact:false`) or vision-estimated (`app
 
 > **Rule — match, don't reinterpret.** Implement with the classes below. Where a class is given, use
 > *that* class; don't substitute a "close enough" value. `/verify` diffs the built UI against
-> this file and blocks on class-level mismatches.
+> this file and, for `fidelity: exact`, blocks on any computed-style mismatch (0.5 px rounding is the only tolerance).
 >
 > **Rule — RESPONSIVE IS MANDATORY.** Every region MUST behave per its Responsive row at all three
 > breakpoints (mobile 375 · tablet 768 · desktop 1280). No horizontal overflow, no fixed widths that
@@ -38,6 +39,12 @@ parentheses means the snap was inexact (`exact:false`) or vision-estimated (`app
   - **mobile (375):** {stack to flex-col · full-width · text-sm · hidden … — or "same as desktop"}
   - **tablet (768):** {deltas, or "same as desktop"}
   - **desktop (1280):** {baseline}
+
+## Coverage
+<!-- What was and was not measured. The full element dump of every captured state is design-contract.elements.json;
+     static UI text (titles, labels, buttons, placeholders, empty states) is recorded there verbatim. -->
+- captured: {state — viewport — persona}
+- not captured / not drawn: {state — why — DR / OQ#}
 
 ## Assets
 <!-- Icons/SVGs (inline markup or name), images (URL / dimensions). "None" if none. -->

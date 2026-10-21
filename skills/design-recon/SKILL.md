@@ -38,7 +38,7 @@ Captures a design into `design-contract.md`. It does **not**: write component co
 implementer / `/pr --implement`), open a PR, generate a *new* design, or verify an implementation (`/verify`). It ends at the contract file.
 
 ## Write surface (the ONLY things written)
-1. `specs/NNN-slug/design-contract.md` (Step 6; overwrite vs `-v2` is user-confirmed).
+1. `specs/NNN-slug/design-contract.md` and `design-contract.elements.json`, the full element dump (Step 6; overwrite vs `-v2` is user-confirmed).
 2. A **transient** local static server for HTML artifacts (`recon.sh serve`), always stopped in Step 6.
 **Forbidden side-effects:** no git/Jira/Bitbucket mutation; no component/style edits; the browser
 session only reads (navigate + `getComputedStyle` + screenshot) plus the in-page UI triggers needed to
@@ -185,7 +185,7 @@ shape: one **Region** per meaningful node (header, card, primary button…), eac
 layout / typography / color / effect tokens, its state deltas, and its responsive deltas. Prefer the
 Tailwind class (`gap-4`, `text-lg`, `bg-blue-600`) as the primary value; keep the raw px/hex in
 parentheses only when the snap was inexact (`exact:false` / `approx:true`) so the implementer knows
-where to double-check. Do not dump the raw JSON.
+where to double-check. Do not dump the raw JSON into the contract; the complete dump has its own file (`## Coverage`, below).
 
 Every region found via 4a.5's click pass gets its **own** Region entry (e.g. "Options dropdown menu",
 "Notification panel", "Danger Zone tab panel") — never merged into its trigger's entry — with a
@@ -196,6 +196,12 @@ not skipped as "looks static."
 Add a `## State matrix` section (from 4a.6): one row per state — `state | source (AC# / derived: rule) |
 status (captured → Region name | not in mockup → OQ#)`. Every `not in mockup` row must have a matching
 Open Question. A spec with conditionals but a matrix holding only the default state is the same red flag.
+
+Add a `## Coverage` section after it: every state captured, each with its viewport and persona; every state **not** captured or deliberately not
+drawn, each with its DR / Open Question; and the path of `design-contract.elements.json`, written beside the contract: **every element** of every
+captured region and state at every breakpoint (tag/role, text, full computed style), not only the tokens chosen for the Regions. Static UI text
+(titles, labels, buttons, placeholders, empty states) is recorded **verbatim**, capitalisation included. The header's `artifact:` keeps the html
+path or url so `/verify` can serve the design again for its 1-to-1 diff (Part A3); a contract without a servable artifact says so there.
 
 ## Step 5b — Fidelity and placement (up front, next to the State matrix)
 Surface prototype-vs-reality problems **now**, not at `/verify`. Reuse
@@ -213,13 +219,14 @@ dev defect; real-screen screenshot attached by `/clarify`). Never pick a placeme
 - Stop any transient server: `recon.sh stop <SERVE_PID>`.
 - Assign the spec dir (from `--ticket`, else next spec number). If `design-contract.md` exists →
   AskUserQuestion `["Overwrite?", "Overwrite", "Write -v2", "Cancel"]`.
-- Write `specs/NNN-slug/design-contract.md` (+ the reference image). Add a one-line pointer under the
+- Write `specs/NNN-slug/design-contract.md` (+ the reference image and `design-contract.elements.json`). Add a one-line pointer under the
   spec's `## Contracts` section: `Design contract: design-contract.md (fidelity: <exact|low>)`.
 
 ```
 shipkit · design-recon — <artifact>  (tier: <html|url|screenshot>, fidelity: <exact|low>)
 Contract:  specs/NNN-<slug>/design-contract.md   (<R> regions, <N> tokens, <M> approx/inexact)
 Reference: design-contract.reference.png | <image path>
+Elements:  design-contract.elements.json   (<E> elements across <S> states)
 Captured:  desktop + <breakpoints> | states: <hover/focus…> | click-revealed: <N> regions (<names>)
 Placement: <P> regions — <K> ok, <B> mismatched (→ Open Questions [design-omission])
 States:    <S> in matrix — <C> captured, <G> not in mockup (→ Open Questions) | logic source: <spec|none>

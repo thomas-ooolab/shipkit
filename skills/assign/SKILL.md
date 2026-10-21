@@ -139,6 +139,10 @@ Per submodule, `PATH` = its path,
   branch: the coordinator pushes after it accepts the work. Never touch a database or docker. (kiro runs with every tool trusted — this is its only brake.)
 - **Discipline:** the conventions the submodule's own `CLAUDE.md` states (layering, contract-first, generate steps) and
   its `staging_only` flag from the config — don't restate them from memory.
+- **Design (UI tasks):** the spec dir holds a `design-contract.md` and a task touches the FE → the brief carries its path and its `artifact:`.
+  Before committing, the worker opens that design (the artifact) beside the page it is coding, same viewport and state, and compares the
+  region 1-to-1: every element, label and computed style, not only the contract's tokens. It does not commit a UI that differs; a difference it
+  cannot close is named in its final line. `/verify` Part A blocks the same differences (`${CLAUDE_PLUGIN_ROOT}/skills/verify/fidelity.md`, A2–A3).
 - **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't commit red.
 - **Commit, don't push:** `git add <allowlisted paths>` (never `-A`); one commit citing the task ids; leave the branch unpushed and say so in the final line.
