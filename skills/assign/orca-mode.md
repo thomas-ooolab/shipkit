@@ -1,10 +1,10 @@
-# /assign — Step 5, Orca mode (kiro workers under Orca orchestration)
+# /assign — Step 5, Orca mode (kiro and claude workers under Orca orchestration)
 
-> Loaded by `/assign` in Orca mode with `AGENT=kiro`. `BRIEF` and the wave plan are the ones SKILL.md built in Steps 1–5.
+> Loaded by `/assign` in Orca mode, `AGENT=kiro` or `claude`. `BRIEF` and the wave plan are the ones SKILL.md built in Steps 1–5.
 
 **Orca mode** (REQUIRED: load the `orca-cli` and `orchestration` skills first; `ORCA skills get orchestration` is the
 version-matched guide). Same `BRIEF`, one worker per submodule, same wave order — only the agent's home and the plumbing
-change: `/assign` is the **coordinator**; Orca creates and supervises each kiro terminal itself and injects the brief.
+change: `/assign` is the **coordinator**; Orca creates and supervises each worker terminal (kiro or claude) itself and injects the brief.
 **`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before starting a worker on a new terminal (a run that only reuses live kiro terminals skips it) — "Not logged in" (or an
 error) → start nothing and tell the user (in their language): "kiro is not logged in — run `! kiro-cli login`, then call
 /assign", then offer the claude fallback (below) for the whole run instead of stopping dead. (Orchestration does not check
@@ -45,13 +45,13 @@ terminal), its `BRIEF` opening for same-job reuse: "New task on the same submodu
 allowlist below replaces the previous one." A terminal serves one submodule and never receives another's brief.
 
 **Start the whole wave before waiting.** For every submodule in the wave:
-1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent kiro --worktree current --run <RUN> --json`
+1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent <AGENT> --worktree current --run <RUN> --json`
    (add `--terminal <handle>` for a reuse). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
    agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
-   create` (a second checkout `probe.sh` can't see) — and never `--agent claude`, `dispatch --inject`, or a brief sent with
-   `terminal send`. A brief can't land in a shell: Orca launches the agent itself. No `--model` / `--effort`: kiro runs with the model of its own
-   config (the CLI takes those flags only for Claude, Codex, Cursor, Antigravity and Muse), so the sonnet / medium rule of Agent mode in `SKILL.md`
-   covers `claude` workers only.
+   create` (a second checkout `probe.sh` can't see) — and never `dispatch --inject` or a brief sent with
+   `terminal send`. A brief can't land in a shell: Orca launches the agent itself. `claude` always gets `--model sonnet --effort medium`
+   (implementing a brief is routine coding); kiro gets neither flag — it runs with the model of its own config (the CLI takes them only for Claude,
+   Codex, Cursor, Antigravity and Muse).
 2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart: unsupported`. The
    terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
    agent took the brief** (Orca cannot observe kiro's turn), so make **one** read-only confirmation: the worker's first
@@ -67,7 +67,7 @@ allowlist below replaces the previous one." A terminal serves one submodule and 
 **Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
 pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
 600000 --json` via Bash `run_in_background: true` (the output file is written and a notification arrives when it ends),
-so a mixed run waits on `check` and the claude `Agent` notifications together. The output can hold more than one JSON
+so every worker, kiro or claude, is waited on the same way. The output can hold more than one JSON
 document: parse every one (a `raw_decode` loop) and use the one that carries `result.deliveryId` / `messages`. A consuming
 `check` **replays** its delivery until `check --ack <delivery_id>`. Process every message, then ack — and settle each
 worker *before* acking:
@@ -114,7 +114,7 @@ AskUserQuestion naming the submodule, the state, the terminal handle and — for
 failure: the whole run) — `["Switch this submodule to claude", "Leave it ❌", "Retry kiro"]`. Non-interactive → leave it
 `❌`. On a switch: release the failed kiro worker (`worker-release` — reclaimable after a failed start — or `worker-stop`
 on proven exit; never `terminal close`; `worker-retain` instead if the user wants to read it — and always for a limit stop, whose kiro is still running), spawn a background
-**claude `Agent`** for that submodule (Agent-mode dispatch from this session with `model: "sonnet"`, `effort: "medium"` — **no** claude terminal; no `whoami`), and
+claude worker for that submodule on the same run (`worker-start --agent claude --model sonnet --effort medium` as above, brief as a file; no `whoami`), and
 open its `BRIEF` with: "A previous agent may have left partial work on `<branch>` — run `git status` / `git log` first and
 continue from it; don't redo or discard it." After a limit or idle stop, the brief also carries the audit: the commits found and the dirty files. Mark it `kiro → claude` in the state file; the other submodules stay on
 kiro. `attention`, `❌ no commit`, `❌ not accepted` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as

@@ -32,7 +32,7 @@ Implements code only (ticket mode reads the plan; free-form mode takes the task 
 3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the agent confirmed done (and git verifies).
 4. `.shipkit/assign-<ticket>.md` — per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
 5. `.shipkit/assign-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
-6. Orca mode, `AGENT=kiro` only: one `orchestration run-create` per invocation, then `worker-start`, `check`, `reply`, `worker-retain` / `worker-release` / `worker-stop` / `worker-abandon` (the last two only on positive proof the agent exited) — never an Orca worktree, `dispatch --inject`, `orchestration reset`, a brief sent with `terminal send`, or a **claude** terminal (see Step 5).
+6. Orca mode (kiro or claude workers): one `orchestration run-create` per invocation, then `worker-start`, `check`, `reply`, `worker-retain` / `worker-release` / `worker-stop` / `worker-abandon` (the last two only on positive proof the agent exited) — never an Orca worktree, `dispatch --inject`, `orchestration reset`, or a brief sent with `terminal send`.
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
 a submodule's own task allowlist; no push by a worker, ever; no force-push unless that submodule's branch was rebased.
 
@@ -49,7 +49,7 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 ## Step 1 — Parse + pick mode
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
 `submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--no-push` → `NO_PUSH` (the coordinator accepts the commits but pushes nothing; the caller pushes, e.g. `/bugfix` after `/verify` passes); strip `--agent claude|kiro` →
-`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins; `claude` is always spawned as background `Agent` calls from the running claude session, never as a terminal. `kiro` runs as an Orca-supervised worker (its tools are trusted, so the BRIEF's Guard is its only brake) and needs Orca mode).
+`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins. In Orca mode both agents are Orca-supervised workers (`worker-start`; `claude` with `--model sonnet --effort medium`); in Agent mode `claude` is a background `Agent` call. `kiro` runs as an Orca-supervised worker (its tools are trusted, so the BRIEF's Guard is its only brake) and needs Orca mode).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
@@ -143,15 +143,12 @@ Per submodule, `PATH` = its path,
   script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't commit red.
 - **Commit, don't push:** `git add <allowlisted paths>` (never `-A`); one commit citing the task ids; leave the branch unpushed and say so in the final line.
 
-**`AGENT=claude` never gets a terminal — not even in Orca mode.** `/assign` itself runs inside a claude session (in Orca
-mode that is the coordinator's terminal), so the claude agents are that session's own background `Agent` calls — dispatch
-them exactly as **Agent mode** above (one message, `run_in_background: true`), whether `AGENT=claude` came from the flag
-or from the kiro fallback. Never `terminal create` another claude terminal to run a submodule: a second claude session
-adds nothing the coordinator can't spawn, and leaves a stray terminal. The worker steps below are for kiro only; a
-run mixing both (kiro workers plus fallback claude `Agent` calls) waits on `check` and the `Agent`
-notifications together.
+**`AGENT=claude` in Orca mode is a worker like kiro.** The steps of `orca-mode.md` apply to both agents — one path to maintain —
+and differ only in the launch (`worker-start --agent claude --model sonnet --effort medium`; no `kiro-cli whoami`) and in the
+kiro-only screen pattern for a spent quota. The kiro → claude fallback is that same `worker-start`, and a run mixing both waits on
+`check` alone. Agent mode (no Orca) keeps the `Agent` dispatch above.
 
-**Orca mode** — `AGENT=kiro`. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/assign/orca-mode.md` and follow it (it also
+**Orca mode** — `AGENT=kiro` or `claude`. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/assign/orca-mode.md` and follow it (it also
 says to load the `orca-cli` and `orchestration` skills first). Same `BRIEF`, one worker per submodule, same wave order:
 `/assign` is the **coordinator**, Orca creates and supervises each kiro terminal. It covers the `kiro-cli whoami` check, one
 Run per invocation, brief-as-a-file, reuse of terminals, `worker-start`, `check --wait` and its message handling, empty waits,
