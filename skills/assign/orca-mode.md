@@ -49,7 +49,9 @@ allowlist below replaces the previous one." A terminal serves one submodule and 
    (add `--terminal <handle>` for a reuse). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
    agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
    create` (a second checkout `probe.sh` can't see) — and never `--agent claude`, `dispatch --inject`, or a brief sent with
-   `terminal send`. A brief can't land in a shell: Orca launches the agent itself.
+   `terminal send`. A brief can't land in a shell: Orca launches the agent itself. No `--model` / `--effort`: kiro runs with the model of its own
+   config (the CLI takes those flags only for Claude, Codex, Cursor, Antigravity and Muse), so the sonnet / medium rule of Agent mode in `SKILL.md`
+   covers `claude` workers only.
 2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart: unsupported`. The
    terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
    agent took the brief** (Orca cannot observe kiro's turn), so make **one** read-only confirmation: the worker's first

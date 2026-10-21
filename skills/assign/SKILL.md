@@ -121,7 +121,7 @@ then run `ORCA worktree current --json`. It succeeds (the session is inside an O
 mode** (`claude`), except an explicit `--agent kiro`, which stops: "kiro runs only as an Orca terminal." Never `ORCA open` just to get Orca mode.
 
 **Agent mode.** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
-`general-purpose` (the running agent's own kind), `run_in_background: true`, no model override, no
+`general-purpose` (the running agent's own kind), `run_in_background: true`, `model: "sonnet"` and `effort: "medium"` (implementing a brief is routine coding; the coordinator that reviews and accepts the work keeps the session's own model), no
 worktree isolation (each agent owns a distinct submodule); the brief tells it to work only inside `PATH`. No waiting
 between submodules — this is the whole point. Each agent's final line must be exactly
 `✅ implemented <path> (N/M tasks, committed, not pushed)` or `❌ <reason>`.
