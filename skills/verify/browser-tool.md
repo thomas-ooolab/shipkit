@@ -39,8 +39,8 @@
   the window on the visible display, so tell the user a Chromium window will appear. Where that can't run, render
   the same content where the tool can capture it (e.g. `browser_evaluate` setting `select.size = <option count>`)
   and caption it as altered ("list shown expanded"). Don't try any other capture.
-- **Local login: seed a dedicated test user** rather than using an account from a Jira comment — only on the
-  user's yes, only in the local DB. Insert the user + membership rows with `psql -tAq` (with `RETURNING`, take
+- **Local login: seed a dedicated test user** rather than using an account from a Jira comment — only in the
+  local DB, no question asked; a new user, not a changed password on an existing account. Insert the user + membership rows with `psql -tAq` (with `RETURNING`, take
   the first line: it also prints `INSERT 0 1`); password random from Python `secrets`, hash
   `htpasswd -bnBC 10 x <pw> | cut -d: -f2` with the `$2y$` prefix changed to `$2a$` (the BE's bcrypt accepts it);
   keep the password in a `0600` file in the scratchpad and never print it in chat.

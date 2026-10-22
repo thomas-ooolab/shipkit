@@ -17,7 +17,7 @@ tablet 768 + mobile 375 — responsive is mandatory, never skipped):
 For each state the contract records (hover/focus/active), drive it and re-extract that node.
 **Reaching a state.** A state the contract or the design shows (a low-confidence or disputed badge, a pill, an empty list…) that the local
 data does not have is reached, not skipped, the way `SKILL.md` builds a missing variant (*Variant matrix*): use what the product already
-offers (another record, a role, a flag, a URL), else seed it on the user's yes or ask. Only when the state is one API response that cannot be
+offers (another record, a role, a flag, a URL), else seed it (on a local target without asking, elsewhere ask). Only when the state is one API response that cannot be
 produced for real, or the user declines seeding, may that response be patched in the page (e.g. Playwright `page.route`; never a database
 write); the report then marks the state `simulated`, because a fake response can hide a state the backend never produces. A state reached
 by none of these is `UNVERIFIED`: the gate is `INCOMPLETE`, never `PASS`.

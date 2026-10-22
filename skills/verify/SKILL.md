@@ -53,7 +53,8 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
-   except seeding a local test login on the user's yes (Step 2, Browser tool).
+   except on a local target, where you also write the fixtures a check needs (Step 1, Running targets) and seed a
+   test login (Step 2, Browser tool).
    The Part A fidelity measurement stays read-only (navigate + computed styles + screenshot, no form submits).
    Start no server on your own: when the app isn't running, ask (Step 1) and start it only on the user's yes,
    through the project's runbook.
@@ -99,13 +100,18 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   given) the Jira comment that concern restates, found via `getJiraIssue` with comments (the PO's / tester's
   comment, not just the one-line concern) — and list every **variant dimension it names**: roles (who sees/can do
   what), data states (empty, many, boundary), failure/undo paths ("on save error, revert"), permissions
-  ("only X can"), value boundaries. Only dimensions the text names; don't invent. Each variant is its own check
+  ("only X can"), value boundaries, and **the inputs it tries or suggests** ("also try X", "e.g. Y", a value in a
+  repro step): each such input is a variant even when no row on hand carries it. Only dimensions the text names;
+  don't invent. Each variant is its own check
   (id `<n>.<variant>`) with **its own evidence file**. **A named variant ends only two ways: `PASS` with
   evidence, or `FAIL`.** `UNVERIFIED` is a temporary state of the run — the gate is `INCOMPLETE` — never a final
   row, and never a "not checked" line in the table or in a Jira comment: build the variant (Step 3, "Building a
   variant") before reporting. A unit test is not e2e and does not stand in for it. Count the variants the text
   names against those with evidence; fewer → `INCOMPLETE` and you carry on, you don't stop. Missing account,
-  role or seed data → seed it (on the user's yes, per Running targets below) or AskUserQuestion; don't skip it.
+  role or seed data → on a local target, seed it yourself without asking; on a shared one, AskUserQuestion (see
+  Running targets below). Never skip the variant, and never report the absence as the result: "no row has X" is
+  the cue to create a row that has X and run the case, not a PASS, an `UNVERIFIED` line or an explanation in a
+  Jira comment.
   Only the user, interactively and explicitly, may waive a variant — stated in the report **to the user**, never
   in the Jira comment. A check with no named dimensions has one variant — itself.
 - **Design contract (Part A):** `--contract <path>`, else `specs/NNN/design-contract.md`. None, or no FE in
@@ -116,8 +122,12 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   `local-dev-runbook.sh` exists (SDD root, then its parent) — `"Start it for me: local-dev-runbook.sh <fe|be>
   <root>"`; run it only on that answer, read the runbook for what else it offers (e.g. data restore), and bring
   FE up before driving it with the Playwright MCP browser tools (Step 2). A production URL → refuse.
-  Missing seed data or credentials you may not use → that check is `UNVERIFIED`; you may offer a small local
-  fixture, but create nothing without the user's yes.
+  Credentials you may not use → that check is `UNVERIFIED`. Missing **seed data is not a credential**: on a
+  local target (localhost or `*.localhost`, a runbook slot stack, a throwaway DB; `--url`/`--api` pointing at
+  one) create the fixture yourself, with no question: through the app's own API or UI first, a local-DB write
+  only when neither can. Name each fixture and how you made it in the evidence, and put the data back afterwards
+  unless the next check needs it. On a shared target (staging, a shared dev DB) create nothing without the
+  user's yes.
 
 ## Step 2 — Preflight
 FE checks and Part A need Playwright MCP browser tools (as in `/design-recon` Step 3). Absent → interactive
@@ -133,7 +143,7 @@ agent, read `uptime` first: the default is one at a time.
 **REQUIRED before any FE check or Part A:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/browser-tool.md`. Short form: Playwright MCP
 in isolated, headless mode is the default; claude-in-chrome only when the user's real Chrome is required (tell them the risks first);
 evidence images come only from the browser tool and every one is opened before it is attached; a state the browser draws
-outside the page goes through `capture-native-popup.js`; a local login uses a dedicated seeded test user, only on the user's yes.
+outside the page goes through `capture-native-popup.js`; a local login uses a dedicated seeded test user, no question asked.
 
 ## Part B — Behavior checks (every ticket)
 
@@ -174,10 +184,12 @@ changed" is not a result.
 | **Role** (admin / manager / learner …) | Seed a test user per role in the local DB (Step 2, Browser tool); log each in in its own browser context. Check the positive side (sees exactly its scope) **and** the negative side for a role without the right: menu entry hidden, the direct URL blocked or redirected, the API answers 401/403, no data leaks. |
 | **Data state** (empty, one, many, deleted) | Create the data through the API or local DB, then check each state. |
 | **Boundary** | Try the value just inside and just outside the limit. |
+| **Content-dependent** (a search, filter, match, sort or threshold on a value that no row on hand has) | Create one record that has the value (API or UI; a local-DB write on a local target), run the exact input the text names in the UI, check the hit **and** a near miss that must not hit, then put the data back. |
 
 *Typical case:* "a failed save reverts" was left as "only covered by an automated test" and "the learner
 role" as "not checked" — both are checkable: the route-stub row above, and a seeded learner who gets no menu
-entry, a blocked URL and a 403.
+entry, a blocked URL and a 403. Likewise "also try X" was answered with "no row has X, so nothing shows" — one
+row with X and one search for it is the check.
 
 ## Part A — UI fidelity (only when a design contract exists)
 **REQUIRED when Step 1 found a design contract:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/fidelity.md` and follow it
