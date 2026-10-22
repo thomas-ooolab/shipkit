@@ -191,7 +191,8 @@ Wave 1: <submodule-a>          ✅ 3/3 tasks   branch=feat/<TICKET>-<slug>-a   t
 Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.md  terminal=<handle-3> (kiro, new — a different submodule gets its own) task=<id> dispatch=<id> waits=1
 ```
 (Orca mode only: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
-started or reused — a terminal with no brief yet is `unassigned` — Step 5's reuse check reads them from here.)
+started or reused — a terminal with no brief yet is `unassigned` — Step 5's reuse check reads them from here; a `✅` worker also gets
+`idle-since=<epoch>` until its idle close, then `closed (idle 3 min)`: `orca-mode.md`, *Idle close*.)
 Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 

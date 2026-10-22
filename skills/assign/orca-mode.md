@@ -81,15 +81,15 @@ worker *before* acking:
   *Accept, then push*: accepted → the coordinator pushes (not with `--no-push`) → `✅` (task count from the summary as a
   hint, then from the commit and the spec's tasks); no commit → `❌ no commit`; dirty → `❌ dirty tree`; a worker that pushed
   anyway (`unpushed=0` before you pushed) → `❌ worker pushed` — report it, don't accept on top. **Either outcome**, then the
-  terminal's next owner, exactly one: **reuse** it for the next brief, **`worker-retain --dispatch <id>`** (the default — the user reads the
-  terminals and the next wave or fix reuses them), or `worker-release` (only if the user asks). A settled kiro terminal
-  left undecided stays `reclaimable`.
+  terminal's next owner, exactly one: **reuse** it for the next brief; a `❌` or not-accepted worker → **`worker-retain --dispatch <id>`** (the
+  user reads what went wrong); a `✅` worker → left as it is and **closed on its own after 3 idle minutes** with no further request (*Idle close*
+  below), or `worker-release` at once if the user asks. A settled terminal left undecided stays `reclaimable`.
 - **`escalation`** → show it to the user once, answer nothing for them. (This message type was not reproduced.)
 - Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
   --timeout-ms 600000 --json` acks and waits for the next one in one call.
 Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
 accepted (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
---terminal-state reclaimable --json` must be empty.
+--terminal-state reclaimable --json` must be empty, except the `✅` terminals whose idle close is pending.
 
 **Every empty wait (10 minutes) is a screen look.** `check --wait` returns nothing while kiro is stuck or out of quota, so each empty wait
 runs `wait-for-agent.sh <handle> --once` for every worker not yet settled (read-only: nothing is sent, nothing is killed).
@@ -121,5 +121,16 @@ open its `BRIEF` with: "A previous agent may have left partial work on `<branch>
 continue from it; don't redo or discard it." After a limit or idle stop, the brief also carries the audit: the commits found and the dirty files. Mark it `kiro → claude` in the state file; the other submodules stay on
 kiro. `attention`, `❌ no commit`, `❌ not accepted` and `❌ dirty tree` are not offered a switch: the agent did run, so those go to the user as
 they are.
-Leave terminals open so the user can read them (`worker-retain`); record the handles in the state file. Checkpoint with
+**Idle close (3 minutes).** A `✅` worker nobody asks for again does not stay open on the user's machine:
+1. When Step 6 has written the report, write `idle-since=<epoch seconds>` (`date +%s`) beside each `✅` worker's handle in the state file, then
+   start one background `sleep 180` (Bash, `run_in_background: true`). Its notification is the wake-up.
+2. Any new request that reaches that terminal (`worker-start --terminal <handle>`, a fix after `/verify`, a follow-up brief) deletes its
+   `idle-since` first: it is no longer idle, and it is reused like any idle terminal (*Reuse before create*).
+3. At the wake-up, for every handle that still has `idle-since` (180 s or more old): `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
+   <handle> --once`. `SCREEN=agent` (an idle input box) → `ORCA orchestration worker-release --dispatch <id> --json` (it closes only that
+   worker's own terminal, and the output stays readable with `worker-read`; never `terminal close`), then write `closed (idle 3 min)` in the
+   state file. Any other screen (`working`, `attention`, …) → leave it open, delete `idle-since`, and tell the user which handle and why.
+   `❌` terminals are never closed this way: they are retained for the user to read.
+
+Record the handles in the state file; `❌` terminals stay open (`worker-retain`) for the user to read. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
