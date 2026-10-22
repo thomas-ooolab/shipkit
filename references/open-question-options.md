@@ -9,11 +9,17 @@ as facts.
    search the failure path first (a comment such as "nothing re-drives it" is a finding).
 2. **Options come from a source** (the ticket, the spec, a Jira reply, the code). An option only the dev thought of is a **proposal**
    and is labelled as one.
-3. **Keep the checked facts apart from the proposals**, as two dev-only sub-lines under the item (`/clarify` never copies them into the
+3. **An option or fallback that leans on a capability of another ticket — "X from `<OTHER-KEY>`", whether it exists, is planned or
+   will land — is a *borrowed capability*.** It carries a verification line: where X is built (that ticket's spec REQ, its branch
+   `file:line`, a route in the API contract) or the words `not found`. A PO's "rely on X from `<OTHER-KEY>`" is not a verification, it
+   only shows the PO said it. `not found` → before the item is written, tell the dev in the terminal (`⚠ borrowed capability not found: X of <KEY> — searched <where>`);
+   X is the recovery path of no option, and the option says plainly "no ticket builds X yet" (or is dropped).
+4. **Keep the checked facts apart from the proposals**, as dev-only sub-lines under the item (`/clarify` never copies them into the
    Jira comment; it rewrites the options in business language):
    ```markdown
    - [ ] **OQ-N** — {question, plain business language} — blocks: REQ-NNN
      - checked (dev-only): {what the code does today} (`file:line`); {ability an option relies on}: exists (`file:line`) | not found (searched: <terms>)
+     - borrowed (dev-only): {X} of <OTHER-KEY>: built in <spec REQ | branch file:line | api route> | not found (searched: <terms>)
      - proposed (dev, unconfirmed): A. {option}  B. {option — needs building: <what>}
    ```
 

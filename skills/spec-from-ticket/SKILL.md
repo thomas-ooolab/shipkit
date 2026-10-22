@@ -147,7 +147,8 @@ Derive `scope` (`fe-only`/`be-only`/`fe+be`/`fe+be+…`/…) and `services` from
 Acceptance criteria routinely name a component or mechanism at a high level ("show a badge when X",
 "use the existing retry logic") without spelling out its business logic, and without saying whether
 the thing it leans on is actually built yet. For every AC/requirement candidate:
-1. List the concrete feature(s)/component(s)/mechanism(s) it names or implies.
+1. List the concrete feature(s)/component(s)/mechanism(s) it names or implies — including another ticket's feature the requirement or
+   description gives as its recovery or failure path (a *borrowed capability*, B below).
 2. Check each against Step 3 item 5's verification. **Confirmed in code** → cite it, move on.
 3. **Not confirmed** → this AC references something undefined. Two-part question for Step 4's batch:
    *what is it*, and *is there an already-defined feature that's meant to support the new one*. Give
@@ -166,6 +167,7 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
 | "An option like 'it retries automatically' is a natural way to put it" | An ability named in an option is a claim about the system. Search for it; if it isn't there, write "does not exist today" or drop the option — never offer the PO something that cannot happen. |
+| "The ticket says recovery is via X from <OTHER-KEY>, so X exists" | Another ticket's feature named as a recovery or failure path is a *borrowed capability*: B in this check. Confirm it in code or in that ticket's spec/branch (REQ, `file:line`); else it is its own requirement or an `OQ-N`, C is never specced as relying on it, and the dev is told in the terminal at once: `⚠ borrowed capability not found: X of <KEY>`. |
 | "Asking about every referenced component is excessive" | Only ones Step 3 item 5 couldn't verify reach here — this isn't every AC, just the undefined ones. |
 
 ## Step 3c — Current behaviour + design fidelity & placement

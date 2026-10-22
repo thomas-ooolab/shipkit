@@ -103,7 +103,8 @@ From `## Requirements` keep only requirements that (a) say who may see or do wha
 permission, a data scope (own / team / workspace / organisation) — or (b) set a number, limit,
 threshold, state or transition, or a notification or trigger (e.g. "suggest learners below 65"), or (c)
 change an existing feature (its name resolves in `docs/features/INDEX.md`, or its nouns have hits in the
-code). Skip the rest. Keep at most 10; say which were cut. For each kept claim write down: the REQ-ID,
+code), or lean on a capability of another ticket ("recovery is via X", "rely on X from <KEY>" — a *borrowed
+capability*; in `--stage post` this includes a PO or QC reply that names one as a premise). Skip the rest. Keep at most 10; say which were cut. For each kept claim write down: the REQ-ID,
 the subject (actor and entity), the attribute (action and data scope, or threshold, state, trigger) with
 its value, and 1–3 noun keywords.
 
@@ -285,7 +286,14 @@ changes, never as the trigger). The spec may be absent; that does not skip this.
    **inferred from code**. A screenshot or console/network 403 is evidence; reading code alone is not.
    Needs the app running — ask the user to start it, else the finding stays `inferred from code` and the
    verdict cannot be `ship`.
-6. **Verification hygiene while rebasing.** Do not mask exit codes (`cmd | head` inside an `&&` chain hides
+6. **A premise that names a capability of another ticket is verified before the reply is bucketed or answered.** A PO or QC reply
+   that says "rely on X", "recovery is via X" or "needs <KEY> to keep Y" is a claim of kind (c) (Step 2): find where X is built —
+   that ticket's spec REQ, its branch `file:line`, a route in the API contract, the UI code — or `not found`. Record it as a row of
+   the rule inventory. `not found` → **stop and tell the dev in the terminal before any reply is drafted**
+   (`⚠ borrowed capability not found: X of <KEY> — searched <where>`); the dev decides what the PO is told, the premise is never accepted, and the verdict is not `ship`. *A PO built a decision on "Re-evaluate as from <KEY>";
+   that ticket's spec said the product has no such action and its branch had no route for it, so the accepted option's recovery
+   path did not exist.*
+7. **Verification hygiene while rebasing.** Do not mask exit codes (`cmd | head` inside an `&&` chain hides
    build failures); in zsh write `"${ref}:path"` — `"$ref:path"` is a path modifier; pin the project's
    toolchain when a generator fails on a newer local one.
 
@@ -293,7 +301,8 @@ changes, never as the trigger). The spec may be absent; that does not skip this.
 reconciled; a file from an earlier run keeps the ids already on that line and this run's are added, so the line only grows —
 `/clarify` and `/bugfix` check it), then report, starting
 with the **In-flight inventory** table (Step 1b), then:
-1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`.
+1. **Rule inventory** — `rule → every place it is implemented (file:line) → consistent? yes/no`; a borrowed capability (check 6) is a row
+   `capability X of <KEY> → built in <spec REQ | branch file:line | api route | UI file:line> | not found → consistent? no`.
 2. **Consumer × role matrix** — one per changed contract or permission; each cell `ran it` / `inferred`,
    with what the role sees (data, empty state, error).
 3. **Decision conflicts** — Jira/spec findings with ticket key, comment id, date and link, verbatim quote on

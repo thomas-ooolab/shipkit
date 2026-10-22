@@ -139,6 +139,11 @@ assumes already exists? Three outcomes only:
   `/clarify` knows any reply defines B from scratch rather than confirming something real. Tell the
   user in Step 6; recommend `/clarify`.
 
+**A borrowed capability is B.** A requirement or the ticket description that names another ticket's feature as its recovery or failure path
+("recovery is via X (<OTHER-KEY>)") makes that feature **B** in this gate. It is confirmed only in code, or by a ticket you verified owns it
+(its spec REQ or branch `file:line`, read this tick). Not in code and not owned → one of the two missing outcomes above (its own task, or
+an `OQ-N`); the plan never "relies on" it. Tell the dev in the terminal at once: `⚠ borrowed capability not found: X of <KEY> — searched <where>`.
+
 **Writing the item.** REQUIRED: Read `${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md` before writing any option into it.
 
 **A blocked task carries no default.** No "if the answer is A" branch, no task drafted on the likely answer, no line such as "open-question
