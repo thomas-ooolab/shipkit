@@ -15,7 +15,8 @@ run "check-skills (frontmatter, refs)"  python3 -I scripts/check-skills.py
 run "check-skills --self-test"          python3 -I scripts/check-skills.py --self-test
 run "weekend-guard hook"                python3 -I hooks/weekend-guard.py --self-test
 run "pr-branch-guard hook"               python3 -I hooks/pr-branch-guard.py --self-test
-run "hooks.json is valid JSON"          python3 -I -c "import json; json.load(open('hooks/hooks.json'))"
+run "after-hours-push-guard hook"       python3 -I hooks/after-hours-push-guard.py --self-test
+run "hooks.json is valid JSON"         python3 -I -c "import json; json.load(open('hooks/hooks.json'))"
 run "jira-comment.py"                   python3 -I scripts/jira-comment.py --self-test
 run "merge-pr.py"                       python3 -I skills/merge/merge-pr.py --self-test
 run "pipelines-status.py"               python3 -I skills/merge/pipelines-status.py --self-test
