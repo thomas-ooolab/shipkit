@@ -6,6 +6,7 @@ Checks: `name` equals the directory; `description` is present, starts with "Use 
 a Trigger line only when the skill takes arguments; a skill whose Trigger shows arguments has an `argument-hint`.
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
+The skills in SCOPED (pr, assign, bugfix) must point at references/scoped-tests.md.
 The files in BORROWED must keep the "borrowed capability not found" warning to the dev (a capability owned by another ticket is verified, not assumed).
 """
 import json, re, sys
@@ -63,6 +64,12 @@ def borrowed_lint(texts):
     return [f"{p} lost the 'borrowed capability not found' warning" for p in BORROWED
             if "borrowed capability not found" not in " ".join(texts.get(p, "").lower().replace("*", "").split())]
 
+SCOPED = ["skills/pr/SKILL.md", "skills/assign/SKILL.md", "skills/bugfix/SKILL.md"]
+
+def scoped_lint(texts):
+    """The skills that run tests must point at the shared scoped-tests rule, not run the whole suite on their own."""
+    return [f"{p} runs tests but never points at references/scoped-tests.md" for p in SCOPED if "scoped-tests.md" not in texts.get(p, "")]
+
 def self_test():
     good = '---\nname: x\ndescription: "Use when a thing. Trigger: /x <t>"\nargument-hint: "<t>"\n---\nbody\n'
     assert lint("x", good) == []
@@ -74,6 +81,7 @@ def self_test():
     assert writes_lint("run post-slack.js") != [] and writes_lint("jira-comment.py post") != []
     assert writes_lint("run post-slack.js; see references/write-through-scripts.md") == [] and writes_lint("no writes here") == []
     assert borrowed_lint({p: "⚠ borrowed capability\nnot found: X" for p in BORROWED}) == [] and len(borrowed_lint({})) == len(BORROWED)
+    assert scoped_lint({p: "see references/scoped-tests.md" for p in SCOPED}) == [] and len(scoped_lint({})) == len(SCOPED)
     print("check-skills: self-test ok")
 
 def main():
@@ -93,7 +101,8 @@ def main():
             print(f"FAIL {rel}")
             for o in out:
                 print(f"       {o}")
-    lost = borrowed_lint({p: (ROOT / p).read_text() for p in BORROWED if (ROOT / p).exists()})
+    texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
+    lost = borrowed_lint(texts) + scoped_lint(texts)
     for o in lost:
         bad += 1
         print(f"FAIL {o}")

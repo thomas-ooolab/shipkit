@@ -1,7 +1,7 @@
 ---
 name: pr
-description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
-argument-hint: "<jira-ticket> [--implement] [--target staging|main]"
+description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
+argument-hint: "<jira-ticket> [--implement] [--full] [--target staging|main]"
 ---
 
 # shipkit · pr
@@ -57,7 +57,7 @@ allowlist; no force-push to a branch it didn't create.
 
 ## Step 1 — Parse & preconditions
 Parse `$ARGUMENTS`: the ticket (positional, or `--ticket <key>`) → `TICKET`; `--implement` →
-`IMPLEMENT=true`; `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
+`IMPLEMENT=true`; `--full` → `FULL=true` (Step 4 runs each submodule's whole test suite); `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
 else `staging`). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 **Missing ticket** → recommend candidates instead of asking blank: check `.shipkit/pr-*.md` for existing
@@ -111,10 +111,12 @@ as a `❌`. On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (subm
    a generated file from `make gen`). A path neither in the allowlist nor an accepted generated
    artifact → write `.shipkit/impl-gap-<ticket>.md` (offending paths + recovery: re-run `/plan-deep`
    to add the path), stop.
-2. **Test** — resolve by `stack` (first match): `Makefile` `test` target → else
-   go: `go test ./...` · nextjs/node: the package manager's `test` script (pnpm/npm/yarn detected
-   from lockfile) · python: `pytest` (or `make test`). If none resolvable, AskUserQuestion for the
-   command. On failure → write `.shipkit/impl-failure-<ticket>.md`, stop with the failing output.
+2. **Test** — REQUIRED: Read `${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md` and follow it: the tests of the changed packages / files
+   only (`FULL=true`, or a diff that touches `go.mod`, `package.json`, a lockfile, `tsconfig*`, a test config or a `Makefile`, runs the
+   whole suite), a build only when the project's `CLAUDE.md` requires it and then on its own after the
+   tests. If no command resolves for the stack, AskUserQuestion for it. A failure in the diff's scope → write
+   `.shipkit/impl-failure-<ticket>.md`, stop with the failing output. A failure outside it is run on `origin/<target>` first; failing
+   there too → report `pre-existing on origin/<target>: <test>` and carry on, it does not stop the PR.
 
 ## Step 5 — Push + open child PRs (fan-out)
 For each affected submodule not `already-open` (in **Part order** if the plan pinned one — e.g. BE before FE):
@@ -141,6 +143,7 @@ Skip if the parent is `already-open`. Otherwise push the parent branch and open 
 ```
 shipkit · pr <TICKET> — <title>  · Phase 1 (open PRs)
 Implemented: <yes (--implement) | finalized existing branches | skipped — all PRs already open>
+Tests:        <per submodule: scoped (n packages | files) | full — <file that touched, or --full> | no related tests; any `pre-existing on origin/<target>: <test>`>
 Child PRs:
   service-be      → <url>  (dest: staging)  <opened | already open>
   service-fe      → <url>  (dest: staging)  <opened | already open>

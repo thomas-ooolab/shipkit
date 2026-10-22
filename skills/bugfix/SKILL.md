@@ -108,7 +108,7 @@ A ticket can have concerns in different buckets at once — classify each on its
    prints as its one target, and `--worktree current` still resolves to this worktree from inside a submodule. The brief carries the
    concern in the tester's words, the root cause `superpowers:systematic-debugging` found (`file:line`), the branch name
    `probe.sh branch <TICKET> <submodule|parent> --fix` prints (create it from the tracking branch if missing, else continue on it),
-   "regression test first", and "run the repo's tests, commit, never push". No `spec.md` is created or edited. Everything else in
+   "regression test first", and "run the tests of the files you changed (`${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`, never the whole suite), commit, never push". No `spec.md` is created or edited. Everything else in
    this step stays: kiro writes the fix, `/verify --concern` proves it before any push, a `FAILED` verify means a new brief and
    another `/assign`.
    `/assign` stops for any other reason → **stop and tell the user why** (one line, in the user's language); never fall back to

@@ -55,7 +55,7 @@ Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the co
   flow with the spec's tasks as the brief.
 - **Free-form mode** — args are not ticket-shaped (or no spec/config to read): one target = repo
   root (`git rev-parse --show-toplevel`), `BRIEF` = the args verbatim + the repo path + "run the
-  repo's tests and commit (never push)". Skip Steps 2–4 and 6's spec check-off; go to Step 5 with a
+  repo's tests for the files it changes (not the whole suite: `${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`) and commit (never push)". Skip Steps 2–4 and 6's spec check-off; go to Step 5 with a
   single-target wave. Empty args → AskUserQuestion (in the user's language) what to implement.
 - Ticket token but `meta-with-submodules` and `SHIPKIT_CONFIG_EXISTS=0` → stop: "Run `/bootstrap` first."
 
@@ -143,8 +143,12 @@ Per submodule, `PATH` = its path,
   Before committing, the worker opens that design (the artifact) beside the page it is coding, same viewport and state, and compares the
   region 1-to-1: every element, label and computed style, not only the contract's tokens. It does not commit a UI that differs; a difference it
   cannot close is named in its final line. `/verify` Part A blocks the same differences (`${CLAUDE_PLUGIN_ROOT}/skills/verify/fidelity.md`, A2–A3).
-- **Verify:** run the submodule's test command (Makefile `test` target → package-manager test
-  script → `pytest`/`go test ./...`, first match). On failure, stop and report — don't commit red.
+- **Verify:** run only the tests of the files you changed (`git diff --name-only <default>...HEAD`, generated files left out): Go → the
+  packages that hold them; vitest → `vitest related --run <files>`; pytest → the related tests. The whole suite only if the diff touches
+  `go.mod`, `package.json`, a lockfile, `tsconfig*`, a test config or a `Makefile`; no build (e.g. `build:stg`) unless the submodule's
+  `CLAUDE.md` requires it. A failure in your diff's scope: stop and report — don't commit red. A failure outside it: run that test on
+  `origin/<default>` first; failing there too → say `pre-existing on origin/<default>: <test>` in the final line and carry on
+  (`${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`).
 - **Commit, don't push:** `git add <allowlisted paths>` (never `-A`); one commit citing the task ids; leave the branch unpushed and say so in the final line.
 
 **`AGENT=claude` in Orca mode is a worker like kiro.** The steps of `orca-mode.md` apply to both agents — one path to maintain —
@@ -163,7 +167,7 @@ Workers only commit; nothing reaches the remote until the coordinator agrees. Fo
 1. **Read what it did, from git, not from its report:** the branch is the expected `probe.sh branch` name and carries the
    commit(s) (`git -C <PATH> log --oneline origin/<target>..HEAD`), the tree is clean, and `git -C <PATH> diff
    origin/<target>...HEAD --name-only` lists only files inside that submodule's allowlist (or an accepted generated artifact).
-   The summary says the submodule's tests ran green, and the diff addresses the tasks' `REQ-NNN`, nothing unrelated.
+   The summary says the tests of the changed files ran green (a `pre-existing on origin/<default>` line is not red), and the diff addresses the tasks' `REQ-NNN`, nothing unrelated.
 2. **All hold → accept.** Push the branch: `git -C <PATH> push -u origin <branch>` (`--force-with-lease` only if Step 4b
    rebased it and the user approved that). With `--no-push` stop here instead: report `✅ committed, not pushed` and leave
    the push to the caller. Then check the tasks off (Step 6) and `✅`.
