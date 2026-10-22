@@ -183,7 +183,8 @@ context, and implementation pays for it.
 1. **Understand the current feature first.** For every existing screen/flow the ticket touches, find
    it in the real submodule source (route → page → component) and list its real fields, labels, steps,
    states and entry point. When the app can run (`run` skill / Playwright MCP, read-only — never submit
-   or mutate), open it and save a screenshot to `.shipkit/evidence/<TICKET>/current/<screen>.png` (at scale 1, readable at full size: `/clarify` attaches it to
+   or mutate; a browser driven by a script or a delegated agent follows `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md` and is cleaned up with
+   `${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh`), open it and save a screenshot to `.shipkit/evidence/<TICKET>/current/<screen>.png` (at scale 1, readable at full size: `/clarify` attaches it to
    Jira, `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`). Write
    `.shipkit/evidence/<TICKET>/current-behaviour.md` (`mkdir -p` the folder): one section per screen — `entry point | fields+labels |
    steps | states | screenshot | (verified in <file>:<line>)`. Cannot run → say so, cite code only.

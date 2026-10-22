@@ -26,7 +26,7 @@ Allowlist + Guard + Discipline, Observable acceptance = Verify). Orca-mode diffe
   submodule's `CLAUDE.md`; a product decision, or anything that widens the allowlist → `AskUserQuestion` or a refusing
   reply. A permission prompt on a terminal is never answered on the user's behalf.
 - **UI task:** the `Design` bullet of the `BRIEF` applies; the `worker_done` summary says the 1-to-1 comparison was done, or names the
-  differences left.
+  differences left. Once that worker settles, or is stopped, run `scripts/cleanup-browsers.sh` on its scratch directory (SKILL.md, *Design*).
 
 **Reuse before create — find first, start last.** Before starting a worker on a new terminal, look for one that already
 belongs to this job, in this order (`ORCA terminal list --worktree active --json` is the ground truth; the handle, the

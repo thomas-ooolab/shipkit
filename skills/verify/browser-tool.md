@@ -3,14 +3,15 @@
 > Loaded by SKILL.md before the first FE check or Part A run.
 
 ### Browser tool — Playwright first, claude-in-chrome only when it must be the user's Chrome
-- **Default: Playwright MCP in its isolated mode** (`browser_*`, server run as `npx @playwright/mcp@latest
-  --isolated` — tools named `mcp__playwright__browser_*`). It is its own browser with its own empty, in-memory
+- **Default: Playwright MCP in its isolated, headless mode** (`browser_*`, server run as `npx @playwright/mcp@latest
+  --isolated --headless` — tools named `mcp__playwright__browser_*`; a script of your own launches with `headless: true`). It is its own browser with its own empty, in-memory
   profile and never touches the user's tabs or sessions. Use it for every FE check on a local/dev/staging app with
   a test account: read the DOM (`browser_evaluate`, e.g. list a select's options), `browser_take_screenshot`, drive
   the flow. **Not every Playwright MCP is isolated:** one started with `--extension` (the `ecc` plugin's
   `mcp__plugin_ecc_playwright__*` is) attaches to the user's real Chrome — same risks as claude-in-chrome below.
   Prefer the isolated server; if only the `--extension` one is connected, say so and get the user's yes first. Not
-  installed → `claude mcp add --scope user playwright -- npx @playwright/mcp@latest --isolated`, then a new session.
+  installed → `claude mcp add --scope user playwright -- npx @playwright/mcp@latest --isolated --headless`, then a new session. A connected server that opens a visible window is
+  not headless: say so, and use it only with the user's yes.
 - **claude-in-chrome only when the user's real Chrome is required:** the page opens only for a logged-in user
   (an auth-walled design link in `/design-recon`, SSO, an extension) or needs the user's own session or cookies.
   Say these risks to the user first: the window also holds their other tabs and bookmarks (private data can leak
@@ -43,3 +44,6 @@
   the first line: it also prints `INSERT 0 1`); password random from Python `secrets`, hash
   `htpasswd -bnBC 10 x <pw> | cut -d: -f2` with the `$2y$` prefix changed to `$2a$` (the BE's bcrypt accepts it);
   keep the password in a `0600` file in the scratchpad and never print it in chat.
+- **A Playwright script of your own** (Node, instead of the MCP tools) follows the *Browser rules* of
+  `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`: foreground, with a timeout, one at a time, no loop or chain script, `browser.close()` in a
+  `finally`, a labelled scratch directory, and `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <that directory>` before you finish.

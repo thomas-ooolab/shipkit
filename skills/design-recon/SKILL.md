@@ -83,8 +83,9 @@ and the contract notes `palette: default`.
 ## Step 3 — Preflight the browser (skip for `screenshot` tier)
 The `html`/`url` tiers need the **Playwright MCP** browser tools (`browser_navigate`,
 `browser_evaluate`, `browser_resize`, `browser_take_screenshot`, `browser_snapshot`). Check they're
-available.
-- **Present** → continue.
+available. A browser step delegated to an agent, or scripted, follows `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`: its *Browser rules* go
+into the brief, and when the agent ends or is stopped you run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>`
+(stopping an agent does not stop the browsers it opened).- **Present** → continue.
 - **Absent** → interactive: AskUserQuestion `["This tier needs the Playwright MCP browser tools, which
   aren't connected. Add it and retry, or capture from a screenshot instead?", "Add Playwright MCP and
   retry", "Fall back to screenshot tier (lower fidelity)", "Cancel"]`. Non-interactive → emit

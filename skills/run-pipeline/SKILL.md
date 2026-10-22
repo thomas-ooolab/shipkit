@@ -174,7 +174,9 @@ re-confirm success from ground truth and append the result + timestamp to the st
   `REQ-NNN` on the running app and saves evidence (FE screenshot, BE request/response and data); when
   `Design gate = on` it also diffs the built UI against `design-contract.md` (responsive included). It needs
   the app/service running (+ Playwright MCP for FE) — if they aren't, `/verify` asks the user to start them
-  and otherwise reports `INCOMPLETE`. On `PASS` → it has drafted the evidence comment locally (`/verify` Step 6; nothing
+  and otherwise reports `INCOMPLETE`. One browser agent at a time, and when one ends or is stopped its browsers are cleaned with
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>` (`${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`: stopping an agent does not
+  stop its children). On `PASS` → it has drafted the evidence comment locally (`/verify` Step 6; nothing
   goes to Jira here — `/merge` sends it just before the status change), mark `[x]` and continue. On `FAILED: N` → **stop** like a review blocker: "verify
   FAILED: N — fix and re-run `/run-pipeline <ticket>`." On `INCOMPLETE: N` → **stop** too: an unverified
   requirement is not a pass; unblock it or have the user waive it explicitly, then re-run. In `AUTO=true`

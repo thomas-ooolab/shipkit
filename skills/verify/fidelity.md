@@ -61,7 +61,9 @@ The contract lists only the regions and tokens recon chose; this step catches wh
 A contract with no servable artifact (screenshot tier) skips A3, and the report says so.
 
 If the measuring or diffing is delegated to an agent, its brief carries A2's rule and this step verbatim. It never says "keep it
-proportionate", "group tokens per region" or "same class, so advisory" for `fidelity: exact`.
+proportionate", "group tokens per region" or "same class, so advisory" for `fidelity: exact`. The brief also carries the *Browser rules*
+block of `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`, and when that agent ends or is stopped you run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>`: stopping an agent does not stop its browsers.
 
 | Excuse | Reality |
 |---|---|

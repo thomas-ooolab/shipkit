@@ -6,6 +6,7 @@ Checks: `name` equals the directory; `description` is present, starts with "Use 
 a Trigger line only when the skill takes arguments; a skill whose Trigger shows arguments has an `argument-hint`.
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
+A skill that has an agent drive a browser must point at references/browser-agents.md and scripts/cleanup-browsers.sh.
 The skills in SCOPED (pr, assign, bugfix) must point at references/scoped-tests.md.
 The files in BORROWED must keep the "borrowed capability not found" warning to the dev (a capability owned by another ticket is verified, not assumed).
 """
@@ -70,6 +71,15 @@ def scoped_lint(texts):
     """The skills that run tests must point at the shared scoped-tests rule, not run the whole suite on their own."""
     return [f"{p} runs tests but never points at references/scoped-tests.md" for p in SCOPED if "scoped-tests.md" not in texts.get(p, "")]
 
+BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
+
+def browser_lint(name, texts):
+    """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
+    if (name in BROWSER_SKILLS or re.search(r"playwright|browser_navigate|chrome-headless", texts, re.I)) and not all(
+            w in texts for w in ("references/browser-agents.md", "scripts/cleanup-browsers.sh")):
+        return ["drives a browser but does not point at references/browser-agents.md and scripts/cleanup-browsers.sh"]
+    return []
+
 def self_test():
     good = '---\nname: x\ndescription: "Use when a thing. Trigger: /x <t>"\nargument-hint: "<t>"\n---\nbody\n'
     assert lint("x", good) == []
@@ -82,6 +92,9 @@ def self_test():
     assert writes_lint("run post-slack.js; see references/write-through-scripts.md") == [] and writes_lint("no writes here") == []
     assert borrowed_lint({p: "⚠ borrowed capability\nnot found: X" for p in BORROWED}) == [] and len(borrowed_lint({})) == len(BORROWED)
     assert scoped_lint({p: "see references/scoped-tests.md" for p in SCOPED}) == [] and len(scoped_lint({})) == len(SCOPED)
+    both = "references/browser-agents.md scripts/cleanup-browsers.sh"
+    assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
+    assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
     print("check-skills: self-test ok")
 
 def main():
@@ -93,7 +106,8 @@ def main():
         text = f.read_text()
         out = lint(f.parent.name, text) if f.name == "SKILL.md" else []
         if f.name == "SKILL.md":
-            out += writes_lint("\n".join(p.read_text() for p in sorted(f.parent.glob("*.md"))))
+            dir_texts = "\n".join(p.read_text() for p in sorted(f.parent.glob("*.md")))
+            out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts)
         out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)]
         rel = f.relative_to(ROOT)
         if out:

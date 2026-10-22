@@ -190,6 +190,17 @@ while the socket reconnects (~2s) are not replayed. Check the scripts without Sl
 `node scripts/post-slack.js edit <channel_id> <ts> < new-text` (`chat.update`; same `chat:write` scope, your own
 messages only, text only — attachments stay). It also deletes one: `node scripts/post-slack.js delete <channel_id> <ts>` (`chat.delete`, your own messages only; prints `OK` or `SLACK_ERROR: <error>`).
 
+## Agents that drive a browser
+
+Stopping an agent (`TaskStop`) does not stop the processes it started: a verifier's shell loops kept relaunching `node` scripts, each opening a
+`chrome-headless-shell`, until the load average passed 150. `references/browser-agents.md` holds the *Browser rules* every such brief carries
+(headless, foreground, with a timeout, one script at a time, no loop or chain script, `browser.close()` in a `finally`, a labelled scratch directory), and
+the load check: one browser agent at a time unless the load is low and you agree. `/verify`, `/design-recon`, `/assign`, `/bugfix` and
+`/run-pipeline` run `bash scripts/cleanup-browsers.sh <scratch-dir> [--dry-run]` when such an agent ends or is stopped. It kills the node and
+shell processes whose working directory or command line is under that directory (parents first, repeated until nothing respawns), their
+children, and orphaned Playwright `chrome-headless-shell` processes; never your Chrome, the Playwright MCP browser, or anything outside the
+directory. `bash scripts/test-cleanup-browsers.sh` checks it with fake processes.
+
 ## Design fidelity loop (UI tickets with a mockup)
 
 FE implementations drift from the design — wrong spacing/color, missing hover states, and (chronically)

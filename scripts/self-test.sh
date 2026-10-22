@@ -37,5 +37,6 @@ screen_of() { # <screen line>... -> the SCREEN= verdict wait-for-agent.sh gives 
 rule='────────────────────────'; trust='Trust All Tools active, confirmations are off · /quit to exit'
 run "wait-for-agent.sh: usage limit"   test "$(screen_of "• You've reached your monthly usage limit. Please return next month to continue building. (Request ID: x)" "▸ Credits: turn 1" "$rule" "$trust" "$rule")" = SCREEN=limit
 run "wait-for-agent.sh: idle box"      test "$(screen_of "• Write file:///x" "$rule" "$trust" "$rule")" = SCREEN=agent
+run "cleanup-browsers.sh"              bash scripts/test-cleanup-browsers.sh
 for f in scripts/*.sh skills/*/*.sh .githooks/pre-commit; do run "bash -n $f" bash -n "$f"; done
 exit "$fail"

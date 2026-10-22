@@ -124,9 +124,14 @@ FE checks and Part A need Playwright MCP browser tools (as in `/design-recon` St
 AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIFIED` and the gate line says
 `verify: INCOMPLETE — Playwright MCP required`. BE checks need only `curl`/the service's own client.
 
+**Browser agents.** REQUIRED before driving a browser from a script of your own or delegating browser work to an agent: Read
+`${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`. Its *Browser rules* block goes into every such brief. Stopping an agent (`TaskStop`) does
+not stop the processes it started: when an agent that drove a browser ends, fails or is stopped, run
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>` and report what it killed. With more than one browser
+agent, read `uptime` first: the default is one at a time.
 ### Browser tool, evidence images, local login
 **REQUIRED before any FE check or Part A:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/browser-tool.md`. Short form: Playwright MCP
-in isolated mode is the default; claude-in-chrome only when the user's real Chrome is required (tell them the risks first);
+in isolated, headless mode is the default; claude-in-chrome only when the user's real Chrome is required (tell them the risks first);
 evidence images come only from the browser tool and every one is opened before it is attached; a state the browser draws
 outside the page goes through `capture-native-popup.js`; a local login uses a dedicated seeded test user, only on the user's yes.
 

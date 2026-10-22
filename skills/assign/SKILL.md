@@ -143,6 +143,10 @@ Per submodule, `PATH` = its path,
   Before committing, the worker opens that design (the artifact) beside the page it is coding, same viewport and state, and compares the
   region 1-to-1: every element, label and computed style, not only the contract's tokens. It does not commit a UI that differs; a difference it
   cannot close is named in its final line. `/verify` Part A blocks the same differences (`${CLAUDE_PLUGIN_ROOT}/skills/verify/fidelity.md`, A2–A3).
+  That comparison drives a browser: the brief carries the *Browser rules* block of `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`, and
+  **at most one UI worker drives a browser at a time** (read `uptime` first; two in parallel only when the load is low and the user agrees, with
+  the reason in the brief). When a UI worker ends, fails or is stopped, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch
+  directory>`: stopping a worker does not stop the browsers it opened.
 - **Verify:** run only the tests of the files you changed (`git diff --name-only <default>...HEAD`, generated files left out): Go → the
   packages that hold them; vitest → `vitest related --run <files>`; pytest → the related tests. The whole suite only if the diff touches
   `go.mod`, `package.json`, a lockfile, `tsconfig*`, a test config or a `Makefile`; no build (e.g. `build:stg`) unless the submodule's
