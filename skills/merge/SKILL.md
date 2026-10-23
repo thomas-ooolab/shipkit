@@ -199,7 +199,7 @@ Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>) · e
          — or, when anything wasn't done: Jira NOT updated (or: only partly updated) — <JIRA_NOTE: reason>; ticket is still at <current status.name>, assignee <current>
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | move <TICKET> to <status> and assign the QC by hand on Jira (or re-run /merge) — if Jira wasn't fully updated>
 ```
-`Next:` is written only when it differs from this skill's obvious default; otherwise `Next: none`. Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; when a `Next:` is written for a Jira that was not fully updated it must name the manual step.
+`Next:` always names the next step while one remains — a success included (the skill to run next, or what the user must do by hand); `Next: none` only when nothing remains. Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; when Jira was not fully updated the `Next:` names the manual step.
 
 ## Gotchas
 - **The root PR is merged only after its pointers are bumped to the verified child merge shas.** It's
