@@ -35,8 +35,8 @@ pointer logic. The root PR is **never merged while any child pipeline is FAILED 
 3. Root repo: a pointer-bump commit on the ticket's parent branch, pushed; if that branch conflicts
    with the default branch, a rebase and `--force-with-lease` push of **that branch only**; then the
    root PR merge (Step 9, gated).
-4. Jira: the `/verify` evidence comment (sent just before the transition, only when a transition will
-   happen — Step 10.1), then transition + assignee decided from config override or recent history (Step 10). **No other Jira
+4. Jira, always in this order and without asking: transition, then assignee (decided from config override or recent
+   history, Step 10), then the `/verify` evidence comment (Step 10.6). Only a blocker stops it. **No other Jira
    comment** without explicit approval.
 **Forbidden side-effects:** never merge without confirmed sign-off, or a PR with a git-detected
 conflict; never merge while a problem
@@ -181,7 +181,7 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
 
 ## Step 10 — Move the Jira ticket
 **REQUIRED once every PR of the ticket is `MERGED`:** Read `${CLAUDE_PLUGIN_ROOT}/skills/merge/jira-handoff.md` and follow it
-(sends the `/verify` evidence, then transition + QC assignee decided from config or recent history). Keep its `JIRA_NOTE` for
+(transition, then QC assignee decided from config or recent history, then sends the `/verify` evidence — in that order, never asked). Keep its `JIRA_NOTE` for
 Step 11. Not all PRs merged → don't touch Jira, but still report it. This step is never skipped silently.
 
 ## Step 11 — Report
@@ -192,7 +192,7 @@ service-be      #123   <sha8>      ✅ SUCCESSFUL (#456)
 service-fe      #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
-Jira <TICKET>: evidence <posted|edited <permalink> | none — <why>> · status <status.name> · assignee <displayName> (<accountId>) · decided: <status X (n of m | config | asked), assignee Y (n of m | config | asked)>
+Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>) · evidence <posted|edited <permalink> | none — <why>> · decided: <status X (n of m | config | asked), assignee Y (n of m | config | asked)>
          — or, when anything wasn't done: Jira NOT updated (or: only partly updated) — <JIRA_NOTE: reason>; ticket is still at <current status.name>, assignee <current>
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | move <TICKET> to <status> and assign the QC by hand on Jira (or re-run /merge) — if Jira wasn't fully updated>
 ```
@@ -230,6 +230,6 @@ Never end a report with a bare "skipped" on the Jira line: say *what* wasn't don
 - **Jira status and assignee are decided from history, not asked.** Config `jira.after_merge_transition` /
   `jira.qc_account_id` override; otherwise the most frequent hand-off in the last ~10 tickets this user moved decides
   (Step 10), and the report says what and why. Only unusable history (under 3 samples, a tie, a status or account not
-  available on this ticket) is asked. The evidence comment is sent the same way: a draft that is complete per `/verify` Step 7 goes out without a prompt; an incomplete one is a problem and is asked about.
+  available on this ticket) is asked. After them, always in that order, the evidence comment goes out the same way: a draft that is complete per `/verify` Step 7 is posted without a prompt; an incomplete one, a failed transition or a failed send is a blocker and is reported (Step 10).
 - **Re-running is safe.** `.shipkit/merge-<ticket>.md` records what's already merged — a re-run
   skips PRs already merged and only waits on pipelines still pending.
