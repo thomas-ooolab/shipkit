@@ -194,6 +194,9 @@ elif [ "${last_wait:-none}" = "none" ]; then
   echo "TIMEOUT after ${TIMEOUT_MIN}m: the agent has posted NOTHING in this thread. It never picked" >&2
   echo "  up the request — check that the trigger contains <@${BOT_ID}> and was posted as a reply" >&2
   echo "  in this thread (a top-level post starts a separate, contextless review)." >&2
+elif [ "${last_wait}" = "running" ]; then
+  echo "TIMEOUT after ${TIMEOUT_MIN}m: the agent posted its \"Running a full review…\" status line and no verdict yet." >&2
+  echo "  NOT a stall — the review is still running. Relaunch this waiter with the same after_ts; do not nudge." >&2
 else
   echo "TIMEOUT after ${TIMEOUT_MIN}m: the agent is still showing only its \"thinking…\" placeholder." >&2
   echo "  The request landed; it is just slow. Nudge it per the skill's Stalls table." >&2

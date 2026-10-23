@@ -19,7 +19,8 @@
   },
   "waiter": {
     "poll_interval_seconds": 12,
-    "default_timeout_minutes": 10
+    "default_timeout_minutes": 20,
+    "_note": "A real full review takes about 12-15 minutes; 10 timed out twice at AR-583."
   },
   "loop": {
     "max_rounds": 5,

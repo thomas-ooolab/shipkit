@@ -84,6 +84,16 @@ def reuse_lint(orca_mode, skill):
     out += [f"skills/assign/{n} still says '{w}'" for n, t in (("orca-mode.md", orca_mode), ("SKILL.md", skill)) for w in ("claude has none", "Kiro terminals only") if w in t]
     return out + ([] if "every agent kind" in skill else ["skills/assign/SKILL.md lost 'every agent kind' in the Find-before-you-create gotcha"])
 
+REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "Already answered, do not raise again",
+                     "full review <links>", "only at a decision point", "not a stall")
+
+def review_loop_lint(loop, config):
+    """/pr's review loop keeps its rules for the bot (no memory, slow, nit-by-nit): severity stop, one batched fix pass with a sweep, answered items re-sent, status line is not a verdict, quiet reporting, a wait longer than a real review."""
+    out = [f"skills/pr/review-loop.md lost '{r}'" for r in REVIEW_LOOP_RULES if r not in loop]
+    if config.get("waiter", {}).get("default_timeout_minutes", 0) < 20:
+        out.append("skills/pr/config.json waiter.default_timeout_minutes is below 20 (a full review takes 12-15 minutes)")
+    return out
+
 def browser_lint(name, texts):
     """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
     if (name in BROWSER_SKILLS or re.search(r"playwright|browser_navigate|chrome-headless", texts, re.I)) and not all(
@@ -108,6 +118,8 @@ def self_test():
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
     ok_o, ok_s = "Reuse is tried for every agent kind. Never add `--agent`, `--model` or `--effort`", "every agent kind"
     assert reuse_lint(ok_o, ok_s) == [] and len(reuse_lint("", "")) == 3 and reuse_lint(ok_o + " claude has none", ok_s) != [] and reuse_lint(ok_o, "") != []
+    assert review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 20}}) == []
+    assert len(review_loop_lint("", {})) == len(REVIEW_LOOP_RULES) + 1 and review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 10}}) != []
     assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
     assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
     print("check-skills: self-test ok")
@@ -132,6 +144,7 @@ def main():
                 print(f"       {o}")
     texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
     lost = borrowed_lint(texts) + scoped_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
+    lost += review_loop_lint((ROOT / "skills/pr/review-loop.md").read_text(), json.loads((ROOT / "skills/pr/config.json").read_text()))
     lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))
     for o in lost:
         bad += 1
