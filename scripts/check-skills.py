@@ -79,10 +79,10 @@ def transport_lint(text):
     return [f"skills/assign/SKILL.md lost the transport gate text '{w}'" for w in need if w not in text]
 
 def reuse_lint(orca_mode, skill):
-    """Terminal reuse in /assign is for every agent kind, called without --agent/--model/--effort; the old 'kiro only' sentence must not come back."""
-    out = [f"skills/assign/orca-mode.md lost '{w}'" for w in ("Reuse is tried for every agent kind", "Never add `--agent`, `--model` or `--effort`", "`Idle close:` line") if w not in orca_mode]
-    out += [f"skills/assign/{n} still says '{w}'" for n, t in (("orca-mode.md", orca_mode), ("SKILL.md", skill)) for w in ("claude has none", "Kiro terminals only") if w in t]
-    return out + ([] if "every agent kind" in skill else ["skills/assign/SKILL.md lost 'every agent kind' in the Find-before-you-create gotcha"])
+    """/assign never calls worker-start --terminal on a settled worker (Orca refuses it: agent_unconfigured); the follow-up brief carries the old handle and the commits left."""
+    out = [f"skills/assign/orca-mode.md lost '{w}'" for w in ("A settled terminal is never reused", "previous=<old handle>", "`Idle close:` line") if w not in orca_mode]
+    out += [f"skills/assign/{n} still says '{w}'" for n, t in (("orca-mode.md", orca_mode), ("SKILL.md", skill)) for w in ("Reuse before create", "Reuse is tried", "reuse refused", "Kiro terminals only") if w in t]
+    return out + ([] if "A settled terminal is never reused" in skill else ["skills/assign/SKILL.md lost 'A settled terminal is never reused' in the gotcha"])
 
 REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "goes in the PR description", "ignores everything else in the message",
                      "shipkit:decisions:start", "Answered ledger first", "UNVERIFIABLE", "full review <links>", "only at a decision point",
@@ -123,8 +123,8 @@ def self_test():
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
     gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
-    ok_o, ok_s = "Reuse is tried for every agent kind. Never add `--agent`, `--model` or `--effort`. `Idle close:` line", "every agent kind"
-    assert reuse_lint(ok_o, ok_s) == [] and len(reuse_lint("", "")) == 4 and reuse_lint(ok_o + " claude has none", ok_s) != [] and reuse_lint(ok_o, "") != []
+    ok_o, ok_s = "A settled terminal is never reused. previous=<old handle>. `Idle close:` line", "A settled terminal is never reused"
+    assert reuse_lint(ok_o, ok_s) == [] and len(reuse_lint("", "")) == 4 and reuse_lint(ok_o + " Reuse before create", ok_s) != [] and reuse_lint(ok_o, "") != []
     assert review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 20}}) == []
     assert len(review_loop_lint("", {})) == len(REVIEW_LOOP_RULES) + 1 and review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 10}}) != []
     assert report_style_lint("---\n---\n# t\n\n" + REPORT_STYLE_MARK + "\n> x") == [] and report_style_lint("# t\nbody") != []
