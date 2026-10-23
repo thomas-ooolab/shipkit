@@ -84,15 +84,22 @@ def reuse_lint(orca_mode, skill):
     out += [f"skills/assign/{n} still says '{w}'" for n, t in (("orca-mode.md", orca_mode), ("SKILL.md", skill)) for w in ("claude has none", "Kiro terminals only") if w in t]
     return out + ([] if "every agent kind" in skill else ["skills/assign/SKILL.md lost 'every agent kind' in the Find-before-you-create gotcha"])
 
-REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "Already answered, do not raise again",
-                     "full review <links>", "only at a decision point", "not a stall")
+REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "goes in the PR description", "ignores everything else in the message",
+                     "shipkit:decisions:start", "Answered ledger first", "UNVERIFIABLE", "full review <links>", "only at a decision point",
+                     "not a stall", "--per-pr", "per_pr_file_threshold")
 
 def review_loop_lint(loop, config):
-    """/pr's review loop keeps its rules for the bot (no memory, slow, nit-by-nit): severity stop, one batched fix pass with a sweep, answered items re-sent, status line is not a verdict, quiet reporting, a wait longer than a real review."""
+    """/pr's review loop keeps its rules for the bot (no memory, slow, nit-by-nit, reads only the PR description): severity stop, one batched fix pass with a sweep, answered items in the PR description (Decisions made block) and a signature ledger, the trigger is the bare command, status line is not a verdict, quiet reporting, a wait longer than a real review, per-PR mode. `loop` is review-loop.md + decisions-block.md + per-pr-review.md + SKILL.md."""
     out = [f"skills/pr/review-loop.md lost '{r}'" for r in REVIEW_LOOP_RULES if r not in loop]
     if config.get("waiter", {}).get("default_timeout_minutes", 0) < 20:
         out.append("skills/pr/config.json waiter.default_timeout_minutes is below 20 (a full review takes 12-15 minutes)")
     return out
+
+REPORT_STYLE_MARK = "<!-- report-style:v1 -->"
+
+def report_style_lint(text):
+    """Every SKILL.md opens with the Report style block (written in the file, not pointed at); the fixed marker line must sit in its first 25 lines."""
+    return [] if REPORT_STYLE_MARK in "\n".join(text.splitlines()[:25]) else [f"no '{REPORT_STYLE_MARK}' Report style block at the top of SKILL.md"]
 
 def browser_lint(name, texts):
     """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
@@ -120,6 +127,8 @@ def self_test():
     assert reuse_lint(ok_o, ok_s) == [] and len(reuse_lint("", "")) == 4 and reuse_lint(ok_o + " claude has none", ok_s) != [] and reuse_lint(ok_o, "") != []
     assert review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 20}}) == []
     assert len(review_loop_lint("", {})) == len(REVIEW_LOOP_RULES) + 1 and review_loop_lint(" ".join(REVIEW_LOOP_RULES), {"waiter": {"default_timeout_minutes": 10}}) != []
+    assert report_style_lint("---\n---\n# t\n\n" + REPORT_STYLE_MARK + "\n> x") == [] and report_style_lint("# t\nbody") != []
+    assert report_style_lint("\n" * 40 + REPORT_STYLE_MARK) != []
     assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
     assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
     print("check-skills: self-test ok")
@@ -134,7 +143,7 @@ def main():
         out = lint(f.parent.name, text) if f.name == "SKILL.md" else []
         if f.name == "SKILL.md":
             dir_texts = "\n".join(p.read_text() for p in sorted(f.parent.glob("*.md")))
-            out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts)
+            out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts) + report_style_lint(text)
         out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)]
         rel = f.relative_to(ROOT)
         if out:
@@ -144,7 +153,7 @@ def main():
                 print(f"       {o}")
     texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
     lost = borrowed_lint(texts) + scoped_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
-    lost += review_loop_lint((ROOT / "skills/pr/review-loop.md").read_text(), json.loads((ROOT / "skills/pr/config.json").read_text()))
+    lost += review_loop_lint("\n".join((ROOT / "skills/pr" / n).read_text() for n in ("review-loop.md", "decisions-block.md", "per-pr-review.md", "SKILL.md")), json.loads((ROOT / "skills/pr/config.json").read_text()))
     lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))
     for o in lost:
         bad += 1

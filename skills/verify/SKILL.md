@@ -6,6 +6,9 @@ argument-hint: "[--ticket <jira-ticket>] [--req REQ-NNN]... [--concern \"<scenar
 
 # shipkit · verify
 
+<!-- report-style:v1 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
+
 The "did we actually build it right?" gate. It runs after implementing a feature (`/assign`, `/pr --implement`,
 or by hand) and after `/bugfix` fixes a defect. Two checks, each with proof:
 
@@ -223,7 +226,7 @@ verify: PASS — <n> checks verified with evidence[; built UI matches design-con
 verify: FAILED: <n> blocking (<k> logic, <u> ui, <b> responsive) (<m> advisory)
 verify: INCOMPLETE: <n> unverified — <blockers>
 ```
-Then: `<PASS ⇒ next: /review-changes if it has not run on the current commits (verify and review may run in either order, see How it fits the pipeline) | fix the ❌ and re-run /verify | unblock the ⚠️ (or tell me to waive that check) and re-run>`.
+Then (`Next:` is written only when it differs from this skill's obvious default, otherwise `Next: none`; here the default for a PASS is the pipeline's next stage): `<PASS ⇒ next: /review-changes if it has not run on the current commits (verify and review may run in either order, see How it fits the pipeline) | fix the ❌ and re-run /verify | unblock the ⚠️ (or tell me to waive that check) and re-run>`.
 `INCOMPLETE` is **not** a pass, and not a place to stop: build what is missing (Step 3) and re-run first. Only the
 user, interactively and explicitly, may waive an `UNVERIFIED` check; the waiver is stated in the report to them,
 never in a Jira comment. Show the evidence, not just the table: for each `PASS`, open the PNG for the

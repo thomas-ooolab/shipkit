@@ -6,6 +6,9 @@ argument-hint: "<jira-ticket>"
 
 # shipkit · merge
 
+<!-- report-style:v1 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
+
 Merges a ticket's already-reviewed, conflict-free child PRs, blocks on the Bitbucket Pipeline each merge
 triggers, and — when all of them are SUCCESSFUL — finishes the root PR (bump pointers → resolve
 conflicts → merge) and hands the Jira ticket to testing. Reports per-PR status at the end.
@@ -98,7 +101,7 @@ Print the plan — repo, PR #, title, source → destination branch, Part order 
 about first; transition Jira").
 - **Nothing off** — every candidate has confirmed sign-off (Step 3), no git-detected conflict and is not blocked by
   Part order (Step 4) → **do not ask.** Go ahead with the recommended order: Part order for the children, then the root
-  after the bump. The printed plan is the record of what was decided.
+  after the bump. The printed plan is the record of what was decided. Say nothing more once the plan is printed: no line that sign-off is confirmed or that there is no conflict.
 - **Anything off** — a candidate with missing sign-off, a conflict, or blocked by Part order → stop and ask
   (`AskUserQuestion`): name each excluded PR and why; options: "merge only the qualifying ones" / "stop". Never merge
   an excluded PR. Nothing qualifying → stop (Step 4's rule).
@@ -196,7 +199,7 @@ Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>) · e
          — or, when anything wasn't done: Jira NOT updated (or: only partly updated) — <JIRA_NOTE: reason>; ticket is still at <current status.name>, assignee <current>
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | move <TICKET> to <status> and assign the QC by hand on Jira (or re-run /merge) — if Jira wasn't fully updated>
 ```
-Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; the Next line must name the manual step.
+`Next:` is written only when it differs from this skill's obvious default; otherwise `Next: none`. Never end a report with a bare "skipped" on the Jira line: say *what* wasn't done, *why*, and the ticket's current status; when a `Next:` is written for a Jira that was not fully updated it must name the manual step.
 
 ## Gotchas
 - **The root PR is merged only after its pointers are bumped to the verified child merge shas.** It's

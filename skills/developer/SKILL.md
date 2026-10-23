@@ -6,6 +6,9 @@ argument-hint: "[<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url
 
 # shipkit · developer
 
+<!-- report-style:v1 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
+
 Answers Slack questions **as the developer — the user** (their user token, first person), and starts
 work on a ticket the user hands over. Three modes:
 - **Start** — `/developer <ticket | jira-comment-url | description>`: decides from what it reads whether

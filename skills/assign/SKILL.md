@@ -6,6 +6,9 @@ argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent clau
 
 # shipkit · assign
 
+<!-- report-style:v1 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
+
 Fans out a ticket's per-submodule implementation tasks to parallel background agents (kiro terminals by default, claude as fallback) instead of
 working through submodules one at a time. Reads the tasks `/plan-deep` already wrote and grouped
 per submodule; adds nothing to the plan itself.
@@ -205,7 +208,7 @@ Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.
 (**Required for every run** — also a one-task fix run called by `/pr` or `/bugfix`, and a free-form run — and written from the real Orca rows, never invented: with `transport: orca`, the `run=`, `terminal=`, `task=` and `dispatch=` values are the ids `run-create`, `worker-start` and `dispatch` printed; none printed → the field is `unassigned`, never a guess or a backfill. A `transport: orca` run with no run, terminal, task or dispatch is a failed run, not a finished one. Orca mode: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
 started or reused — a terminal with no brief yet is `unassigned` — Step 5's reuse check reads them from here; a `✅` worker also gets
 `idle-since=<epoch>` until its idle close, then `closed (idle 3 min)`: `orca-mode.md`, *Idle close*.)
-A refused reuse is recorded on that submodule's line as `reuse refused: <Orca's message>`. Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, its `transport:` line on top (the caller reads it) and, in Orca mode, the `Idle close:` line(s) from `orca-mode.md` (*Idle close*) under it, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
+A refused reuse is recorded on that submodule's line as `reuse refused: <Orca's message>`. Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user (`Next:` is written only when it differs from this skill's obvious default; otherwise `Next: none`. The `/verify` then `/pr` hand-off below is that default: say it only when it is not the case.), its `transport:` line on top (the caller reads it) and, in Orca mode, the `Idle close:` line(s) from `orca-mode.md` (*Idle close*) under it, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas

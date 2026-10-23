@@ -1,10 +1,13 @@
 ---
 name: pr
-description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
-argument-hint: "<jira-ticket> [--implement] [--full] [--target staging|main]"
+description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--per-pr] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
+argument-hint: "<jira-ticket> [--implement] [--full] [--per-pr] [--target staging|main]"
 ---
 
 # shipkit · pr
+
+<!-- report-style:v1 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
 
 Two phases, always in order:
 
@@ -39,7 +42,7 @@ bump submodule refs (`/bump-submodule`), or **merge / approve / close** a PR —
 2. Git: push the existing `feat/<ticket>-<slug>{suffix}` branches (`fix/…` for a bug fix started on a fresh worktree) (parent + affected submodules);
    `--force-with-lease` only on a branch it rebased. Phase 2 review fixes: written, committed and pushed to the same
    branches (auto-updates the open PRs) by `/assign`'s agents — this skill edits no code itself.
-3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open).
+3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open); and, on every PR of the ticket, the *Decisions made* block of its description, written when the PR is opened and refreshed before each reviewer trigger through `bitbucket-api.sh PUT` — only the text between its two marker lines (`decisions-block.md`), nowhere outside `/pr`.
 4. Slack: thread posts in the review channel named in `skills/pr/config.json` (Phase 2). Jira: Phase 2 comments **only after explicit approval**.
 5. State files: `.shipkit/impl-gap-<ticket>.md`, `.shipkit/impl-failure-<ticket>.md` (Phase 1),
    `.shipkit/pr-<ticket>.md` (Phase 2).
@@ -57,7 +60,7 @@ allowlist; no force-push to a branch it didn't create.
 
 ## Step 1 — Parse & preconditions
 Parse `$ARGUMENTS`: the ticket (positional, or `--ticket <key>`) → `TICKET`; `--implement` →
-`IMPLEMENT=true`; `--full` → `FULL=true` (Step 4 runs each submodule's whole test suite); `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
+`IMPLEMENT=true`; `--full` → `FULL=true` (Step 4 runs each submodule's whole test suite); `--per-pr` → `PER_PR=true` (Phase 2 sends one `full review` per PR instead of one for all links — `per-pr-review.md`, which also switches on by itself for a big diff); `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
 else `staging`). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 **Missing ticket** → recommend candidates instead of asking blank: check `.shipkit/pr-*.md` for existing
@@ -126,7 +129,7 @@ For each affected submodule not `already-open` (in **Part order** if the plan pi
      straight to the reviewer and then get merged, so the title is what stays in the merge history.
    - **source** = feature branch · **destination** = `PR_TARGET` (skip `main` for `staging_only`).
    - **description:** link the Jira ticket (`<jira.base_url>/browse/<TICKET>`), the REQ-IDs covered,
-     the spec path, and `Part i of N` for fan-out.
+     the spec path, and `Part i of N` for fan-out; then the *Decisions made* block — **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/pr/decisions-block.md` and follow it.
    Capture each child PR URL.
 
 ## Step 6 — Open the parent-repo PR (the throughline)
@@ -134,7 +137,7 @@ Skip if the parent is `already-open`. Otherwise push the parent branch and open 
 (destination: the parent repo's default branch — it has no staging tier):
 - **Title:** `<TICKET>: <feature title>` — no draft marker either.
 - **description:** the canonical summary + **links to every child PR grouped by submodule** + the
-  spec path. This parent PR ties the child PRs to the ticket. Note: the submodule-ref **bump**
+  spec path, then the same *Decisions made* block (`decisions-block.md`). This parent PR ties the child PRs to the ticket. Note: the submodule-ref **bump**
   happens after child PRs merge — `/merge` does it (or `/bump-submodule` when you merge by hand).
 > Bitbucket has no GitHub-style "Closes" keyword. The ticket key in the title/branch is the link;
 > the Jira transition happens at `/merge`, once every PR is merged.

@@ -22,6 +22,10 @@
     "default_timeout_minutes": 20,
     "_note": "A real full review takes about 12-15 minutes; 10 timed out twice at AR-583."
   },
+  "review": {
+    "per_pr_file_threshold": 100,
+    "_note": "Over this many changed files in one PR, or a verdict that ran out of tool budget, the review goes one PR at a time (skills/pr/per-pr-review.md)."
+  },
   "loop": {
     "max_rounds": 5,
     "_note": "Same default and meaning as review-loop's: one round = one new-reviewer-message triage-and-reply cycle. Reaching it is a stop-and-report, never a silent exit."
