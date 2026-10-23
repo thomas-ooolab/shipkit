@@ -145,13 +145,15 @@ kiro. `attention`, `❌ no commit`, `❌ not accepted` and `❌ dirty tree` are 
 they are.
 **Idle close (3 minutes).** A `✅` worker nobody asks for again does not stay open on the user's machine:
 1. When Step 6 has written the report, write `idle-since=<epoch seconds>` (`date +%s`) beside each `✅` worker's handle in the state file, then
-   start one background `sleep 180` (Bash, `run_in_background: true`). Its notification is the wake-up.
+   start one background `sleep 180` (Bash, `run_in_background: true`). Its notification is the wake-up. **Tell the user in the report** with one
+   `Idle close:` line per `✅` handle — `Idle close: ✅ <handle> (<submodule>) at <HH:MM, `date -v+3M '+%H:%M'`> unless a new request reaches it` — so
+   they know it will close and when; no `✅` worker → `Idle close: none`.
 2. Any new request that reaches that terminal (`worker-start --terminal <handle>`, a fix after `/verify`, a follow-up brief) deletes its
    `idle-since` first: it is no longer idle, and it is reused like any idle terminal (*Reuse before create*).
 3. At the wake-up, for every handle that still has `idle-since` (180 s or more old): `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
    <handle> --once`. `SCREEN=agent` (an idle input box) → `ORCA orchestration worker-release --dispatch <id> --json` (it closes only that
    worker's own terminal, and the output stays readable with `worker-read`; never `terminal close`), then write `closed (idle 3 min)` in the
-   state file. Any other screen (`working`, `attention`, …) → leave it open, delete `idle-since`, and tell the user which handle and why.
+   state file, and **print one line**: `Idle close: closed <handle> (<submodule>) after 3 idle min`. Any other screen (`working`, `attention`, …) → leave it open, delete `idle-since`, and print one line: `Idle close: left open <handle> (<submodule>) — <screen state>`. A release that answers ok but leaves the terminal `retained` (the user touched it, `user_takeover`) is `left open`, not `closed`: check `worker-list` after the release before writing `closed`.
    `❌` terminals are never closed this way: they are retained for the user to read.
 
 Record the handles in the state file; `❌` terminals stay open (`worker-retain`) for the user to read. Checkpoint with
