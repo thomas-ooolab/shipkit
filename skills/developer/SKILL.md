@@ -263,10 +263,18 @@ time:
    `inclusive=true`, `limit=1`) and the channel's name (`conversations.info`). If it is an ask or a bug for the
    developer, take the normal *Classify* path (steps 1–3). Anything else (a greeting, a status check, chatter) → write
    **exactly one** terminal line for the user: who, which channel, the content in one sentence — then move on; no draft
-   unless the user asks. A `channel` event with no line is a missed message.
+   unless the user asks. A `channel` event with no line is a missed message. (Not a review-bot message that 1b skips.)
 1. **Thread:** root = `thread_ts`, or `ts` when it is `-` (a top-level mention starts its own thread; a
    top-level DM has none — answer in the DM). Read it (`conversations.replies`; `conversations.history`
    with `latest=<ts>`, `inclusive=true`, `limit=1` for a top-level DM).
+1b. **Review-bot message → `skip`, no terminal line, no draft, when** its author is `slack.bot_reviewer_user_id` in
+   `${CLAUDE_PLUGIN_ROOT}/skills/pr/config.json` (the `/pr` review bot, a thread reply or a top-level post), the message or its thread root names a ticket (first `[A-Z]+-\d+`)
+   and either (a) the ticket is not provably the user's (*Hard rule: who owns a ticket*) — a review of someone else's PR is not for
+   them, even when the bot @mentions them — or (b) the ticket has its own worktree (*Worktree match*) holding `.shipkit/pr-<KEY>.md`:
+   its `/pr` coordinator already reads the thread and the user follows it there. **Case (b) still reports** — exactly one terminal line, no draft unless the user asks —
+   when the bot asks something the coordinator cannot answer: a question for the developer (a product call, an access or
+   environment fact, a choice only they can make). The user's own ticket with no worktree or no state file → not covered,
+   handle it as any other message.
 2. **Steps 1–2** on it: state file, language, already-answered check, verify, QC table. Chatter, thanks,
    or something addressed to others → skip with one terminal line. Never answer on the notification
    line alone — only on the message you read from Slack.
