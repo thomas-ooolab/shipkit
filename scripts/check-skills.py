@@ -73,6 +73,11 @@ def scoped_lint(texts):
 
 BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
 
+def transport_lint(text):
+    """/assign's SKILL.md must keep the transport gate: print + record the `transport:` line first, and no Agent tool in an Orca worktree."""
+    need = ("Step 1.5 — Transport gate", "transport: orca (worktree", "transport: agent (reason", "Orca worktree present = Orca workers, always", "forbidden for dispatch")
+    return [f"skills/assign/SKILL.md lost the transport gate text '{w}'" for w in need if w not in text]
+
 def browser_lint(name, texts):
     """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
     if (name in BROWSER_SKILLS or re.search(r"playwright|browser_navigate|chrome-headless", texts, re.I)) and not all(
@@ -93,6 +98,8 @@ def self_test():
     assert borrowed_lint({p: "⚠ borrowed capability\nnot found: X" for p in BORROWED}) == [] and len(borrowed_lint({})) == len(BORROWED)
     assert scoped_lint({p: "see references/scoped-tests.md" for p in SCOPED}) == [] and len(scoped_lint({})) == len(SCOPED)
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
+    gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
+    assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
     assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
     assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
     print("check-skills: self-test ok")
@@ -116,7 +123,7 @@ def main():
             for o in out:
                 print(f"       {o}")
     texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
-    lost = borrowed_lint(texts) + scoped_lint(texts)
+    lost = borrowed_lint(texts) + scoped_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
     for o in lost:
         bad += 1
         print(f"FAIL {o}")

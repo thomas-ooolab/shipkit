@@ -30,7 +30,7 @@ Implements code only (ticket mode reads the plan; free-form mode takes the task 
    coordinator — this session — pushes the branch only after it accepts the commit (*Accept, then push* in Step 5), and not at
    all with `--no-push`.
 3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the agent confirmed done (and git verifies).
-4. `.shipkit/assign-<ticket>.md` — per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
+4. `.shipkit/assign-<ticket>.md` — starts with the `transport:` line (Step 1.5), then the per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
 5. `.shipkit/assign-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
 6. Orca mode (kiro or claude workers): one `orchestration run-create` per invocation, then `worker-start`, `check`, `reply`, `worker-retain` / `worker-release` / `worker-stop` / `worker-abandon` (the last two only on positive proof the agent exited) — never an Orca worktree, `dispatch --inject`, `orchestration reset`, or a brief sent with `terminal send`.
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
@@ -42,22 +42,36 @@ a submodule's own task allowlist; no push by a worker, ever; no force-push unles
 ```
 !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/probe.sh" resolve`
 ```
-Pick the mode in Step 1. Neither a single-repo topology nor `SHIPKIT_CONFIG_EXISTS=0` stops the
+Step 1.5 picks the transport. Neither a single-repo topology nor `SHIPKIT_CONFIG_EXISTS=0` stops the
 run: delegation to an agent needs only a path and a brief. `/bootstrap` is required only for
 **ticket mode on `meta-with-submodules`**, where the config's `submodules[]` is the only source of paths.
 
-## Step 1 — Parse + pick mode
+## Step 1 — Parse
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
 `submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--no-push` → `NO_PUSH` (the coordinator accepts the commits but pushes nothing; the caller pushes, e.g. `/bugfix` after `/verify` passes); strip `--agent claude|kiro` →
-`AGENT` (default `kiro` in Orca mode, `claude` in Agent mode — Step 5 picks the mode; an explicit flag always wins. In Orca mode both agents are Orca-supervised workers (`worker-start`; `claude` with `--model sonnet --effort medium`); in Agent mode `claude` is a background `Agent` call. `kiro` runs as an Orca-supervised worker (its tools are trusted, so the BRIEF's Guard is its only brake) and needs Orca mode).
+`AGENT` (default `kiro`; an explicit flag always wins. Whenever Step 1.5 prints `transport: orca`, both agents are Orca-supervised workers (`worker-start`; `claude` with `--model sonnet --effort medium`) — the transport decides that, not the agent kind. `kiro` runs as an Orca-supervised worker (its tools are trusted, so the BRIEF's Guard is its only brake) and needs the Orca transport. Only with `transport: agent` and no flag is the default `claude`, a background `Agent` call).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
   flow with the spec's tasks as the brief.
 - **Free-form mode** — args are not ticket-shaped (or no spec/config to read): one target = repo
   root (`git rev-parse --show-toplevel`), `BRIEF` = the args verbatim + the repo path + "run the
-  repo's tests for the files it changes (not the whole suite: `${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`) and commit (never push)". Skip Steps 2–4 and 6's spec check-off; go to Step 5 with a
+  repo's tests for the files it changes (not the whole suite: `${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`) and commit (never push)". Skip Steps 2–4 and 6's spec check-off (Step 1.5 still runs); go to Step 5 with a
   single-target wave. Empty args → AskUserQuestion (in the user's language) what to implement.
 - Ticket token but `meta-with-submodules` and `SHIPKIT_CONFIG_EXISTS=0` → stop: "Run `/bootstrap` first."
+
+## Step 1.5 — Transport gate (the first action after parsing — nothing is probed, planned or dispatched before it)
+1. Resolve `ORCA` the way the `orca-cli` skill's stub says, then run `ORCA worktree current --json`.
+2. Print exactly one line, decided by that command alone:
+   - it succeeds → `transport: orca (worktree <id from the JSON>)`
+   - anything else (no CLI, Orca not running, not an Orca worktree) → `transport: agent (reason: <the exact error or output>)`
+3. Write that line as the first line of `.shipkit/assign-<ticket>.md` (create the file; free-form mode: `<ticket>` = `adhoc`; a re-run
+   replaces its own transport line) **before any dispatch**. Step 6's report repeats it, so a caller can see which transport ran.
+
+**Rule: `transport: orca` means Orca workers, always — `claude` and `kiro` alike (Step 5 *Orca mode*, `orca-mode.md`).** The `Agent`
+tool is forbidden for dispatch then: not for one small task, not for a fix run called by `/pr` or `/bugfix`, not because the work
+looks faster inline. `transport: agent` is allowed only with the exact error in its line, and then `--agent kiro` stops: "kiro runs
+only as an Orca terminal." Never `ORCA open` just to get Orca mode. A run with no `transport:` line in the state file skipped this
+step — that absence is how the deviation shows.
 
 ## Step 2 — Load the plan (ticket mode)
 ```bash
@@ -115,12 +129,9 @@ Say what was decided and why in one line per submodule (`behind n, overlap: yes 
 `reuse as is`), in the report and the state file. Skipping this check is how an agent codes on a stale base.
 
 ## Step 5 — Delegate each wave (parallel)
-**Transport — pick once, before the first wave.** Resolve `ORCA` the way the `orca-cli` skill's stub says,
-then run `ORCA worktree current --json`. It succeeds (the session is inside an Orca-managed worktree)
-→ **Orca mode** (below). Anything else — no CLI, Orca not running, not an Orca worktree — → **Agent
-mode** (`claude`), except an explicit `--agent kiro`, which stops: "kiro runs only as an Orca terminal." Never `ORCA open` just to get Orca mode.
+**Transport — decided in Step 1.5, not here.** Read the `transport:` line at the top of `.shipkit/assign-<ticket>.md`: `orca` → **Orca mode** (below), `agent` → **Agent mode**. Never re-decide it, and never dispatch through the `Agent` tool when the line says `orca`.
 
-**Agent mode.** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
+**Agent mode (only when Step 1.5 printed `transport: agent`).** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
 `general-purpose` (the running agent's own kind), `run_in_background: true`, `model: "sonnet"` and `effort: "medium"` (implementing a brief is routine coding; the coordinator that reviews and accepts the work keeps the session's own model), no
 worktree isolation (each agent owns a distinct submodule); the brief tells it to work only inside `PATH`. No waiting
 between submodules — this is the whole point. Each agent's final line must be exactly
@@ -185,18 +196,20 @@ the rest of that submodule's tasks are done because one succeeded). Any `❌` �
 `.shipkit/assign-failure-<ticket>.md` (submodule, error, recovery) and keep the other submodules'
 results — one failure doesn't roll back siblings. Write `.shipkit/assign-<ticket>.md`:
 ```
+transport: orca (worktree <id>)      (or: transport: agent (reason: <exact error>))
 # Assign state — <ticket>   run=<run_id>
 Wave 1: <submodule-a>          ✅ 3/3 tasks   branch=feat/<TICKET>-<slug>-a   terminal=<handle-1> (kiro) task=<id> dispatch=<id>
         <submodule-b>          ✅ 1/1 tasks   branch=feat/<TICKET>-<slug>-b   terminal=<handle-2> (kiro) task=<id> dispatch=<id>
 Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.md  terminal=<handle-3> (kiro, new — a different submodule gets its own) task=<id> dispatch=<id> waits=1
 ```
-(Orca mode only: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
+(**Required for every run** — also a one-task fix run called by `/pr` or `/bugfix`, and a free-form run — and written from the real Orca rows, never invented: with `transport: orca`, the `run=`, `terminal=`, `task=` and `dispatch=` values are the ids `run-create`, `worker-start` and `dispatch` printed; none printed → the field is `unassigned`, never a guess or a backfill. A `transport: orca` run with no run, terminal, task or dispatch is a failed run, not a finished one. Orca mode: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
 started or reused — a terminal with no brief yet is `unassigned` — Step 5's reuse check reads them from here; a `✅` worker also gets
 `idle-since=<epoch>` until its idle close, then `closed (idle 3 min)`: `orca-mode.md`, *Idle close*.)
-Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
+Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, its `transport:` line on top (the caller reads it), then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas
+- **Orca worktree present = Orca workers, always — `claude` and `kiro` alike; the `Agent` tool is only for no-Orca.** The transport is decided by Step 1.5's `ORCA worktree current --json`, printed as a `transport:` line and written to the state file before any dispatch; a flag text, a habit or "it is only one small task" never decides it. Skipping the check leaves no line, and no run, worker or state row either.
 - **Parallel within a wave, sequential across waves — never the reverse.** The whole point is not
   waiting on submodule N to start submodule N+1 when nothing actually depends on it; don't collapse
   back to one-at-a-time inside a wave "to be safe."

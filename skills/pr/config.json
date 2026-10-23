@@ -14,6 +14,7 @@
     },
     "bot_reviewer_user_id": "U0B6M74TLBY",
     "bot_reviewer_handle": "OOOLAB AI Agent",
+    "review_ask": "full review {links}",
     "waiter_token_env": "SLACK_REVIEW_TOKEN"
   },
   "waiter": {

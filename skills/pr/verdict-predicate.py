@@ -13,6 +13,8 @@ Reads a Slack `conversations.replies` payload on stdin and prints:
     waiting|none       the agent has posted nothing yet — keep waiting (if this persists, the
                        mention is probably missing or the trigger was not posted in-thread)
     waiting|thinking   only the "thinking…" placeholder so far — keep waiting
+    waiting|running    the bot's status line "Running a full review of … This takes several minutes." is
+                       its latest message — the review has started, no verdict yet — keep waiting
 
 ## Why this does not look for verdict keywords
 
@@ -47,6 +49,8 @@ from decimal import Decimal
 # The placeholder is ":thinking_face: thinking…", but tolerate "thinking...", a bare emoji, or
 # added whitespace. If stripping these leaves nothing, the agent has not written anything yet.
 PLACEHOLDER_RE = re.compile(r"[:\w_]*thinking[:\w_]*|…|\.\.\.", re.I)
+# After `full review <link>` the bot posts a status line before the findings. It is progress, not an outcome.
+STATUS_RE = re.compile(r"^\W*running a full review\b", re.I)
 
 
 def classify(payload: dict, bot_id: str, parent_ts: str | None = None, after_ts: str | None = None) -> str | None:
@@ -96,6 +100,9 @@ def classify(payload: dict, bot_id: str, parent_ts: str | None = None, after_ts:
     latest = texts[-1]
     if not PLACEHOLDER_RE.sub("", latest).strip():
         return "waiting|thinking"  # placeholder only
+
+    if STATUS_RE.match(latest):
+        return "waiting|running"  # review started, findings not posted yet
 
     return "changed|%s" % latest[:400].replace("\n", " ")
 

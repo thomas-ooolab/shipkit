@@ -345,11 +345,11 @@ as well: unknown is not "no PR". Same clock and switches as the weekend guard ab
 `SHIPKIT_ALLOW_WEEKEND=1`). Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that
 do not load this plugin (kiro workers) — so at the weekend `/assign` workers on kiro can still push.
 
-## After-hours push guard
+## Push-hours guard
 
-From **19:00 on Monday to Friday** a third `PreToolUse` hook (`hooks/after-hours-push-guard.py`) blocks every `git push` the model
+A third `PreToolUse` hook (`hooks/after-hours-push-guard.py`) allows a `git push` only from **08:00 to 18:00, Monday to Friday**; at any other time it blocks every `git push` the model
 runs, whatever branch or remote (`cd`, `git -C` and `bash -c` are followed). The model may still `git commit`; the user pushes. Before
-19:00, after midnight and at the weekend it does nothing (the weekend is the PR-branch guard's). The cutoff is `CUTOFF_HOUR` at the top
+08:00, from 18:00 on and all weekend it blocks (08:00 sharp is allowed, 18:00 sharp is not; the PR-branch guard still covers PR branches at the weekend). The window is `OPEN_HOUR` / `CLOSE_HOUR` at the top
 of the file; the clock is the machine's local time, or `SHIPKIT_TZ=<IANA zone>`. `SHIPKIT_ALLOW_AFTER_HOURS=1` in Claude Code's
 environment lifts it for the session. Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that do not
 load this plugin (kiro workers). `python3 -I hooks/after-hours-push-guard.py --self-test` checks it.

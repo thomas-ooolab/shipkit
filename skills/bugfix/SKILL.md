@@ -100,7 +100,7 @@ A ticket can have concerns in different buckets at once — classify each on its
    report: it opens a kiro terminal per submodule, which commits to the feature branch and never pushes (`--no-push` keeps
    `/assign` from pushing too) — so the fix is verified before anything leaves the machine; a `FAILED` verify means new
    tasks and another `/assign`, never a claim in Jira. If `/assign`
-   asks about a submodule already in progress, that is the user's answer, not yours.
+   asks about a submodule already in progress, that is the user's answer, not yours. `/assign` runs in Orca mode when this session is in an Orca worktree: its report must show `transport: orca (worktree <id>)`, and a `transport: agent` there is a deviation to stop on, not to accept — never the `Agent` tool as a fallback.
    **`probe.sh state` gives `SPEC=none`** (a stand-alone bug ticket: the bug report is the ticket description, there is no feature
    spec, and `/run-pipeline --bug` never creates one) **→ run `/assign` in free-form mode instead of stopping.** Per real-defect
    concern, `cd` into the affected submodule (the repo root on a single-repo topology), run

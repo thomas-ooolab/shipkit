@@ -24,6 +24,8 @@ CASES = [
     ("placeholder with emoji",            msgs(":thinking_face: thinking…"), "waiting"),
     ("placeholder with dots",             msgs("thinking..."), "waiting"),
     ("placeholder, odd spacing",          msgs("  :thinking_face:  thinking …  "), "waiting"),
+    ("full-review status line",          msgs("Running a full review of 3 PRs. This takes several minutes."), "waiting"),
+    ("status line then findings",        msgs("Running a full review of 3 PRs. This takes several minutes.", "LGTM ✅"), "changed"),
     ("no bot message yet",                {"ok": True, "messages": []}, "waiting"),
     ("only the human request present",    {"ok": True, "messages": [{"user": "UHUMAN001", "text": "review please"}]}, "waiting"),
 
