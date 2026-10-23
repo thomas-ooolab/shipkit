@@ -205,7 +205,7 @@ Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.
 (**Required for every run** — also a one-task fix run called by `/pr` or `/bugfix`, and a free-form run — and written from the real Orca rows, never invented: with `transport: orca`, the `run=`, `terminal=`, `task=` and `dispatch=` values are the ids `run-create`, `worker-start` and `dispatch` printed; none printed → the field is `unassigned`, never a guess or a backfill. A `transport: orca` run with no run, terminal, task or dispatch is a failed run, not a finished one. Orca mode: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
 started or reused — a terminal with no brief yet is `unassigned` — Step 5's reuse check reads them from here; a `✅` worker also gets
 `idle-since=<epoch>` until its idle close, then `closed (idle 3 min)`: `orca-mode.md`, *Idle close*.)
-Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, its `transport:` line on top (the caller reads it), then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
+A refused reuse is recorded on that submodule's line as `reuse refused: <Orca's message>`. Keep earlier runs' lines in that file (a re-run adds or updates its own; the reuse check reads them). Report the same table to the user, its `transport:` line on top (the caller reads it), then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas
@@ -217,11 +217,12 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
   dependency = one wave, everything parallel. Only split waves on a note that's actually there.
 - **Don't reuse a stale wave plan across retries.** A submodule fixed since the last failure may now
   be `dirty=yes` from that fix — re-probe (Step 2/4) every run, never cache wave membership.
-- **Find before you create: reuse the terminal that already has the job, never one that worked on another
-  submodule.** A fresh kiro spends minutes loading and knows nothing of the work; a same-job one at its prompt is ready
-  now with that context, and a never-briefed one is simply free. Never reuse a terminal that is on a permission prompt
-  or of another kind, and never put a second agent on a `PATH` an agent is still working in (reuse = `worker-start
-  --terminal`).
+- **Find before you create: reuse the terminal that already has the job — of every agent kind, kiro, claude, codex… — never one that
+  worked on another submodule.** A fresh agent spends minutes loading and knows nothing of the work; a same-job one at its prompt is ready
+  now with that context, and a never-briefed one is simply free. Never reuse a terminal that is on a permission prompt, and never put a
+  second agent on a `PATH` an agent is still working in. Reuse = `worker-start --terminal <handle>` with only `--spec`, `--worktree current`
+  and `--run` (never `--agent`, `--model`, `--effort`); try it first, and if Orca refuses (tested: a settled claude worker is refused with `agent_unconfigured`), start a new worker,
+  record `reuse refused: <message>` in the state file and do not retry. Release a `✅` terminal only when no task of that submodule is left — after a release it may not be reusable.
 - **Starting workers with no `check --wait` pending is an unfinished delivery.** Nothing would process their messages
   or settle them — the user ends up asking whether the agent is done.
 - **One Run per invocation.** A second `run-create` from the same terminal fences the first (`consumer_fenced`): reuse

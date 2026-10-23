@@ -5,7 +5,7 @@
 **Orca mode** (REQUIRED: load the `orca-cli` and `orchestration` skills first; `ORCA skills get orchestration` is the
 version-matched guide). Same `BRIEF`, one worker per submodule, same wave order — only the agent's home and the plumbing
 change: `/assign` is the **coordinator**; Orca creates and supervises each worker terminal (kiro or claude) itself and injects the brief.
-**`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before starting a worker on a new terminal (a run that only reuses live kiro terminals skips it) — "Not logged in" (or an
+**`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before starting a worker on a new terminal (a run that only reuses live terminals skips it) — "Not logged in" (or an
 error) → start nothing and tell the user (in their language): "kiro is not logged in — run `! kiro-cli login`, then call
 /assign", then offer the claude fallback (below) for the whole run instead of stopping dead. (Orchestration does not check
 the login, and what a worker would show on a login screen was not verified — hence the check up front.)
@@ -38,17 +38,38 @@ agent kind and the submodule each terminal serves are in `.shipkit/assign-<ticke
    submodule may take it.
 
 A terminal that has worked on one submodule is **never** handed another — a different submodule always gets its own.
-Kiro terminals only (claude has none). A candidate is reusable iff `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh"
-<handle> --once` reads `SCREEN=agent` (idle, an input box up). `working` → **do not start a second agent on the same
-`PATH`**: its own `worker_done` has to settle first (wait on it below), then reuse. `attention`, `login`, `shell`, `gone`,
-another kind, or not in the list → not reusable; a dead one is released only on positive proof of exit (`worker-list` /
-`worker-show` say `exited`), never from absence. Reuse = `worker-start --terminal <handle>` (no `whoami`, no new
-terminal), its `BRIEF` opening for same-job reuse: "New task on the same submodule (`<PATH>`, branch `<branch>`) — the
-allowlist below replaces the previous one." A terminal serves one submodule and never receives another's brief.
+**Reuse is tried for every agent kind — kiro, claude, codex, … — and the terminal's own agent keeps running; a reuse never changes it** (to
+get a different agent, start a new terminal). Orca decides whether it accepts the call (below). What makes a candidate reusable depends on its kind:
+- **kiro:** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` reads `SCREEN=agent` (idle, an input box up).
+- **any other agent:** `ORCA orchestration worker-list --run <RUN> --json` (or `worker-show --dispatch <id>`) still lists the terminal as
+  an Orca-managed agent whose last `worker_done` has settled — not `exited`, and not `retained` for a reason you did not set.
+
+`working` → **do not start a second agent on the same `PATH`**: its own `worker_done` has to settle first (wait on it below), then
+reuse. `attention`, `login`, `shell`, `gone`, or not in the list → not reusable; a dead one is released only on positive proof of
+exit (`worker-list` / `worker-show` say `exited`), never from absence.
+
+**The reuse call** carries only `--spec`, `--worktree current` and `--run`, plus `--terminal`:
+`ORCA orchestration worker-start --terminal <handle> --spec "$(cat <brief file>)" --worktree current --run <RUN> --json`
+(no `whoami`, no new terminal). **Never add `--agent`, `--model` or `--effort`** — Orca refuses each: "`--terminal` reuses an existing
+agent and cannot combine with `--agent`", "`--model` and `--effort` cannot be applied when reusing an existing terminal". The `BRIEF`
+opens, for same-job reuse: "New task on the same submodule (`<PATH>`, branch `<branch>`) — the allowlist below replaces the previous
+one." A terminal serves one submodule and never receives another's brief.
+
+**Try the reuse first; if Orca refuses it, start a new worker — once.** Tested on a real Orca (2026-10-23, two claude workers, each
+`worker_done` / `succeeded`, `SCREEN=agent`, `terminalState=reclaimable`, `terminal list` showing `agentIdentity: claude`): the
+documented call was refused **every time** with `agent_unconfigured` — "Terminal <handle> is not running a recognized agent" — right after
+`worker_done`, after the ack, after a screen read and after minutes idle. The same session showed that `--terminal` with `--agent`,
+`--model` or `--effort` is refused with the messages above, so a refusal for flags is yours to fix and one for `agent_unconfigured` is
+not. Never confirmed to work for any agent kind; do not count on it. Separately, one of the two terminals later read `release=retained`,
+`retainedReason=user_takeover`, `ownership=user_owned` (the other never did): no `worker-start`, `check --ack`, `terminal read` or `terminal show`
+call produced that, so a person touching the terminal in Orca is the likely cause (not proven), and `worker-release` on such a terminal
+answers ok yet leaves it retained. So: on any refusal, start a new worker for that submodule (the normal `worker-start`, with its own `--agent`),
+write `reuse refused: <Orca's message verbatim>` on that submodule's line of `.shipkit/assign-<ticket>.md`, and do not retry the reuse in
+this run.
 
 **Start the whole wave before waiting.** For every submodule in the wave:
 1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent <AGENT> --worktree current --run <RUN> --json`
-   (add `--terminal <handle>` for a reuse). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
+   (a reuse is the call under *Reuse before create*: `--terminal <handle>` with only `--spec`, `--worktree current` and `--run` — no `--agent`, `--model` or `--effort`). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
    agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
    create` (a second checkout `probe.sh` can't see) — and never `dispatch --inject` or a brief sent with
    `terminal send`. A brief can't land in a shell: Orca launches the agent itself. `claude` always gets `--model sonnet --effort medium`
@@ -83,7 +104,8 @@ worker *before* acking:
   anyway (`unpushed=0` before you pushed) → `❌ worker pushed` — report it, don't accept on top. **Either outcome**, then the
   terminal's next owner, exactly one: **reuse** it for the next brief; a `❌` or not-accepted worker → **`worker-retain --dispatch <id>`** (the
   user reads what went wrong); a `✅` worker → left as it is and **closed on its own after 3 idle minutes** with no further request (*Idle close*
-  below), or `worker-release` at once if the user asks. A settled terminal left undecided stays `reclaimable`.
+  below, which starts only in Step 6, after the last wave), or `worker-release` at once if the user asks. **Release a `✅` terminal only when
+  no task of the same submodule is left** (a later wave, a retry, a fix after `/verify`): a released terminal may no longer be reusable. A settled terminal left undecided stays `reclaimable`.
 - **`escalation`** → show it to the user once, answer nothing for them. (This message type was not reproduced.)
 - Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
   --timeout-ms 600000 --json` acks and waits for the next one in one call.

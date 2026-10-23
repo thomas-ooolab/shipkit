@@ -274,8 +274,12 @@ time:
    its `/pr` coordinator already reads the thread and the user follows it there. **Case (b) still reports** — exactly one terminal line, no draft unless the user asks —
    when the bot asks something the coordinator cannot answer: a question for the developer (a product call, an access or
    environment fact, a choice only they can make). The user's own ticket with no worktree or no state file → not covered: a bot
-   *question* is an `ask`, as for anyone. A bot *finding* is not an `ask` (it asks nothing) and not a `bug` on its word: read the code the bot reviewed, i.e. the PR's source branch at the sha the bot names (else its head; `git -C <submodule> fetch origin`
-   first), not the tracking branch — a defect it confirms makes it a `bug` (draft and delegation both wait for approval); not
+   *question* is an `ask`, as for anyone. A bot *finding* is not an `ask` (it asks nothing) and not a `bug` on its word: read the code the bot reviewed, i.e. the ticket's PR source branch at the sha the bot names (else its head), not the tracking branch.
+   Find the branch with no state file: per submodule, `git -C <submodule> fetch origin`, then
+   `git -C <submodule> branch -r --list "origin/feat/<KEY>-*" "origin/fix/<KEY>-*"` (the repo root on a single-repo topology) — the
+   branch naming is `probe.sh branch`'s. Several submodules match → the one holding the file the bot names; none matches → one terminal
+   line saying the PR's code could not be found (never the tracking branch as a stand-in). A defect the read confirms makes it a `bug`
+   (draft and delegation both wait for approval); not
    confirmed, not a defect (style, taste) or an approval (LGTM) → one terminal line naming what the bot said and, for a finding,
    what the code shows; no draft, no worktree.
 2. **Steps 1–2** on it: state file, language, already-answered check, verify, QC table. Chatter, thanks,

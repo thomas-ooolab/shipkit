@@ -2,6 +2,6 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "shipkit",
   "description": "Lightweight spec-driven development. One ticket, one guard-railed pipeline — from a lean one-file spec to merged PRs across submodules.",
-  "version": "0.36.33",
+  "version": "0.36.34",
   "author": { "name": "ooolab" }
 }

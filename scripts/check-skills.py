@@ -78,6 +78,12 @@ def transport_lint(text):
     need = ("Step 1.5 — Transport gate", "transport: orca (worktree", "transport: agent (reason", "Orca worktree present = Orca workers, always", "forbidden for dispatch")
     return [f"skills/assign/SKILL.md lost the transport gate text '{w}'" for w in need if w not in text]
 
+def reuse_lint(orca_mode, skill):
+    """Terminal reuse in /assign is for every agent kind, called without --agent/--model/--effort; the old 'kiro only' sentence must not come back."""
+    out = [f"skills/assign/orca-mode.md lost '{w}'" for w in ("Reuse is tried for every agent kind", "Never add `--agent`, `--model` or `--effort`") if w not in orca_mode]
+    out += [f"skills/assign/{n} still says '{w}'" for n, t in (("orca-mode.md", orca_mode), ("SKILL.md", skill)) for w in ("claude has none", "Kiro terminals only") if w in t]
+    return out + ([] if "every agent kind" in skill else ["skills/assign/SKILL.md lost 'every agent kind' in the Find-before-you-create gotcha"])
+
 def browser_lint(name, texts):
     """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
     if (name in BROWSER_SKILLS or re.search(r"playwright|browser_navigate|chrome-headless", texts, re.I)) and not all(
@@ -100,6 +106,8 @@ def self_test():
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
     gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
+    ok_o, ok_s = "Reuse is tried for every agent kind. Never add `--agent`, `--model` or `--effort`", "every agent kind"
+    assert reuse_lint(ok_o, ok_s) == [] and len(reuse_lint("", "")) == 3 and reuse_lint(ok_o + " claude has none", ok_s) != [] and reuse_lint(ok_o, "") != []
     assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
     assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
     print("check-skills: self-test ok")
@@ -124,6 +132,7 @@ def main():
                 print(f"       {o}")
     texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
     lost = borrowed_lint(texts) + scoped_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
+    lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))
     for o in lost:
         bad += 1
         print(f"FAIL {o}")
