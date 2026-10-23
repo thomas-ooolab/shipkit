@@ -273,8 +273,11 @@ time:
    them, even when the bot @mentions them — or (b) the ticket has its own worktree (*Worktree match*) holding `.shipkit/pr-<KEY>.md`:
    its `/pr` coordinator already reads the thread and the user follows it there. **Case (b) still reports** — exactly one terminal line, no draft unless the user asks —
    when the bot asks something the coordinator cannot answer: a question for the developer (a product call, an access or
-   environment fact, a choice only they can make). The user's own ticket with no worktree or no state file → not covered,
-   handle it as any other message.
+   environment fact, a choice only they can make). The user's own ticket with no worktree or no state file → not covered: a bot
+   *question* is an `ask`, as for anyone. A bot *finding* is not an `ask` (it asks nothing) and not a `bug` on its word: read the code the bot reviewed, i.e. the PR's source branch at the sha the bot names (else its head; `git -C <submodule> fetch origin`
+   first), not the tracking branch — a defect it confirms makes it a `bug` (draft and delegation both wait for approval); not
+   confirmed, not a defect (style, taste) or an approval (LGTM) → one terminal line naming what the bot said and, for a finding,
+   what the code shows; no draft, no worktree.
 2. **Steps 1–2** on it: state file, language, already-answered check, verify, QC table. Chatter, thanks,
    or something addressed to others → skip with one terminal line. Never answer on the notification
    line alone — only on the message you read from Slack.
