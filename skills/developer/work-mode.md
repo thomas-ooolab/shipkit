@@ -100,9 +100,9 @@ fails → tell the user and stop. Never `ORCA open`.
 
    | Intent | Observable | Coordinator runs |
    |---|---|---|
-   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (if Open Qs), `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` |
+   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (never sent by this chain — the user runs it when an open question stops the chain), `/design-recon --ticket <KEY>` (only when the ticket names a visual reference: a screenshot, an HTML prototype or a design link), `/plan-deep --ticket <KEY> --auto`, then `/assign <KEY> --agent kiro` **only when the *Assign gate* of step 3 passes** |
    | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/run-pipeline <KEY> --bug [<commentId>] --agent kiro` (first stage `/bugfix`, then verify when the spec changed, review, PR, merge) |
-   | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/bootstrap`, `/plan-deep <KEY>`, then `/assign <KEY> --agent kiro` — never `/spec-from-ticket` |
+   | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/bootstrap`, `/plan-deep --ticket <KEY> --auto`, then `/assign <KEY> --agent kiro` only when the *Assign gate* passes — never `/spec-from-ticket` |
    | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |
 
    Resume check (for anything that is not a bug): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*'` in
@@ -156,8 +156,9 @@ fails → tell the user and stop. Never `ORCA open`.
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
    whether or not that worktree has an active terminal; always new terminals for a fresh start, never type into an existing one
    (a resume from the briefing is the exception — *Continue a ticket from the briefing*).
-   **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet. Once the plan is written, `/assign`
-   opens one kiro terminal per submodule and hands each its tasks.
+   **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet. Once the plan is written and the
+   *Assign gate* passes, `/assign` opens one kiro terminal per submodule and hands each its tasks; when the gate fails this skill
+   sends nothing more and the user decides in the coordinator terminal.
 3. **Coordinator runs in sequence, sent by this skill — the user types nothing.** The whole chain — Ready, Send, Finished, `terminal read`,
    then the next message — is **one** `Bash(run_in_background: true)`: a script written to a scratch file, or `bash -c`, whose body runs every
    `terminal wait`, `wait-for-agent.sh`, `terminal send` and `terminal read` itself. **This session runs none of them in the foreground:** a
@@ -183,13 +184,20 @@ fails → tell the user and stop. Never `ORCA open`.
    - **Finished:** `terminal wait --for tui-idle --timeout-ms 600000`, then `terminal read`. Next message only
      when the screen shows it done, not waiting on a question. `/run-pipeline --bug` (which dispatches `/bugfix`) and `/assign` are last messages and run
      their own loop: stop after the send is submitted, no finished-wait.
+   - **Assign gate** (standard, resume — after `/plan-deep` finished, before `/assign`): the chain sends `/assign` only when none of
+     these holds, each read from the evidence, not the agent's say-so: the screen is `attention` or still `working`; the spec dir's
+     `open-question.md` has an unchecked `- [ ]` item; `spec.md` has a task marked `blocked on OQ-`; the screens of `/spec-from-ticket`,
+     `/design-recon` or `/plan-deep` show a `❌`, `⚠` or an unanswered question (a design-recon with no artifact asks for one — that is a
+     blocker). Any hit → send nothing, exit, and this session tells the user the blocker in one line (which OQ or which step) —
+     the user resolves it in the coordinator terminal and sends `/assign` themselves. None → send `/assign <KEY> --agent kiro` as the last message.
    - **Question on screen:** a question that offers a recommended default (marked recommended, or the first option) →
      send that default yourself, no relay. Surface it only when it has no default or is destructive (force-push, delete,
      overwrite): tell the user once (`needs attention — terminal <handle>`), never answer for them, then relaunch the background task (it waits
      for idle and re-reads there). The user answers in the terminal; the skill sees the question gone and sends the next
      message by itself — no "go" needed. Still unanswered after 3 waits → stop and report.
-4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then `/assign` is running in terminal `<handle>`
-   on the existing branches. Standard: say `/assign` is running in terminal `<handle>`, that kiro terminals appear per submodule
-   as it hands out tasks, and that `/plan-deep` asks the user to confirm the plan there. Bug: say
+4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then, if the *Assign gate* passes, `/assign` is running in terminal
+   `<handle>` on the existing branches. Standard: say the chain (`/spec-from-ticket`, `/design-recon` when it applies, `/plan-deep`) is running in terminal
+   `<handle>`, that `/assign` follows only when no open question or blocker remains — else it stops and says which — and that kiro
+   terminals appear per submodule once `/assign` hands out tasks. Bug: say
    `/run-pipeline --bug` is running in terminal `<handle>` (`/bugfix` first: it hands the fix to kiro through `/assign`, then verify when the spec changed, review, PR and merge), and asks the user to approve every Jira comment there.
-   `ORCA worktree set --worktree <id> --comment "developer: <KEY> <assign running | bugfix running>" --json`.
+   `ORCA worktree set --worktree <id> --comment "developer: <KEY> <spec running | assign running | bugfix running>" --json`.
