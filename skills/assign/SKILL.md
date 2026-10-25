@@ -223,7 +223,7 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
 - **A settled terminal is never reused — start a new worker, and tell it what the old one left.** Orca refuses `worker-start --terminal` for
   a settled worker with `agent_unconfigured` (tested, also in the form Orca documents), so the coordinator does not try it. A follow-up on the
   same submodule is a normal `worker-start --agent` whose `BRIEF` opens with the commits already on the branch and the old terminal's handle
-  (`orca-mode.md`); never hand a terminal another submodule's brief, and never put a second agent on a `PATH` an agent is still working in.
+  (`orca-mode.md`); a user who asks to reuse one is told once and gets a new worker; never hand a terminal another submodule's brief, and never put a second agent on a `PATH` an agent is still working in.
 - **Starting workers with no `check --wait` pending is an unfinished delivery.** Nothing would process their messages
   or settle them — the user ends up asking whether the agent is done.
 - **One Run per invocation.** A second `run-create` from the same terminal fences the first (`consumer_fenced`): reuse

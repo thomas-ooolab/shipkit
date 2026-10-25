@@ -46,6 +46,10 @@ a normal `worker-start --agent <AGENT>` below, on a new terminal. What the new w
   settled `✅` one is `worker-release`d when the new worker starts (its idle close is moot); a `❌` one stays `worker-retain`ed for the user.
 - A terminal recorded `unassigned` (a start that never reached a brief) holds no work: `worker-release` it, it is not handed to another submodule.
 
+**The user asks to "reuse" a worker or terminal** ("reuse worker", "use the same terminal"): say once, in their language, that Orca refuses it for a
+settled worker and the work continues in a new worker, then start that worker as above — never call `--terminal` to show it. Edits an old worker
+left uncommitted stay in the working tree, so the new brief says to run `git status` first and keep them.
+
 **Start the whole wave before waiting.** For every submodule in the wave:
 1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent <AGENT> --worktree current --run <RUN> --json`
    A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
