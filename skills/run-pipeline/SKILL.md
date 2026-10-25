@@ -132,7 +132,7 @@ present (a PR becomes a link; a press on the evidence path opens the newest `jir
 
 **Open questions and blockers.** The pane reads two of them itself and shows them: the number of open questions (the unchecked `- [ ]` items of `<Spec dir>/open-question.md`, counted as `OQ: <open> open of <all>` inside the `clarify` stage — so keep `Spec:` in the header; the same stage says `✎ draft waiting for you` and `PO silent for <n> poll windows` from `/clarify`'s own `.shipkit/clarify-<ticket>.md`, which this skill never writes) and the open PR concerns (the unchecked items under `## Concerns` of `.shipkit/pr-<ticket>.md`), drawn as `⛔ <n>` on the `prs` stage's row; a `❌` stage is its own blocker and shows as ✗. Only counts are drawn, each in the stage it belongs to. Do not copy those into the state file. For any other blocker — what `/developer` counts as one in `work-mode.md` (an `assign-failure-<ticket>.md` no later run supersedes, Jira or PR state that needs a person) — write one `Blocker: [<stage id>: ]<one line>` header line each — name the stage (`Blocker: 4: the reviewer bot is down`) or the pane puts it on the next unfinished one — and remove it when it is resolved. The pane draws `⛔ <n>` on that stage's row; a stage with no marker has no blocker in those records, which says nothing about anything they do not hold.
 
-`Design gate` is `unset` until Stage 1.5 asks; then `on`/`off`, remembered so resumes never re-ask.
+`Design gate` is `unset` until Stage 1.5 runs; it is then `on` for a UI ticket and `off` for any other, written once and never asked, so resumes never re-decide.
 
 ## Step 4 — Run pending stages in order (skip completed ones)
 
@@ -148,19 +148,14 @@ re-confirm success from ground truth and append the result + timestamp to the st
 - **Stage 1.4 — plan** (spec exists, `status: draft`): dispatch `/plan-deep --ticket <ticket>` (add `--auto` only when
   `AUTO=true`). Success = the spec's frontmatter reads `status: planned`. A plan that leaves new open questions sends the
   run back to Stage 1.2 on the next pass.
-- **Stage 1.5 — design fidelity opt-in** *(UI tickets only)*: after the spec fixes scope, run this
-  only when the scope includes frontend (`fe-only` / `fe+…`). If `Design gate` is already `on`/`off`
-  in the state file, honor it (don't re-ask). Otherwise:
-  - **Interactive** → AskUserQuestion `["This is a UI ticket. Run shipkit's design-fidelity gate —
-    capture the mockup as a contract now, then verify the built UI matches it (styling + responsive)
-    before PRs?", "Yes — run the design gate", "No — skip it"]`. Record `Design gate: on|off`.
-  - **`auto` / non-interactive** → default `off` (the gate is opt-in and needs a human choice); note
-    "design gate skipped (auto mode)".
-  If **on**: resolve a mockup (design URL / attachment cited in the spec; if none, ask for a path/URL —
-  if the user can't provide one, note-and-skip and set the gate `off`). Then dispatch
+- **Stage 1.5 — design fidelity** *(UI tickets only; always on, never asked)*: after the spec fixes scope, run this
+  only when the scope includes frontend (`fe-only` / `fe+…`). Backend-only tickets skip it and `Design gate` stays `off`.
+  If `Design gate` is already `on`/`off` in the state file, honor it. Otherwise set `Design gate: on` in the state file
+  **without asking** — interactive and `auto` runs alike. If `design-contract.md` already exists in the spec dir, the
+  stage is complete. If not, resolve a mockup (design URL / attachment cited in the spec; if none, ask for a path/URL —
+  the only question this stage may ask; if the user can't provide one, note-and-skip and set the gate `off`). Then dispatch
   `/design-recon --ticket <ticket>`. Success = `design-contract.md` exists in the spec dir. This runs
-  **before** implement so the contract is the styling brief, not an afterthought. Non-UI tickets skip
-  this stage entirely (no question).
+  **before** implement so the contract is the styling brief, not an afterthought.
 
 - **Stage 2 — branches** (if any affected branch missing): create from each submodule's tracking
   branch, named by `probe.sh branch <ticket> <submodule>` (config `suffix`); parent branch from `main`,
@@ -216,10 +211,10 @@ Next:   <the single next action — implement / wait for merge / bump / done>
 ## Idempotency & gotchas
 - **Resumable.** State is re-derived from the spec file, branches, Bitbucket PRs, and Jira status
   every run — a `/compact` or new session never loses position. Re-running skips completed stages.
-- **Design gate is opt-in.** For UI tickets the pipeline asks **once** (Stage 1.5) whether to run
-  recon→verify; the answer is remembered in the state file (`Design gate: on|off`), so resumes never
-  re-ask. `auto`/headless runs default it `off`. Backend tickets never see the question. When `on`,
-  Stage 4.5's `FAILED` halts the pipeline like a review blocker.
+- **Design gate is always on for UI tickets.** The pipeline never asks whether to run recon→verify: a UI ticket gets
+  `Design gate: on` at Stage 1.5 (written once to the state file, so resumes never re-decide), `auto`/headless runs
+  included. The one exception is a UI ticket with no mockup anyone can supply: it is noted and skipped, gate `off`.
+  Backend tickets never see the stage. When `on`, Stage 4.5's `FAILED` halts the pipeline like a review blocker.
 - **Non-automatable gates.** Stage 1.2 (open questions) needs the PO; Stage 3 (implement) needs a human or `/assign`;
   Stage 6 is `/merge`, run by the user. The orchestrator stops at each and at the open PR — it never edits code and
   never merges.
