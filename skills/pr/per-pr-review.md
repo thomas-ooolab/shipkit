@@ -11,7 +11,7 @@
 
 **How.** Targets in Part order (BE before FE), the root last; one review at a time. For each target still `pending`: refresh the Decisions
 made blocks (`decisions-block.md`), send `<@<reviewer_id>>` + `slack.review_ask` with **that one PR's link**, wait for its verdict
-(Step 3.1, its own `after_ts`), triage and fix it (Step 3.4 to 3.7, `/assign --only` that PR's submodule), then move to the next target.
+(Step 3.1, its own `after_ts`), triage and fix it (Step 3.4 to 3.7, `/assign --only` that PR's submodule), then move to the next target. The full-review gate (Step 3.6) is evaluated per PR: a PR whose delta is small or comment / docs / test-only gets the confirmation reply instead of a `full review`.
 - **Approvals:** a verdict approves only the PR it was asked about — `## PR approvals` is already per target, so it records `lgtm@<sha>` for
   that PR alone and the others stay `pending`.
 - **Rounds:** `round` is counted per PR (`round=<n>` on that PR's line of `## PR approvals`), and `loop.max_rounds` is the cap for each PR. The
