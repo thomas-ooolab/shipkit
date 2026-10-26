@@ -86,7 +86,7 @@ def reuse_lint(orca_mode, skill):
 
 REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "goes in the PR description", "ignores everything else in the message",
                      "shipkit:decisions:start", "Answered ledger first", "UNVERIFIABLE", "full review <links>", "only at a decision point",
-                     "not a stall", "--per-pr", "per_pr_file_threshold", "never two in a row", "Full-review gate", "max_unreviewed_code_lines")
+                     "not a stall", "--per-pr", "per_pr_file_threshold", "never two in a row", "Full-review gate", "max_unreviewed_code_lines", "Nothing changed → no post")
 
 def review_loop_lint(loop, config):
     """/pr's review loop keeps its rules for the bot (no memory, slow, nit-by-nit, reads only the PR description): severity stop, one batched fix pass with a sweep, answered items in the PR description (Decisions made block) and a signature ledger, the trigger is the bare command, status line is not a verdict, quiet reporting, a wait longer than a real review, per-PR mode. `loop` is review-loop.md + decisions-block.md + per-pr-review.md + SKILL.md."""
