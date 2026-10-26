@@ -38,7 +38,7 @@ an environment. The only writes it may make are the thread reply (*post directly
 attached to it are read from disk, never created),
 `.shipkit/developer-<channel_id>-<thread_ts>.md`, `.shipkit/developer-daily.md` (the *Daily briefing* marker),
 and draft answers in `.shipkit/developer-<TICKET>-draft.md` (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
-in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket from the briefing*: this session still writes no
+in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket* (only for a ticket the user names — the *Daily briefing* itself never starts, resumes or types anything): this session still writes no
 code and no Jira/Slack content — it creates the Orca worktree, runs the few git commands that prepare that new worktree
 (rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the fixed messages
 into the worktree's claude terminal, and hands the work to the agents there, which own every code write.
@@ -127,9 +127,9 @@ reproduce), the developer's stance, numbers-from-data, and how a batch of answer
 
 ## Daily briefing, Continue, Start mode
 **REQUIRED for these three:** Read `${CLAUDE_PLUGIN_ROOT}/skills/developer/work-mode.md` and follow the part that applies.
-- **Daily briefing** — the **first** `/developer` run of the day, every mode: what the user did yesterday, then the
-  unfinished tickets are continued automatically. Marker: `.shipkit/developer-daily.md`.
-- **Continue a ticket from the briefing** — resume a ticket in its own worktree with its own claude.
+- **Daily briefing** — the **first** `/developer` run of the day, every mode: what the user did yesterday and which tickets look
+  unfinished, ending with one question on which to continue. Read-only: it types into no terminal and starts nothing. Marker: `.shipkit/developer-daily.md`.
+- **Continue a ticket** — only for a ticket the user names (or says yes to): resume it in its own worktree with its own claude; the carry-on to the end of the pipeline needs the user's explicit go for that ticket every time.
 - **Start mode** — `/developer <ticket | jira-comment-url | description>`: standard vs bug vs resume, an Orca worktree,
   a coordinator (claude) and its workers (kiro, via `/assign`). Referenced below by *Delegate a bug*.
 

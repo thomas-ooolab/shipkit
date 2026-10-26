@@ -3,8 +3,8 @@
 > Loaded by SKILL.md for the daily briefing, for continuing a ticket, and for Start mode. The Slack answering rules (read-only, post directly, language, verified answers) stay in SKILL.md and apply here too.
 
 ## Daily briefing (first run of the day, every mode)
-Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks whether
-today continues it or starts something new. Read-only — its one write is the marker below; resuming the unfinished tickets it lists is the separate *Continue* procedure.
+Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks which
+unfinished ticket, if any, to continue. **Read-only: it never types into a terminal, never starts, resumes or continues work, never sends a carry-on** — its one write is the marker below. *Continue* is a separate procedure that runs only for a ticket the user names.
 
 **First run of the day** = `.shipkit/developer-daily.md` at the SDD root does not say today. Read it as
 `last_briefing: <YYYY-MM-DD>`; `today` = `date +%F`, with `TZ=<timezone>` in front when `.shipkit/config.yml` sets `timezone` (the day turns at local midnight there). Equal → skip
@@ -39,20 +39,19 @@ evidence of a stage → say `stage unknown`, never infer one.
 **Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (PR
 opened/merged, review loop running, wave running) and where it stands (Jira status, open PR). Nothing found → "no activity found
 yesterday (Orca worktrees, state files)". **Unfinished** = stage mid-pipeline (implement unfinished, verify, review, PR loop), or every PR merged while Jira has not moved
-on. Each unfinished ticket is **continued automatically — no question**: the work is the user's, and *Continue* itself
-stops at any blocker. Start those procedures in the background right after printing (one per ticket, each in its own
-worktree). **Last line** = what was started ("continuing <KEY>, <KEY>", in the user's language) and an open invitation for new work; a
-ticket whose *Continue* found a blocker is named there with the blocker in one line and the one decision it needs. **Only
+on. Nothing is continued, started or typed into a terminal by the briefing. **Last line** = one short question naming the
+unfinished tickets and asking which to continue (in the user's language; "none" is a fine answer, and the user may name new work instead). **Only
 when no ticket is unfinished** the last line is a short question about what they start today. Merged and handed-over tickets with nothing
-pending are listed, not continued.
+pending are listed, not offered.
 
 **Don't slow the other modes.** Run the local reads in parallel with at most one Jira search; past ~20 s, print what is
-ready and mark the rest `not checked`. Observer mode starts watching right after printing — the continuations run in the
-background and the closing line never blocks it; a reply arrives as an ordinary message. When the run already names its target (a
+ready and mark the rest `not checked`. Observer mode starts watching right after printing — the closing question never blocks it; an
+answer arrives as an ordinary message. When the run already names its target (a
 ticket, URL or description), print the summary only — no question, and nothing is continued (the user chose another job).
 
-### Continue a ticket from the briefing
-For each unfinished ticket the briefing lists (and for any ticket the user names later), resume it **in that
+### Continue a ticket
+**Only for a ticket the user names in the conversation, or answers yes to when the briefing asks** — never from the briefing alone, never
+for a ticket the user did not name. Resume it **in that
 ticket's own worktree, with its own claude** — no new
 worktree. A resume goes here, never into *Start mode* (whose "worktree already matches → tell the user and stop"
 would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
@@ -74,18 +73,21 @@ would only bounce it). Run it as a background task so the observer is not blocke
 5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
    one; `open-question.md` has an unchecked item; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
    supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in
-   `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen follows *Start mode*'s *Question on screen* rule.
-6. **No blocker → tell it to carry on to the end, judged from the situation, not from a fixed next command:**
+   `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen is relayed to the user (`needs attention — terminal <handle>`) and never answered with its default — *Start mode*'s default-answer rule does not apply to a continued ticket.
+6. **No blocker → ask the user for an explicit go, for this ticket, every time.** The carry-on pushes branches, opens PRs and posts
+   review requests — outward-facing, hard to undo. Naming the ticket, a yes to the briefing question, or an earlier go for
+   another ticket or an earlier run is not that go. Say in one line what it will do and ask (in the user's language). Only on a
+   clear go (yes, go, run it) for `<KEY>`, tell it to carry on to the end, judged from the situation, not from a fixed next command; no answer or anything else → send nothing:
    `Continue <KEY> from its current state to the end of the pipeline: do exactly the next step the real situation calls for —
    judge it from the state files and the real state (git, PR, Jira), then use the fitting skill (for example /assign for
    unfinished implementation, /run-pipeline <KEY> auto for the later stages, or the step still missing after merge). Stop and
    report when you hit a blocker or need a decision. Answer in <language>.`
-   It runs there; confirm by what the screen does, as in *Start mode*. **Blocker →** send nothing more; tell the user the
-   blocker in one line and let them decide.
-7. **Report** one line: `<KEY>: pinged <handle> (idle|new coordinator) — stage <s>, <no blocker → running to the end | blocker: …>`;
+   It runs there; confirm by what the screen does, as in *Start mode*. **Blocker, or no go →** send nothing more; tell the user the
+   blocker (or that nothing more was sent) in one line and let them decide.
+7. **Report** one line: `<KEY>: pinged <handle> (idle|new coordinator) — stage <s>, <carry-on sent → running to the end | no blocker, waiting for the user's go | blocker: …>`;
    only when step 6 sent the carry-on: `ORCA worktree set --worktree <id> --comment "developer: <KEY> resumed" --json`.
-This is the one place this skill types into an existing terminal — only the worktree's claude, only the three fixed
-messages above (context-read, situation question, carry-on) (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
+This is the one place this skill types into an existing terminal — only for a ticket the user named, only the worktree's claude, only the three fixed
+messages above (context-read, situation question, carry-on — the last one only after the user's go) (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
 
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira
@@ -155,7 +157,7 @@ fails → tell the user and stop. Never `ORCA open`.
    Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
    whether or not that worktree has an active terminal; always new terminals for a fresh start, never type into an existing one
-   (a resume from the briefing is the exception — *Continue a ticket from the briefing*).
+   (a resume of a ticket the user named is the exception — *Continue a ticket*).
    **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet. Once the plan is written and the
    *Assign gate* passes, `/assign` opens one kiro terminal per submodule and hands each its tasks; when the gate fails this skill
    sends nothing more and the user decides in the coordinator terminal.
