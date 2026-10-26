@@ -25,7 +25,7 @@
   "review": {
     "per_pr_file_threshold": 100,
     "_note": "Over this many changed files in one PR, or a verdict that ran out of tool budget, the review goes one PR at a time (skills/pr/per-pr-review.md).",
-    "max_unreviewed_code_lines": 0,
+    "max_unreviewed_code_lines": 5,
     "max_unreviewed_delta_lines": 200,
     "sensitive_paths": ["**/migrations/**", "**/*.proto", "**/openapi*", "**/swagger*", "**/auth/**", "**/*permission*", "**/*policy*"],
     "_note_full_review_gate": "Full-review gate (review-loop.md Step 3.6): a re-run is worth its 7-15 minutes and ~3 USD only if the diff since the PR's last reviewed head sha has more than max_unreviewed_code_lines non-test, non-comment source lines, touches a sensitive_paths glob, or is longer than max_unreviewed_delta_lines in total. Raise the first to let small code fixes skip a re-run."
