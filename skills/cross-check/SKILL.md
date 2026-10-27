@@ -26,7 +26,8 @@ it into a question for the PO. It never decides which side is right.
 > or unmarked screenshot is never attached.
 >
 > **Never-pick-a-winner rule.** Not the later ticket, not the code, not the side the user prefers. Both
-> rules go to the PO.
+> rules go to the PO. This binds a `[ticket-conflict]`, which is two rules in contest. A `premise-risk` or `[incoherent-restriction]`
+> is not: it has two exits (`restriction-claims.md` rule 5), and the dev's decision is one of them, only with the user's confirm.
 >
 > **Forbidden language.** No "I think / probably / seems". Say `<KEY> says: "…"`, `the code at
 > <file>:<line> does …`, `not checked: …`.
@@ -42,6 +43,9 @@ it into a question for the PO. It never decides which side is right.
 > | "The PO doesn't need the technical detail" | Correct — it stays in the dev section. But the code must still be read before you ask. |
 > | "The search found nothing, so there is no conflict" | A search proves only what it searched. The ledger records the search; a miss is not a verdict. |
 > | "No screenshot possible, so skip the question" | A missing screenshot downgrades the question to quote + link. It never removes it. |
+> | "The ticket says own / team, so the system has it — I'll design the column" | A scope noun is a claim until a stored, applied relation is found. Not found → `premise-risk`, no column, backfill or definition question. |
+> | "Delete / update have no check, those are just gaps to patch" | A route open to the role makes the new limit the only gate. Matrix every route first; if so, ask the PO what the limit is for. |
+> | "A premise-risk always goes to the PO" | No. It leaves by one of two exits (`restriction-claims.md` rule 5): ask the PO the purpose, or a dev decision with evidence that the user confirms and the PO may object to. |
 > | "These sound like the same rule" | Same rule = same subject, same attribute (for access: same actor, action, data scope). Differ on any one, or on the value → quote both and ask. |
 
 ## Bounded scope
@@ -109,7 +113,8 @@ change an existing feature (its name resolves in `docs/features/INDEX.md`, or it
 code), or lean on a capability of another ticket ("recovery is via X", "rely on X from <KEY>" — a *borrowed
 capability*; in `--stage post` this includes a PO or QC reply that names one as a premise). Skip the rest. Keep at most 10; say which were cut. For each kept claim write down: the REQ-ID,
 the subject (actor and entity), the attribute (action and data scope, or threshold, state, trigger) with
-its value, and 1–3 noun keywords.
+its value, and 1–3 noun keywords. A claim of kind (a) whose data scope is *own / team / assigned / shared with* is a **restriction
+claim**: also write down each scope noun (own, team, assigned) — Step 3c checks each one.
 
 ## Step 3 — Gather counter-sources (reads only)
 For each claim, in parallel where possible. Every source that cannot be read is recorded `unchecked`
@@ -136,9 +141,15 @@ guards — cite `file:line`. Cover **every** route that reads or acts on the ent
 actions such as trigger, retry, delete — not only the screens the ticket names; a ticket that adds a new
 axis (plan, feature flag) also gets the existing guards on those same routes. For a number, state or
 trigger claim: the constant or rule the code already applies, with `file:line`. `--stage plan`: use the grounding digest already in context if it states the
-access rule per role; otherwise dispatch one read-only `Explore` agent per affected submodule (single
-repo: one agent) with: "for entity E, return for each role the filter/permission applied when reading E,
-with file:line; say 'not found' if you find none". `specs/` and `docs/` are not code.
+access rule per role on every route of the entity (the full role × route matrix and, for a restriction claim, the noun checks of
+`restriction-claims.md`); otherwise dispatch one read-only `Explore` agent per affected submodule (single
+repo: one agent) with: "for entity E, return for each role the filter/permission applied on every route that reads or acts on E (list,
+detail, create, update, delete, each action), with file:line; say 'not found' if you find none". `specs/` and `docs/` are not code.
+
+A **restriction claim** (Step 2) is not done by the paragraph above alone: REQUIRED: Read
+`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/restriction-claims.md` and follow it — the role × every-route access matrix, a check that
+each scope noun is a stored and applied relation, the coherence test, and the return-to-premise signal. Do it before any design, option
+or PO question about the claim.
 
 ## Step 4 — Compare
 For each claim against each counter-source statement — and against the other requirements and the Edge
@@ -156,6 +167,10 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
 - `[spec-vs-code]` — the ticket/spec states a rule and the code does something else. Goes in the dev
   section and the terminal note; it becomes a PO question only when the code's behaviour is itself one
   side of a `[ticket-conflict]`.
+- `[spec-vs-code]` **`premise-risk`** — a scope noun of a restriction claim (own, team, assigned) is not a stored, applied relation
+  (`restriction-claims.md` rule 2). Dev section; nothing is designed around the noun.
+- `[incoherent-restriction]` — the restriction would be the only gate on the entity while every other route stays open to that role
+  (`restriction-claims.md` rule 3). The one PO question asks the purpose of the limit, with the matrix row quoted.
 - `unverified` — nothing found in code. Never assumed to exist.
 - nothing differs → `no conflict` with the sources listed.
 
@@ -176,8 +191,13 @@ cases of the same `spec.md` — compare **(actor, action, data scope)**, or for 
    - <KEY-B> (<created date>)<, comment <id>>: "<verbatim>" — <link>
    - Code: <file:line> — <what it does for each role>
    - Question for the PO (business words): "<…>"
+   ### [incoherent-restriction] OQ-N — <REQ-ID> — <the limit in one line>
+   - <rule quote with its source and link>
+   - Code: <matrix row with file:line>
+   - Question for the PO (business words): "<what is this limit meant to prevent?>"
+   ## Access matrix — <entity>   (restriction claims only; format in `restriction-claims.md`)
    ## Dev notes
-   - [spec-vs-code] …
+   - [spec-vs-code] …   (a `premise-risk` noun line, `complexity added only to make REQ-NNN run: …`)
    ```
 2. **`open-question.md`:** first look for an existing `[ticket-conflict]` item (open or resolved) that
    names the same two keys; if there is one, append nothing and reuse its OQ-N (no new screenshots; list
@@ -239,6 +259,8 @@ Written:  .shipkit/evidence/<TICKET>/cross-check.md  (+ conflicts/*.png there, a
 Next:     /clarify <TICKET>   (conflicts are PO questions)  — or "nothing to ask" only when 0 unchecked;
           any unchecked source, unscanned or unpushed in-flight work → "incomplete: <sources>; not a 'no conflict' result"
 ```
+Restriction claims kept → one more line right after it: `Restrictions: <n> incoherent-restriction, <m> premise-risk  (matrix: cross-check.md → Access matrix)`
+(a `premise-risk` is also counted in `spec-vs-code`).
 The `Findings:` line is exact: callers parse it.
 
 ## Discussion mode (`--stage post`)
@@ -329,4 +351,6 @@ with the **In-flight inventory** table (Step 1b), then:
   implemented; the PO needs that to answer.
 - **Done tickets count.** The older, finished ticket is usually the one nobody remembers.
 - **Search misses are visible.** The ledger shows the exact JQL, so a miss is auditable, not silent.
-- **Technical talk stays in the dev section.** The PO question never names a table, endpoint or file.
+- **Technical talk stays in the dev section.** The PO question never names a table, endpoint or file. That does not make every
+  `premise-risk` a PO question: the PO is asked the purpose of the limit, or told a dev decision in business words, and is never
+  asked to define a concept the system has no relation for.

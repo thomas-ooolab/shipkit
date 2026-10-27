@@ -65,8 +65,12 @@ def borrowed_lint(texts):
     return [f"{p} lost the 'borrowed capability not found' warning" for p in BORROWED
             if "borrowed capability not found" not in " ".join(texts.get(p, "").lower().replace("*", "").split())]
 
-PREMISE = {"references/open-question-options.md": ("values (dev-only)", "settled at plan time", "re-read whenever a new fact"),
-           "skills/spec-from-ticket/SKILL.md": ("Premise check", "values:"), "skills/clarify/SKILL.md": ("Premise check", "values:")}
+PREMISE = {"references/open-question-options.md": ("values (dev-only)", "settled at plan time", "re-read whenever a new fact", "restriction-claims.md"),
+           "skills/spec-from-ticket/SKILL.md": ("Premise check", "values:", "restriction-claims.md"),
+           "skills/clarify/SKILL.md": ("Premise check", "values:", "restriction-claims.md"),
+           "skills/cross-check/SKILL.md": ("restriction-claims.md", "premise-risk", "incoherent-restriction"),
+           "skills/cross-check/restriction-claims.md": ("Access matrix", "Noun check", "Two exits", "incoherent-restriction"),
+           "skills/plan-deep/SKILL.md": ("restriction-claims.md", "role × route")}
 
 def premise_lint(texts):
     """A question for the PO that splits on a type, kind, status, role or plan is written after the real values were listed (a `values:` line), a deferral such as 'settled at plan time' is a lookup, and a line already decided is re-read on new facts; texts maps path -> text."""
@@ -159,7 +163,7 @@ def main():
             print(f"FAIL {rel}")
             for o in out:
                 print(f"       {o}")
-    texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
+    texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED + list(PREMISE) if (ROOT / p).exists()}
     lost = borrowed_lint(texts) + scoped_lint(texts) + premise_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
     lost += review_loop_lint("\n".join((ROOT / "skills/pr" / n).read_text() for n in ("review-loop.md", "decisions-block.md", "per-pr-review.md", "SKILL.md")), json.loads((ROOT / "skills/pr/config.json").read_text()))
     lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))

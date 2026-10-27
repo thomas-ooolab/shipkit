@@ -172,6 +172,12 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
    (`${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md`, rule 5). Before you place a value, grep the repo's own `specs/` and
    decided lines for how it was already classified (a user-confirmed "X is type-a"). Every value on one side, or one value only →
    no question: the spec states the consequence ("every task is an X, so the condition always holds").
+7. **A requirement that limits access by own / team / assigned is checked before it is specced or asked about.** Each such noun must
+   be a stored, applied relation in the code, and every route of the entity must be in the role × route matrix
+   (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/restriction-claims.md`). A noun with no relation is a `premise-risk`: the requirement is
+   marked `[UNVERIFIED]`, and no column, backfill or definition question is written for it. If the limit would be the only gate on
+   the entity, the PO is asked its purpose (`[incoherent-restriction]`), never what own / team means — or the dev decides with evidence and
+   the user confirms it, and the PO is told (`restriction-claims.md`, rule 5).
 
 | Excuse | Reality |
 |---|---|
@@ -290,9 +296,9 @@ existing, and the checked facts are kept apart from the dev's proposals. An item
 ## Step 5b — Cross-check against other tickets, specs and code
 Runs when any requirement carries a claim of kind (a), (b) or (c) (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`,
 *Step 2 — Select claims*); otherwise skip and say so. Run `/cross-check <TICKET> --stage spec` (the spec and its
-REQ-IDs now exist). For every `[ticket-conflict]` it appended to `open-question.md`, add
+REQ-IDs now exist). For every `[ticket-conflict]` or `[incoherent-restriction]` it appended to `open-question.md`, add
 ` — blocked on OQ-N` to the REQ-NNN line(s) in that item's `blocks:` list in `spec.md`; never resolve the
-conflict yourself and never pick the later ticket. Read its `Findings:` line for the report.
+conflict yourself and never pick the later ticket. Read its `Findings:` line for the report (and its `Restrictions:` line when present).
 
 ## Step 6 — Report
 ```

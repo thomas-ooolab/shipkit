@@ -101,9 +101,11 @@ digest — do not dump large code bodies:
   area generally. If the spec says "reuses the existing X" or a requirement implies a prerequisite
   feature, the digest states whether X was actually found in code, with a file reference, or that it
   wasn't found.
-- for every Requirement that says who may see or do what, the **actual access rule per role** the code
-  enforces on that entity — the list query's filter and the permission check, each with `file:line`
-  (or "not found").
+- for every Requirement that says who may see or do what, the **actual access rule per role on EVERY route of that entity** — list,
+  detail, create, update, delete and each action (assign, trigger, share…) — each cell with `file:line` or "not found": a role × route
+  matrix, not only the read path. Also: which route(s) the Requirement puts a limit on, against the routes it leaves as they are; and for
+  each noun that sets the scope in the rule (own, team, assigned…), whether it is a stored field or relation and whether another route
+  enforces with it (`file:line`, or "not found"). Format: `${CLAUDE_PLUGIN_ROOT}/skills/cross-check/restriction-claims.md`.
 - the submodule's discipline anchors: the conventions its `CLAUDE.md` states (layering, contract-first and generate steps,
   where logic may live) and its `staging_only` flag from the config.
 
@@ -124,6 +126,13 @@ Draft the plan sections (tier-scaled) from the grounding digest:
 signatures, contracts, flow, or a spec Key decision). Resolve a genuine conflict (rework, or escalate
 a true 2+ reading fork via AskUserQuestion listing the readings). If grounding leaves nothing off,
 **proceed without prompting** — do not ask reflexively.
+
+For a Requirement that limits access the gate always asks, in writing: **does this rule agree with the entity's other routes (the
+digest's matrix)?** It does not when the rule would be the only gate while those routes stay open to the same role, or when a scope noun
+(own, team, assigned) has no stored, applied relation. Then **no task is drafted on it**: stop and take one of the two exits of
+`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/restriction-claims.md`, rule 5 (ask the PO the purpose of the limit, or a dev decision the user
+confirms), and mark the tasks that serve it `blocked on OQ-N — see open-question.md` or on that decision. A route with no role check is
+not by itself "a gap to patch": it is a row of the matrix.
 
 **Dependency-chain gate — no jump-ahead.** Before finalizing Tasks, check every task against the
 grounding digest: does it depend on a capability (**B**) that a later or sibling task's feature (**C**)
@@ -165,8 +174,9 @@ implementation" — an unverified prerequisite is exactly what this gate exists 
 | "An option like 'it retries automatically' is a natural way to put it" | An ability named in an option is a claim about the system. Search for it; if it isn't there, write "does not exist today" or drop the option. |
 
 **Cross-check gate.** If any Requirement carries a claim of kind (a), (b) or (c)
-(`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*), run `/cross-check <TICKET> --stage plan` now — the grounding digest above is already in context, so it
-does not re-read the code. Each new `[ticket-conflict]` it appends to `open-question.md` blocks every
+(`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`, *Step 2 — Select claims*), run `/cross-check <TICKET> --stage plan` now — the grounding digest above is reused only when it holds the
+full role × route matrix and the noun checks for every restriction claim (`restriction-claims.md`); a digest that lacks them is not enough,
+and the Explore agent is dispatched again for them first. Each new `[ticket-conflict]` it appends to `open-question.md` blocks every
 task that serves the REQ-NNN it names: mark those tasks `blocked on OQ-N — see open-question.md` and
 leave them blocked (same rule as the dependency-chain gate). Never draft around a conflict and never
 pick the later ticket. Tell the user in Step 6; recommend `/clarify`.

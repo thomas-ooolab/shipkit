@@ -39,6 +39,12 @@ as facts.
    arrives** — a code finding, a PO reply, another ticket. A fact that contradicts it or empties it reopens the item, and the new
    line says which one it replaced.
 
+8. **A scope noun the system keeps no relation for (own, team, assigned), or a limit that would be the only gate on its entity, is never
+   put to the PO as a definition** ("what does own mean?"). It has two exits (`skills/cross-check/restriction-claims.md`, rule 5):
+   ask the PO the purpose of the limit, or record a dev decision with its evidence (`file:line`, the access matrix row) after the user
+   confirms it, written under the item as `decided (dev, confirmed <date>): … — evidence: …`, and tell the PO in business words as
+   "decided, object if you want otherwise". A decision that reverses an earlier one (a Key decision, an answered item) says which.
+
 Bad: "OQ: which task type counts as X? (`checked:` values not enumerated yet, settled at plan time)" — the lookup was skipped. If
 the code has two task types and both are X, the condition "at least 1 X task" is always true and the PO is asked about nothing.
 Good: `values: task type: type-a → X, type-b → X (<file:line>)` → no question; the spec says the condition always holds, and "N Ys
