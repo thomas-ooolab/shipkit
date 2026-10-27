@@ -27,8 +27,9 @@ as facts.
 5. **A question whose options split on a classification — a type, kind, status, role or plan; "which type counts as X", "only if
    there is at least one Y", "N Xs and M Ys" — is written only after you listed the real values in the code** (enum, constants,
    distinct values in the table), in the same turn, and the `values:` sub-line is required. Put each value on a side of the split by
-   what the code and the product do with it, never by whether its name matches the ticket's word (`scripted` and `dynamic` may both
-   be what the ticket calls "roleplay"). Name the values in the question too. Every value on one side, or only one value → the split
+   what the code and the product do with it, never by whether its name matches the ticket's word (`type-a` and `type-b` may both
+   be what the ticket calls "X"). Where the repo already records which value counts (an earlier spec, a decided line, a label in the
+   UI), cite it and use it. Name the values in the question too. Every value on one side, or only one value → the split
    is empty: drop the question, state the consequence in the spec ("every task is a roleplay, so the condition always holds"; "the
    two counts are always equal"), and strike the item `dropped: <fact> (file:line)`. No `values:` line, no item.
 6. **`[not specified — ask before implementing]`, "values not enumerated yet", "settled at plan time" stand for a lookup, not a
@@ -38,10 +39,11 @@ as facts.
    arrives** — a code finding, a PO reply, another ticket. A fact that contradicts it or empties it reopens the item, and the new
    line says which one it replaced.
 
-Bad: "OQ: which task type counts as a roleplay? (`checked:` values not enumerated yet, settled at plan time)" — the code has two
-task types and both are AI roleplay, so the condition "at least 1 roleplay task" is always true and the PO is asked about nothing.
-Good: `values: task type: scripted → roleplay, dynamic → roleplay (coursebuilder.go:101-105)` → no question; the spec says the
-condition always holds, and "N modules and R roleplays" shows the same number twice.
+Bad: "OQ: which task type counts as X? (`checked:` values not enumerated yet, settled at plan time)" — the lookup was skipped. If
+the code has two task types and both are X, the condition "at least 1 X task" is always true and the PO is asked about nothing.
+Good: `values: task type: type-a → X, type-b → X (<file:line>)` → no question; the spec says the condition always holds, and "N Ys
+and M Xs" shows the same number twice. With `type-a → X, type-b → not X` the split is real: the question stays and names both types.
+Either way the sides come from the code and from what the repo already decided, never from the ticket's word alone.
 
 Bad: "B: the call is not shown as scored until the record is saved, and the save is retried automatically." (the worker's code says
 nothing re-drives a failed save, so B offers the PO something that cannot happen.)

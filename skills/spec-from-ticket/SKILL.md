@@ -169,12 +169,13 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
 6. **Premise check on every question that splits on a classification** — a type, kind, status, role or plan; "which type counts as
    X"; "only with at least 1 Y"; "N Xs and M Ys". List the real values in the code (enum, constants, distinct values), put each on a
    side of the split by what the code does with it, and carry the result in the item's `values:` line
-   (`${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md`, rule 5). Every value on one side, or one value only → no question:
-   the spec states the consequence ("every task is a roleplay, so the condition always holds").
+   (`${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md`, rule 5). Before you place a value, grep the repo's own `specs/` and
+   decided lines for how it was already classified (a user-confirmed "X is type-a"). Every value on one side, or one value only →
+   no question: the spec states the consequence ("every task is an X, so the condition always holds").
 
 | Excuse | Reality |
 |---|---|
-| "Which type counts as roleplay can be settled at plan time" | That is a lookup, not a deferral: list the type values now. Two types that are both roleplay make "at least 1 roleplay task" always true, and nobody is asked about it. |
+| "Which type counts as X can be settled at plan time" | That is a lookup, not a deferral: list the type values now and read what earlier specs decided about them. Types that all count as X make "at least 1 X task" always true, and nobody is asked about it; types that split keep the question. |
 | "No value is named like the ticket's word, so the PO must define it" | Judge each value by what the code and the product do with it, not by its name. The PO is asked only when the code leaves the split open. |
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
