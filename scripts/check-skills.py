@@ -65,6 +65,13 @@ def borrowed_lint(texts):
     return [f"{p} lost the 'borrowed capability not found' warning" for p in BORROWED
             if "borrowed capability not found" not in " ".join(texts.get(p, "").lower().replace("*", "").split())]
 
+PREMISE = {"references/open-question-options.md": ("values (dev-only)", "settled at plan time", "re-read whenever a new fact"),
+           "skills/spec-from-ticket/SKILL.md": ("Premise check", "values:"), "skills/clarify/SKILL.md": ("Premise check", "values:")}
+
+def premise_lint(texts):
+    """A question for the PO that splits on a type, kind, status, role or plan is written after the real values were listed (a `values:` line), a deferral such as 'settled at plan time' is a lookup, and a line already decided is re-read on new facts; texts maps path -> text."""
+    return [f"{p} lost '{w}'" for p, ws in PREMISE.items() for w in ws if w not in texts.get(p, "")]
+
 SCOPED = ["skills/pr/SKILL.md", "skills/assign/SKILL.md", "skills/bugfix/SKILL.md"]
 
 def scoped_lint(texts):
@@ -120,6 +127,7 @@ def self_test():
     assert writes_lint("run post-slack.js; see references/write-through-scripts.md") == [] and writes_lint("no writes here") == []
     assert borrowed_lint({p: "⚠ borrowed capability\nnot found: X" for p in BORROWED}) == [] and len(borrowed_lint({})) == len(BORROWED)
     assert scoped_lint({p: "see references/scoped-tests.md" for p in SCOPED}) == [] and len(scoped_lint({})) == len(SCOPED)
+    assert premise_lint({p: " ".join(ws) for p, ws in PREMISE.items()}) == [] and len(premise_lint({})) == sum(map(len, PREMISE.values()))
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
     gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
@@ -152,7 +160,7 @@ def main():
             for o in out:
                 print(f"       {o}")
     texts = {p: (ROOT / p).read_text() for p in BORROWED + SCOPED if (ROOT / p).exists()}
-    lost = borrowed_lint(texts) + scoped_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
+    lost = borrowed_lint(texts) + scoped_lint(texts) + premise_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
     lost += review_loop_lint("\n".join((ROOT / "skills/pr" / n).read_text() for n in ("review-loop.md", "decisions-block.md", "per-pr-review.md", "SKILL.md")), json.loads((ROOT / "skills/pr/config.json").read_text()))
     lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))
     for o in lost:

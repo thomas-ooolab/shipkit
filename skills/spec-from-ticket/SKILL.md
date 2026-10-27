@@ -143,7 +143,9 @@ Resolve which submodules the ticket touches from **evidence, not guesses**:
    (verified in <file>:<line>)` under Key decisions and never ask the PO. No equivalent exists → the
    technical shape is a dev decision: Key decision `[not specified — ask before implementing]`, put to the
    local interviewee in Step 4, not the PO. A ticket specific is adopted only when the code confirms it
-   fits; cite the code, not the ticket.
+   fits; cite the code, not the ticket. `[not specified — ask before implementing]` is written only after that lookup: a placeholder
+   for a fact the code holds (the values of a type, what a screen does today) is a grep, not a deferral
+   (`${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md`, rule 6).
 Derive `scope` (`fe-only`/`be-only`/`fe+be`/`fe+be+…`/…) and `services` from the affected set.
 
 ## Step 3b — Undefined-reference & dependency-chain check
@@ -164,9 +166,16 @@ the thing it leans on is actually built yet. For every AC/requirement candidate:
    B's shape is a business decision, not just missing code — leave C blocked on the `open-question.md`
    item and say so in Requirements (`REQ-NNN — blocked on OQ-N: {B}`). Never assume "B is
    probably fine" and spec C on top of it.
+6. **Premise check on every question that splits on a classification** — a type, kind, status, role or plan; "which type counts as
+   X"; "only with at least 1 Y"; "N Xs and M Ys". List the real values in the code (enum, constants, distinct values), put each on a
+   side of the split by what the code does with it, and carry the result in the item's `values:` line
+   (`${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md`, rule 5). Every value on one side, or one value only → no question:
+   the spec states the consequence ("every task is a roleplay, so the condition always holds").
 
 | Excuse | Reality |
 |---|---|
+| "Which type counts as roleplay can be settled at plan time" | That is a lookup, not a deferral: list the type values now. Two types that are both roleplay make "at least 1 roleplay task" always true, and nobody is asked about it. |
+| "No value is named like the ticket's word, so the PO must define it" | Judge each value by what the code and the product do with it, not by its name. The PO is asked only when the code leaves the split open. |
 | "The AC clearly means the standard version of this" | "Standard" isn't this codebase. Confirm B exists here before speccing C on top of it. |
 | "I'll just note it as an assumption and move on" | An assumed prerequisite is an unverified dependency, not a documented one — it belongs in `open-question.md`, not a footnote. |
 | "An option like 'it retries automatically' is a natural way to put it" | An ability named in an option is a claim about the system. Search for it; if it isn't there, write "does not exist today" or drop the option — never offer the PO something that cannot happen. |
@@ -274,7 +283,8 @@ the gap.
 
 **Options in an item.** REQUIRED: Read `${CLAUDE_PLUGIN_ROOT}/references/open-question-options.md` before writing any option into an item:
 an option that presupposes an ability of the system (retry, redo, re-score, undo, notify…) is confirmed in code (`file:line`) or stated as not
-existing, and the checked facts are kept apart from the dev's proposals.
+existing, and the checked facts are kept apart from the dev's proposals. An item that mentions a type, kind, status, role or plan carries a
+`values:` line listing the real values and the side of the split each one falls on (rule 5): no `values:` line, no item.
 
 ## Step 5b — Cross-check against other tickets, specs and code
 Runs when any requirement carries a claim of kind (a), (b) or (c) (`${CLAUDE_PLUGIN_ROOT}/skills/cross-check/SKILL.md`,

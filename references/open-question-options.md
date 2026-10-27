@@ -19,9 +19,29 @@ as facts.
    ```markdown
    - [ ] **OQ-N** — {question, plain business language} — blocks: REQ-NNN
      - checked (dev-only): {what the code does today} (`file:line`); {ability an option relies on}: exists (`file:line`) | not found (searched: <terms>)
+     - values (dev-only): {classification}: {value} → {side of the split}, {value} → {side} (`file:line`) | one value only
      - borrowed (dev-only): {X} of <OTHER-KEY>: built in <spec REQ | branch file:line | api route> | not found (searched: <terms>)
      - proposed (dev, unconfirmed): A. {option}  B. {option — needs building: <what>}
    ```
+
+5. **A question whose options split on a classification — a type, kind, status, role or plan; "which type counts as X", "only if
+   there is at least one Y", "N Xs and M Ys" — is written only after you listed the real values in the code** (enum, constants,
+   distinct values in the table), in the same turn, and the `values:` sub-line is required. Put each value on a side of the split by
+   what the code and the product do with it, never by whether its name matches the ticket's word (`scripted` and `dynamic` may both
+   be what the ticket calls "roleplay"). Name the values in the question too. Every value on one side, or only one value → the split
+   is empty: drop the question, state the consequence in the spec ("every task is a roleplay, so the condition always holds"; "the
+   two counts are always equal"), and strike the item `dropped: <fact> (file:line)`. No `values:` line, no item.
+6. **`[not specified — ask before implementing]`, "values not enumerated yet", "settled at plan time" stand for a lookup, not a
+   deferral.** When the missing fact is one the code holds (the values of a field, what a screen does today), grep or read first and
+   ask only if the code cannot answer; `checked:` then lists what was searched. A choice only the PO can make stays a PO question.
+7. **A line recorded as decided or resolved (a spec Key decision, an answered item, a dev note) is re-read whenever a new fact
+   arrives** — a code finding, a PO reply, another ticket. A fact that contradicts it or empties it reopens the item, and the new
+   line says which one it replaced.
+
+Bad: "OQ: which task type counts as a roleplay? (`checked:` values not enumerated yet, settled at plan time)" — the code has two
+task types and both are AI roleplay, so the condition "at least 1 roleplay task" is always true and the PO is asked about nothing.
+Good: `values: task type: scripted → roleplay, dynamic → roleplay (coursebuilder.go:101-105)` → no question; the spec says the
+condition always holds, and "N modules and R roleplays" shows the same number twice.
 
 Bad: "B: the call is not shown as scored until the record is saved, and the save is retried automatically." (the worker's code says
 nothing re-drives a failed save, so B offers the PO something that cannot happen.)
