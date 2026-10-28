@@ -195,7 +195,7 @@ service-be      #123   <sha8>      ✅ SUCCESSFUL (#456)
 service-fe      #124   <sha8>      ❌ FAILED (#457) — <step/reason>
 root            #131   <sha8>      ✅ merged (rebased: yes/no)   | ⛔ not merged — <reason>
 Skipped:  <PR>  — <sign-off missing | conflict (<files>) | blocked by Part order (<predecessor>)>
-Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>) · evidence <posted|edited <permalink> | none — <why>> · decided: <status X (n of m | config | asked), assignee Y (n of m | config | asked)>
+Jira <TICKET>: status <status.name> · assignee <displayName> (<accountId>) · evidence <posted|edited <permalink> | bug-fix table, carried by /bugfix's comment | none — <why>> · decided: <status X (n of m | config | asked), assignee Y (n of m | config | asked)>
          — or, when anything wasn't done: Jira NOT updated (or: only partly updated) — <JIRA_NOTE: reason>; ticket is still at <current status.name>, assignee <current>
 Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and Jira updated | move <TICKET> to <status> and assign the QC by hand on Jira (or re-run /merge) — if Jira wasn't fully updated>
 ```

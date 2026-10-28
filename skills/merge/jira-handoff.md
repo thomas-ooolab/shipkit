@@ -53,7 +53,11 @@ and ask is a **blocker** — a step that cannot be decided or that errors, each 
 6. **Evidence comment — last, straight after 5, no approval wait.** Run `/verify --ticket <TICKET> --send-evidence` (its Step 7:
    checks the draft is complete against the agreed format and, when it is, posts or edits the one comment).
    - Sent (`evidence comment posted|edited`) → record the permalink for Step 11.
-   - No `.shipkit/evidence/<TICKET>/jira-comment-*.md` draft (bug ticket, `--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
+   - The newest draft is a bug fix's table (first header cell `Concern`; verify reports `evidence not sent from here — bug-fix table`)
+     → `JIRA_NOTE` = "evidence: bug-fix table, carried by /bugfix's own comment"; not a blocker and not "no draft" — the draft
+     exists and verify passed. If `.shipkit/bugfix-<TICKET>.md` still lists that comment as a `pending_comment` (unposted), say so
+     and name the draft path, so the user knows it still has to go out.
+   - No `.shipkit/evidence/<TICKET>/jira-comment-*.md` draft at all (`--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
      evidence draft"; not a blocker.
    - The draft is **incomplete** (verify reports `evidence NOT sent — incomplete: …`) → **blocker**: the status and assignee are
      already changed, so say what is missing (`JIRA_NOTE` = "evidence NOT sent — incomplete: <what>") and stop; Step 11 names

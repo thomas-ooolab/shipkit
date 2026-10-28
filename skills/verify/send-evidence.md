@@ -4,8 +4,11 @@
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` after it has changed the status and assignee)
 Reads the saved draft; drives no app and re-checks nothing. The draft is the newest `.shipkit/evidence/<TICKET>/jira-comment-*.md`
-whose first header cell is `/verify` (a bug fix's table starts with `Concern` and is never sent from here). None → send nothing and say
-`no evidence draft — run /verify --ticket <TICKET> first`. A person running it by hand outside `/merge` is the
+whose first header cell is `/verify`. Two other outcomes send nothing, and they are told apart by the newest file's first header cell,
+never lumped together: **no `jira-comment-*.md` at all** → `no evidence draft — run /verify --ticket <TICKET> first`; **the newest
+file is a bug fix's table (first cell `Concern`)** → the draft exists and `/verify` did pass, but that table is carried by `/bugfix`'s own
+comment and is never sent from here — say `Jira <TICKET>: evidence not sent from here — bug-fix table <path>, carried by /bugfix's own
+comment`, never "no evidence draft". A person running it by hand outside `/merge` is the
 only other case; never send at any other point of a verify run.
 1. **Find the existing evidence comment first — there is only ever one.** Look up its id:
    (a) `.shipkit/evidence/<TICKET>/jira-comment-id`, if present; else (b) scan the ticket's comments
