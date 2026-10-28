@@ -208,7 +208,9 @@ REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
 2-fe     FE  ⚠️ UNVERIFIED  changed service-fe/src/…/SomeStep.tsx, no check exercised it
 ```
-Under each check with named variants, at most one matrix line, each variant with its evidence file —
+Under each `--concern` check, one line `before: <.shipkit/evidence/<TICKET>/<id>-<slug>-before.png|txt> | none` — the capture of the symptom failing that
+`/bugfix` Step 1.8 saved. `none` is reported as it is: the `PASS` then shows the behavior is right now, not that a defect was fixed, and
+the caller must not call it fixed. Under each check with named variants, at most one matrix line, each variant with its evidence file —
 `roles: admin ✅ manager ✅ learner ⚠️ UNVERIFIED (seeding)` · `save: ok ✅ error→reverts ✅` — and `variants:
 named N, with evidence M`. `M < N` → the gate is `INCOMPLETE` and the run continues; it is not an end state.
 Under it, one line per changed surface: `surface coverage: FE <files> → check <id>` (or `→ none`), same for BE.
