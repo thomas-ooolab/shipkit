@@ -96,7 +96,7 @@ def reuse_lint(orca_mode, skill):
     return out + ([] if "A settled terminal is never reused" in skill else ["skills/assign/SKILL.md lost 'A settled terminal is never reused' in the gotcha"])
 
 REVIEW_LOOP_RULES = ("Severity stop", "one** `/assign` pass", "sweep the PR's diff", "goes in the PR description", "ignores everything else in the message",
-                     "shipkit:decisions:start", "Answered ledger first", "UNVERIFIABLE", "full review <links>", "only at a decision point",
+                     "shipkit:decisions:start", "shipkit:focus:start", "Answered ledger first", "UNVERIFIABLE", "full review <links>", "only at a decision point",
                      "not a stall", "--per-pr", "per_pr_file_threshold", "never two in a row", "Full-review gate", "max_unreviewed_code_lines", "Nothing changed → no post")
 
 def review_loop_lint(loop, config):

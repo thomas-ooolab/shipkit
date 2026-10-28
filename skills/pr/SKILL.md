@@ -42,7 +42,7 @@ bump submodule refs (`/bump-submodule`), or **merge / approve / close** a PR —
 2. Git: push the existing `feat/<ticket>-<slug>{suffix}` branches (`fix/…` for a bug fix started on a fresh worktree) (parent + affected submodules);
    `--force-with-lease` only on a branch it rebased. Phase 2 review fixes: written, committed and pushed to the same
    branches (auto-updates the open PRs) by `/assign`'s agents — this skill edits no code itself.
-3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open); and, on every PR of the ticket, the *Decisions made* block of its description, written when the PR is opened and refreshed before each reviewer trigger through `bitbucket-api.sh PUT` — only the text between its two marker lines (`decisions-block.md`), nowhere outside `/pr`.
+3. One Bitbucket PR per affected submodule + the parent-repo PR (only those not already open); and, on every PR of the ticket, the *Decisions made* and *Review focus* blocks of its description, written when the PR is opened and refreshed before each reviewer trigger through `bitbucket-api.sh PUT` — only the text between its two marker lines (`decisions-block.md`), nowhere outside `/pr`.
 4. Slack: thread posts in the review channel named in `skills/pr/config.json` (Phase 2). Jira: Phase 2 comments **only after explicit approval**.
 5. State files: `.shipkit/impl-gap-<ticket>.md`, `.shipkit/impl-failure-<ticket>.md` (Phase 1),
    `.shipkit/pr-<ticket>.md` (Phase 2).
@@ -129,7 +129,7 @@ For each affected submodule not `already-open` (in **Part order** if the plan pi
      straight to the reviewer and then get merged, so the title is what stays in the merge history.
    - **source** = feature branch · **destination** = `PR_TARGET` (skip `main` for `staging_only`).
    - **description:** link the Jira ticket (`<jira.base_url>/browse/<TICKET>`), the REQ-IDs covered,
-     the spec path, and `Part i of N` for fan-out; then the *Decisions made* block — **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/pr/decisions-block.md` and follow it.
+     the spec path, and `Part i of N` for fan-out; then the *Decisions made* and *Review focus* blocks — **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/pr/decisions-block.md` and follow it.
    Capture each child PR URL.
 
 ## Step 6 — Open the parent-repo PR (the throughline)
@@ -137,7 +137,7 @@ Skip if the parent is `already-open`. Otherwise push the parent branch and open 
 (destination: the parent repo's default branch — it has no staging tier):
 - **Title:** `<TICKET>: <feature title>` — no draft marker either.
 - **description:** the canonical summary + **links to every child PR grouped by submodule** + the
-  spec path, then the same *Decisions made* block (`decisions-block.md`). This parent PR ties the child PRs to the ticket. Note: the submodule-ref **bump**
+  spec path, then the same *Decisions made* and *Review focus* blocks (`decisions-block.md`). This parent PR ties the child PRs to the ticket. Note: the submodule-ref **bump**
   happens after child PRs merge — `/merge` does it (or `/bump-submodule` when you merge by hand).
 > Bitbucket has no GitHub-style "Closes" keyword. The ticket key in the title/branch is the link;
 > the Jira transition happens at `/merge`, once every PR is merged.
