@@ -15,6 +15,10 @@
 //   exit 4  Slack rejected a call — prints `SLACK_ERROR: <error>` (msg_too_long, missing_scope, …).
 //   exit 5  a file is unusable (missing, not a regular file, empty, or looks like a secret) — nothing posted.
 //
+// The text is checked before anything is sent: a legacy `<@U…|name>` mention goes out as `<@U…>` (stderr
+// MENTION_FIXED — the `|name` form, which `slack_read_thread` prints, posts as plain text and tags nobody), a `<@…>`
+// that is not a member id is refused (exit 2, `TEXT_ERROR`), and a bare `@name` only warns (`MENTION_WARNING`).
+//
 // `edit` replaces the text of a message the token's owner posted (chat.update, scope chat:write — nothing new):
 // prints `OK ts=<ts>`; someone else's message -> `SLACK_ERROR: cant_update_message`; a closed edit window or a
 // wrong ts -> `edit_window_closed` / `message_not_found` (exit 4). Text only: a message's attachments stay as they are.
@@ -74,9 +78,24 @@ function checkFile(f) {
   return st.size;
 }
 
+// Slack tags a user only for `<@U…>` (the member id, nothing after it). A `<@U…|name>` posts as plain text, so strip
+// the label (the id is unambiguous), refuse a `<@…>` that is not an id (`<@Thang>`), and warn on a bare `@name`.
+// ponytail: user mentions only — `<#C…|name>` and `<url|text>` are valid as written; a bare `@` only warns because an
+// @ in prose or a handle is legitimate. Add `<!subteam^…>` checks if group mentions ever matter.
+function checkText(text) {
+  const out = text.replace(/<@([UW][A-Z0-9]+)\|[^>]*>/g, (_, id) => `<@${id}>`);
+  if (out !== text) console.error('MENTION_FIXED: <@ID|name> posts as plain text; sent as <@ID>');
+  const bad = out.match(/<@(?![UW][A-Z0-9]+>)[^>]*>/);
+  if (bad) throw new Fail(2, `TEXT_ERROR: ${bad[0]} is not a member id — a mention must be <@U…> (look the id up; never type a name)`);
+  const bare = out.replace(/`[^`]*`|<[^>]*>/g, '').match(/(^|\s)@[A-Za-z][\w.-]*/);
+  if (bare) console.error(`MENTION_WARNING: "${bare[0].trim()}" is plain text and tags nobody — use <@U…>`);
+  return out;
+}
+
 // Returns the posted message ts, or '-' when unknown. The waiter ignores my own messages by account id,
 // so a '-' just means last_seen_ts stays where it was.
 async function post({ api = API, token, channel, thread, text, files = [] }) {
+  text = checkText(text);
   const sizes = files.map(checkFile); // validate everything before posting anything
   if (!files.length) {
     const j = await slack(api, token, 'chat.postMessage', { channel, ...(thread && { thread_ts: thread }), text });
@@ -103,6 +122,7 @@ async function post({ api = API, token, channel, thread, text, files = [] }) {
 }
 
 async function edit({ api = API, token, channel, ts, text }) {
+  text = checkText(text);
   return (await slack(api, token, 'chat.update', { channel, ts, text })).ts;
 }
 
@@ -183,6 +203,15 @@ async function selfTest() {
   assert.strictEqual(await post(base), '1.000001', 'text only -> chat.postMessage');
   assert.deepStrictEqual(calls.map((c) => c.m), ['chat.postMessage']);
 
+  // mentions: a legacy `<@ID|name>` loses its label, a name instead of an id is refused, valid forms pass untouched
+  calls.length = 0;
+  await post({ ...base, text: 'hi <@U03GVPMN15X|Thang Nguyen> and <@W0A3K469GUA>' });
+  assert.strictEqual(JSON.parse(calls[0].b).text, 'hi <@U03GVPMN15X> and <@W0A3K469GUA>', 'legacy mention label stripped');
+  await assert.rejects(post({ ...base, text: 'hi <@Thang>' }), (e) => e.code === 2 && /not a member id/.test(e.message), 'name instead of id refused');
+  assert.strictEqual(calls.length, 1, 'a refused text posts nothing');
+  await post({ ...base, text: 'link <https://x.test|AR-1> and `@code` and a@b.test' });
+  assert.strictEqual(JSON.parse(calls[1].b).text, 'link <https://x.test|AR-1> and `@code` and a@b.test', 'links, code and emails untouched');
+
   calls.length = 0;
   assert.strictEqual(await post({ ...base, files: [png] }), '2.000002', 'with file -> external upload, ts from shares');
   assert.deepStrictEqual(calls.map((c) => c.m), ['files.getUploadURLExternal', 'upload', 'files.completeUploadExternal']);
@@ -204,6 +233,9 @@ async function selfTest() {
   assert.deepStrictEqual(JSON.parse(calls[0].b), { channel: 'C1', ts: '9.000009', text: 'new' });
   await assert.rejects(edit({ api, token: 't', channel: 'C1', ts: 'locked', text: 'x' }),
     (e) => e.code === 4 && /cant_update_message/.test(e.message), "someone else's message -> exit 4");
+  calls.length = 0;
+  await edit({ api, token: 't', channel: 'C1', ts: '9.000009', text: 'ping <@U03GVPMN15X|Thang>' });
+  assert.strictEqual(JSON.parse(calls[0].b).text, 'ping <@U03GVPMN15X>', 'edit strips the mention label too');
 
   calls.length = 0;
   await del({ api, token: 't', channel: 'C1', ts: '9.000009' });
