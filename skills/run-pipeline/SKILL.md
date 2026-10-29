@@ -87,7 +87,7 @@ Derive each stage's status from observations:
 | **implement** *(human gate)* | affected submodule branches have commits/dirty changes (`dirty=yes` or `unpushed>0`) |
 | **review** | `/review-changes` has run (state file marks it `[x]`) |
 | **verify** *(gate)* | `/verify` reported PASS (state file `[x]`); an old state file's `design-verify` line counts as this stage |
-| **prs** | a Bitbucket PR exists per affected submodule + parent |
+| **prs** | a Bitbucket PR exists per affected submodule + parent (affected = has changes, as `/pr` Step 2 decides; a tagged submodule with no change is not waited on) |
 | **merged** *(external gate)* | all child PRs merged (Bitbucket) |
 | **bump** | parent submodule refs point at merged shas; parent PR open/merged |
 

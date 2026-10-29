@@ -1,7 +1,7 @@
 ---
 name: pr
 description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--per-pr] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
-argument-hint: "<jira-ticket> [--implement] [--full] [--per-pr] [--target staging|main]"
+argument-hint: "<jira-ticket> [--implement] [--full] [--per-pr] [--target staging|main] [--bug]"
 ---
 
 # shipkit · pr
@@ -61,7 +61,7 @@ allowlist; no force-push to a branch it didn't create.
 ## Step 1 — Parse & preconditions
 Parse `$ARGUMENTS`: the ticket (positional, or `--ticket <key>`) → `TICKET`; `--implement` →
 `IMPLEMENT=true`; `--full` → `FULL=true` (Step 4 runs each submodule's whole test suite); `--per-pr` → `PER_PR=true` (Phase 2 sends one `full review` per PR instead of one for all links — `per-pr-review.md`, which also switches on by itself for a big diff); `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
-else `staging`). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
+else `staging`); `--bug` → `BUG=true` (the bug flow: `run-pipeline` passes it; see Step 1 and Step 2). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 **Missing ticket** → recommend candidates instead of asking blank: check `.shipkit/pr-*.md` for existing
 state files (an in-progress `/pr` run from an earlier session — list any found, most recently modified
@@ -78,21 +78,34 @@ PR, no fan-out, no Part order, no bump** — Steps 5–6 collapse to that single
 given) delegates to one agent on the repo. Everywhere below that says "per affected submodule /
 parent," read it as "the repo." **`meta-with-submodules`** → the full fan-out flow below.
 
-Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/spec-from-ticket` +
+**Bug flow (`BUG=true`).** The spec, if any, belongs to the feature ticket already built: do not read its
+frontmatter, its `## Tasks`, or any tag in it; do not stop when none exists; do not warn about its status. Scope comes only
+from git (Step 2). Skip the spec checks below and go to Step 2.
+
+**Standard flow (`BUG` unset).** Locate the spec: `probe.sh state <TICKET>` → `SPEC`. If `none`, stop: "Run `/spec-from-ticket` +
 `/plan-deep` first." Read the spec:
 - frontmatter `status` — if not `planned` (or beyond), warn: "Spec status is `<x>`, not `planned` —
   run `/plan-deep --ticket <TICKET>` first." Proceed only on user confirm.
-- `## Tasks` — must be present and non-empty. The per-task `(submodule)` tags give the **affected
-  submodules**; the task file paths form each submodule's **allowlist**. If Tasks is empty, stop:
+- `## Tasks` — must be present and non-empty. The per-task `(submodule)` tags give the **candidate
+  submodules**; Step 2 decides which of them are **affected** (a tag alone does not make a submodule affected). The task
+  file paths form each affected submodule's **allowlist**. If Tasks is empty, stop:
   "Plan has no tasks — run `/plan-deep --ticket <TICKET>`."
 - any `[UNVERIFIED]` / `[not specified — ask before implementing]` left in the spec → stop and tell
   the user to resolve via `/plan-deep` first (a half-specified plan must not ship).
 
 ## Step 2 — Resolve per-submodule context + existing PRs
-For each affected submodule (from task tags), bind from config + git:
+**Candidates.** Standard flow: the submodules named by the task tags. Bug flow (`BUG=true`): every submodule
+`probe.sh state <TICKET>` lists under BRANCHES — the spec's tags are never read. Whatever the plan or spec mentions that
+the fix did not touch is ignored here: no branch check, no stop, no question.
+
+For each candidate submodule, bind from config + git:
 - `path`, `branch` (tracking), `suffix`, `stack`, `staging_only`.
-- feature branch = `feat/<TICKET>-<slug><suffix>` (or `fix/…`, bug fix); confirm it exists (`probe.sh state`). If missing,
-  stop: "Branch missing for <path> — run `/run-pipeline <TICKET>` to create branches."
+- feature branch = `feat/<TICKET>-<slug><suffix>` (or `fix/…`, bug fix); confirm it exists (`probe.sh state`).
+- **Affected or not** (decide before anything else, and only from git):
+  - Has changes = the branch has commits beyond the default branch (`git -C <path> rev-list --count origin/<default>..<branch>` > 0; `<default>` is resolved in the default-branch bullet below), or the checkout has uncommitted changes (`git -C <path> status --porcelain` non-empty). Bug flow: uncommitted changes count only where the fix/feat branch exists. A candidate with no branch and no checkout has no changes.
+  - No changes → **not affected**: drop it silently. Do not stop, do not ask, do not mention it as a question. A one-line note in the Step 7 report (`skipped <path>: no change`) is the only trace.
+  - Standard flow only — changes but no branch → stop: "Branch missing for <path> — run `/run-pipeline <TICKET>` to create branches." This is the only stop here. Bug flow: no branch means the fix did not touch it → not affected (the first bullet).
+  - Changes and a branch → affected; continue with the bullets below.
 - repo slug = parse `git -C <path> remote get-url origin`.
 - **default branch**: `git -C <path> symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@'` (fallback `main`).
 - ⚠️ if `staging_only` and `PR_TARGET=main`: warn and skip that submodule's PR to `main` (offer `staging`).
@@ -109,7 +122,7 @@ as a `❌`. On any `❌` result: write `.shipkit/impl-failure-<ticket>.md` (subm
 > Default (no `--implement`): the human implemented on the branches; skip to Step 4.
 
 ## Step 4 — Verify changes vs allowlist + test (per submodule not already-open)
-1. **Allowlist check** — every changed path (`git -C <path> diff --name-only <default>...HEAD` +
+1. **Allowlist check** (standard flow only; bug flow has no task paths — the changes are the fix's own, verified by `/bugfix`) — every changed path (`git -C <path> diff --name-only <default>...HEAD` +
    uncommitted) must be within that submodule's task file paths (or a sibling clearly implied, e.g.
    a generated file from `make gen`). A path neither in the allowlist nor an accepted generated
    artifact → write `.shipkit/impl-gap-<ticket>.md` (offending paths + recovery: re-run `/plan-deep`
