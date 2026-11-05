@@ -13,8 +13,9 @@ The "did we actually build it right?" gate. It runs after implementing a feature
 or by hand) and after `/bugfix` fixes a defect. Two checks, each with proof:
 
 - **Behavior (Part B)** — every spec requirement `REQ-NNN` (or every `--concern` a caller hands in) is
-  exercised on the **running** app: FE → a **screenshot**, BE → **request/response and data**. No evidence file,
-  no PASS.
+  exercised on the **running** app, and its proof is what a reader can check: a **screenshot** when the claim is
+  something on screen, otherwise the **text it rests on** (a request and its response, console or log lines, DB rows,
+  a count, a measured value). No evidence file, no PASS.
 - **UI fidelity (Part A)** — when a `design-contract.md` exists, the built UI is measured at every
   breakpoint and diffed against it (`/design-recon`'s other half). Responsive breakage always fails.
 
@@ -138,7 +139,7 @@ AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIF
 `verify: INCOMPLETE — Playwright MCP required`. BE checks need only `curl`/the service's own client.
 
 **Browser agents.** REQUIRED before driving a browser from a script of your own or delegating browser work to an agent: Read
-`${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`. Its *Browser rules* block goes into every such brief. Stopping an agent (`TaskStop`) does
+`${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`. Its *Browser rules* block goes into every such brief. A brief that hands a check to an agent also carries Step 3's proof rule — a screenshot where the claim is visible, a text proof otherwise — never "a screenshot for every FE check". Stopping an agent (`TaskStop`) does
 not stop the processes it started: when an agent that drove a browser ends, fails or is stopped, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>` and report what it killed. With more than one browser
 agent, read `uptime` first: the default is one at a time.
@@ -154,8 +155,16 @@ outside the page goes through `capture-native-popup.js`; a local login uses a de
 For each check, reproduce its scenario end to end on the running system, then also run the **adjacent happy
 path** (the neighbouring flow it could have broken) and watch the console/network (FE) or logs/status codes (BE)
 for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`:
-- **FE → a screenshot (PNG)** from the browser tool (Step 2), **at scale 1** (never a smaller `scale`: `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`), of the page in the state the requirement expects, after driving the exact steps
-  (plus a `-before.png` of the bug when you reproduced one first). **Open the PNG yourself (Read) and confirm it
+- **FE → the proof that shows the claim.** Ask one question per check: *does a reader see something in the picture that
+  the text would not show?* **Yes** → a **screenshot (PNG)** from the browser tool (Step 2), **at scale 1** (never a smaller
+  `scale`: `${CLAUDE_PLUGIN_ROOT}/references/screenshot-scale.md`), of the page in the state the requirement expects, after
+  driving the exact steps (plus a `-before.png` of the bug when you reproduced one first). Claims of that kind: a value shown,
+  layout or position, colour, an element present or missing on screen, a disabled state, a toast or message, a chart.
+  **No** → a **text proof** (the BE rule below): the observed data — the request and the status and count it answered,
+  console or network lines, a DB row, the focus order from the keys pressed, a measured px value, the fact that nothing
+  changed after Esc — saved as a `.txt` you read back and redacted. A screenshot of an unchanged page or a closed dialog
+  adds nothing and only costs a browser turn. A check with both kinds of claim gets both proofs.
+  The screenshot rules that follow apply to the PNG case. **Open the PNG yourself (Read) and confirm it
   shows the expected behavior and is readable at its size** — a screenshot of the login page, the wrong screen, or an unchanged bug is not
   evidence; discard it and retake. **Make the proof the obvious thing in the image.** A reader who wasn't there
   must see in two seconds what you are proving, so: ① scroll the proving element into view and **ring it** — with
@@ -168,7 +177,7 @@ for errors. Save one evidence file per check under `.shipkit/evidence/<TICKET>/`
   sure the ringed element is in the viewport; ③ one claim per image (two things → two images, each with its own
   ring), and its caption says what to look at ("the Replacement group list shows only the manager's 2 groups").
   Read the PNG back: if you can't find the ring and the proof in it at a glance, retake it.
-- **BE → data or response proof** in a `.txt`/`.md`: the request (method, URL, payload), response status and
+- **BE, or an FE check whose proof is text → data or response proof** in a `.txt`/`.md`: the request (method, URL, payload), response status and
   body, and — when the requirement is about stored or computed data — the `SELECT` and its result showing the
   value is right (plus the wrong value from before, for a bug). Then Read the file back and confirm it holds no
   token, credential or real personal data (redact to `[REDACTED]`).
@@ -208,6 +217,7 @@ REQ-007  BE  ⚠️ UNVERIFIED  mail sandbox down — no request/response proof
 REQ-009  —   ⏸ not checked  blocked on OQ-2
 2-fe     FE  ⚠️ UNVERIFIED  changed service-fe/src/…/SomeStep.tsx, no check exercised it
 ```
+Each FE row whose proof is text (no PNG) carries a short reason after its result — `(proof: request/DB/console — a picture adds nothing)` — so the user reads it as a considered choice, not a gap. The reason stays out of the Jira comment.
 Under each `--concern` check, one line `before: <.shipkit/evidence/<TICKET>/<id>-<slug>-before.png|txt> | none` — the capture of the symptom failing that
 `/bugfix` Step 1.8 saved. `none` is reported as it is: the `PASS` then shows the behavior is right now, not that a defect was fixed, and
 the caller must not call it fixed. Under each check with named variants, at most one matrix line, each variant with its evidence file —
@@ -239,7 +249,7 @@ Applies when the gate is `PASS` and `--no-jira` is absent — a feature run (che
 and again when the user asks for the Jira comment ("soạn jira") with the evidence of a `PASS` on disk. **REQUIRED:** Read
 `${CLAUDE_PLUGIN_ROOT}/skills/verify/evidence-table.md` and follow it: the one file name
 `.shipkit/evidence/<TICKET>/jira-comment-<YYYYMMDD-HHMM>.md`, the table for a feature and the table for a bug fix (FE proof is the
-embedded screenshot, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
+embedded screenshot or the quoted text proof, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
 them. **Verify never posts or edits a Jira comment in a normal run:** a feature's evidence reaches the ticket only when `/merge`
 has changed its status and assignee (Step 7); a bug fix's table is pasted by `/bugfix` into its own comment.
 

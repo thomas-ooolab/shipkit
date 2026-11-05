@@ -19,10 +19,14 @@ data files it embeds are already beside it.
 
 ## The proof cell — one rule for both
 
-- **FE check →** the screenshot itself: `![<caption naming the check>](/abs/path/<file>.png)`, several per cell separated by a
-  space. Open every PNG first and confirm it shows what the row claims. `jira-comment.py` uploads it (reusing one already
-  attached) and embeds it in the cell, so no `--image`. **Never** a file name, a path in backticks or a 📎 as the proof of an FE
-  check: the reader sees the picture, not where it lives.
+- **FE check, with a picture →** the screenshot itself: `![<caption naming the check>](/abs/path/<file>.png)`, several per cell
+  separated by a space. Open every PNG first and confirm it shows what the row claims. `jira-comment.py` uploads it (reusing one
+  already attached) and embeds it in the cell, so no `--image`. **Never** a file name, a path in backticks or a 📎 as the proof
+  of a row that has a picture: the reader sees the picture, not where it lives.
+- **FE check, with a text proof →** where the claim is not something visible (a request and its status, a count, a console line,
+  a DB value, focus order, a measured value, "nothing happened"): a **quoted** excerpt, redacted, the same way a BE row is quoted
+  below. The cell carries the content itself, never only a file name.
+- **Whichever kind, a file name alone is never the proof.** The reader must see the content in the cell.
 - **BE check →** never a token, credential, real personal data or a raw database dump; the full file stays in
   `.shipkit/evidence/`. **Feature:** a redacted excerpt (method + path, status, the key fields that show the requirement holds).
   **Bugfix:** the observed result in business words ("a Manager is refused another team's rep and sees their own team's"), with
@@ -33,6 +37,14 @@ data files it embeds are already beside it.
 
 The first header cell is the literal `/verify`: it is the marker that finds this comment later (send mode). One row per
 requirement and per named variant; a `UI` row only when Part A ran. No intro, no prose, no "not checked" row.
+
+**A large spec → one row per requirement.** Jira refuses a comment over its content limit (HTTP 400 `CONTENT_LIMIT_EXCEEDED`;
+a 168-row, 152-image comment was refused, and cutting its text to 27k characters did not help; 38 rows and 33 images passed).
+When the draft would pass about 60 rows or about 50 images, write one row per requirement instead: its Check cell says `n checks`
+and names the variants that passed, and its Evidence cell embeds one representative image (or quotes one text proof). Keep the
+full per-check table in `.shipkit/evidence/<TICKET>/evidence-full-table-<YYYYMMDD-HHMM>.md` — the name must not match
+`jira-comment-*.md`, so `/merge` never takes it for the draft. Write it with the draft, and delete it with the draft when the gate is
+not `PASS`. The Jira comment never lists the per-check rows that the summary row stands for.
 
 ```
 | /verify | Requirement | FE/BE | Check | Result | Evidence |

@@ -211,6 +211,15 @@ def auth_header():
     return "Basic " + base64.b64encode(f"{e['JIRA_EMAIL']}:{e['JIRA_API_TOKEN']}".encode()).decode()
 
 
+def limit_hint(code, detail):
+    """Jira refuses a comment over its content limit with HTTP 400 CONTENT_LIMIT_EXCEEDED: say what to send instead."""
+    if code != 400 or "CONTENT_LIMIT_EXCEEDED" not in detail:
+        return None
+    return ("hint: the comment is over Jira's content limit (too many table rows or images). Send one row per requirement "
+            "(n checks, the variants that passed) with one representative image each, and keep the full per-check table in "
+            ".shipkit/evidence/<TICKET>/evidence-full-table-<date>.md — not a jira-comment-*.md, so /merge never takes it for the draft.")
+
+
 def call(method, path, body=None):
     req = urllib.request.Request(
         env()["JIRA_URL"] + path, method=method,
@@ -222,7 +231,9 @@ def call(method, path, body=None):
             raw = r.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as ex:
-        die(4, f"Jira {method} {path} -> HTTP {ex.code}: {ex.read().decode(errors='replace')[:500]}")
+        detail = ex.read().decode(errors="replace")
+        hint = limit_hint(ex.code, detail)
+        die(4, f"Jira {method} {path} -> HTTP {ex.code}: {detail[:500]}" + (f"\n{hint}" if hint else ""))
     except urllib.error.URLError as ex:
         die(4, f"Jira {method} {path} failed: {ex.reason}")
 
@@ -489,6 +500,10 @@ def self_test():
     assert media_counts(d) == {"in_table": 2, "outside_table": 0}
     d2 = build_adf("![Out](/x/c.png)\n\n" + "| a |\n|---|\n| b |", lambda i: i, lambda p: ("u", 1, 1))
     assert media_counts(d2) == {"in_table": 0, "outside_table": 1} and d2["content"][2]["attrs"]["layout"] == "default"
+    # a content-limit refusal gets the hint; any other 400 or error passes through unchanged
+    hint = limit_hint(400, '{"errorMessages":["CONTENT_LIMIT_EXCEEDED"]}')
+    assert hint and "evidence-full-table" in hint and "jira-comment-*.md" in hint, hint
+    assert limit_hint(400, '{"errorMessages":["bad field"]}') is None and limit_hint(500, "CONTENT_LIMIT_EXCEEDED") is None
     print("self-test ok")
 
 

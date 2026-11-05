@@ -19,8 +19,10 @@ only other case; never send at any other point of a verify run.
 2. **Check the draft is complete — then send it without asking.** The format is already agreed (Step 6), so a draft
    that meets it needs no approval. Complete = (a) one table, first header cell `/verify`, nothing else; (b) one
    row per check and every result cell `✅ PASS`; (c) no "not checked / only covered by a unit test"
-   row; (d) every `![caption](path)` points at an existing PNG, every FE row has at least one, every BE row holds a
-   redacted excerpt with no token, credential or personal data; (e) the `UI` row is present when Part A ran. All
+   row; (d) every `![caption](path)` points at an existing PNG; every FE row either embeds at least one PNG or quotes a
+   concrete text proof (a request and its status, a count, a line, a value — a bare file name is not a proof); a FE row that
+   claims something visible (a value on screen, layout, colour, an element present or disabled, a message) with no PNG is
+   incomplete; every BE row holds a redacted excerpt with no token, credential or personal data; (e) the `UI` row is present when Part A ran. All
    hold → print the exact text and the attachment list, labelled **"EDIT comment <id>"** or **"POST the first
    evidence comment"**, for the record, and go straight to step 3. Any one fails → send **nothing**; report
    `Jira <TICKET>: evidence NOT sent — incomplete: <which row / what is missing>` (a blocker: `/merge` reports it, the status and assignee are already changed).
