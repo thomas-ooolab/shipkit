@@ -61,15 +61,19 @@ would only bounce it). Run it as a background task so the observer is not blocke
    terminal is titled `kiro-cli`, a claude one carries claude's own task title (often prefixed `✳`), never the ticket
    key — and by `worktree ps` `agents[].agentType` when the title is unclear. Exactly **one** claude terminal per
    worktree, ever: several → use the idle one (several idle: the most recent) and open nothing.
-2. **Usable?** `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once`: `agent` (idle) → ping it. `working` →
-   don't interrupt it: say `claude is working in <handle>` and stop. `attention` → tell the user, answer nothing.
-   `shell` / `login` / `gone` → it is dead: close it (`terminal close`) and treat the worktree as having none.
+2. **Usable?** Look at the terminal and decide from what you read, not from one line: `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once`
+   prints a screen hint (`agent` idle, `working`, `attention`, `login`, `shell`, `gone`, `unknown`) and the last screen lines — read those lines yourself, and
+   add `terminal read` or `worktree ps` when they do not settle it. An agent idle at its input box → ping it. In the middle of a turn → don't
+   interrupt it: tell the user it is working in `<handle>` and stop. Waiting on a person (a prompt, a question) → tell the user, answer nothing.
+   Dead — no agent running: the terminal sits at a shell prompt, is gone, or shows the agent exited — and only on that evidence → close it
+   (`terminal close`) and treat the worktree as having none. A banner or notice beside a live input box does not make it dead; still unclear → read
+   again, and ask the user rather than close it.
 3. **None → create one, only one.** Re-run `terminal list` right before; still no live claude →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <KEY>-coordinator --command claude --json`, then the
    *Ready* check of *Start mode* step 3 (inside the background task there). A fresh claude has no context: its first message is
    `Read .shipkit/pipeline-<KEY>.md and the .shipkit/*<KEY>* files in this worktree, then say briefly which stage the ticket is at. Answer in <language>.`
 4. **Ask the situation.** Send (*Send* of *Start mode* step 3): `Which stage is ticket <KEY> at, and is there a blocker (an unanswered
-   question, a failing test, a conflict, something waiting on a person)? How far behind the target branch is the ticket's branch, and does it need a rebase or a new branch before coding? Answer briefly in <language>; do nothing else yet.` Send, wait for idle and `terminal read` the reply as **one** `Bash(run_in_background: true)` task, exactly as in *Start mode* step 3: never a foreground `terminal wait`; the task ends with the reply, or with the screen at `SCREEN=attention`.
+   question, a failing test, a conflict, something waiting on a person)? How far behind the target branch is the ticket's branch, and does it need a rebase or a new branch before coding? Answer briefly in <language>; do nothing else yet.` Send, wait for idle and `terminal read` the reply as **one** `Bash(run_in_background: true)` task, exactly as in *Start mode* step 3: never a foreground `terminal wait`; the task ends with the reply, or with the screen waiting on a person.
 5. **Judge — straightforward = no blocker, by the reply *and* the evidence.** Blocker if either says so: the reply names
    one; `open-question.md` has an unchecked item; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
    supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in
@@ -133,13 +137,13 @@ fails → tell the user and stop. Never `ORCA open`.
    terminal titles and stop, never a second set; none listed (a failed start was closed) → reuse the worktree and open a
    fresh coordinator. Bug → reuse it and open the coordinator (step 2, *Reused worktree*): the fix goes on the unmerged branch.
    **Replace:** first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
-   any `agent` is idle (fine), any `working` / `attention` → tell the user and stop, delete nothing. Then
+   an agent idle at its input box is fine; one in the middle of a turn, or waiting on a person → tell the user and stop, delete nothing. Then
    `ORCA worktree rm --worktree id:<repoId>::<path> --json` (never `--force`: git refuses a dirty tree, which is the guard;
    it also drops the local branch, even one renamed to `fix/…`). `ok: false` (a dirty tree it refused) → it is a *leftover* after all: reuse, say so. `ok: true` is only `removing` — wait until the path is gone
    (`ls <path>` fails, re-check every 2 s up to 10 times; the new worktree reuses the name `<key>`) and carry on as *no worktree matches* in step 2 — a new worktree for the new request.
    Say in one line which of the two happened and why (`AR-450: branches merged, tree clean → replaced` / `…: tree dirty → reusing`).
 2. **Worktree + coordinator.** First `kiro-cli whoami` (kiro workers implement later): "Not logged in" → stop, create nothing,
-   tell the user (in their language): "kiro is not logged in — run `! kiro-cli login`, then call me again." No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
+   tell the user (in their language) that kiro is not logged in and that `! kiro-cli login` fixes it, then they call you again. No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
    `--prompt`, the coordinator takes several commands; keep `startupTerminal.handle`; after a **replace** add
    `--base-branch origin/<target>` — `pr_target` of the primary checkout's `.shipkit/config.yml`, else `origin/HEAD`), then rename the branch Orca
    gave it (`<user>/<key>`, which `probe.sh state` can't see) to the convention:
@@ -165,7 +169,7 @@ fails → tell the user and stop. Never `ORCA open`.
    then the next message — is **one** `Bash(run_in_background: true)`: a script written to a scratch file, or `bash -c`, whose body runs every
    `terminal wait`, `wait-for-agent.sh`, `terminal send` and `terminal read` itself. **This session runs none of them in the foreground:** a
    `terminal wait --timeout-ms 600000` there blocks it for ~10 minutes — no Slack events, no answer to the user. It is told only when the
-   task ends: the chain is done; a `❌` (the agent did not start); or `SCREEN=attention` (a question on screen) — then the task exits printing
+   task ends: the chain is done; the agent did not start; or the coordinator is blocked on something on screen (a question, a prompt) — then the task exits printing
    the screen and which messages are already sent, this session applies *Question on screen* below, and relaunches the task from the next
    unsent message. **No `orchestration` for the claude coordinator** — it is only for `/assign`'s kiro workers: a slash command in the
    coordinator never calls `worker_done`, and it has to be able to ask the user. The commands come from the table; a
@@ -175,26 +179,27 @@ fails → tell the user and stop. Never `ORCA open`.
    `/bootstrap` and `/plan-deep`: `Resuming: the feature branches already exist on origin. If they are behind origin/staging, rebase them onto it; if the spec number now collides on origin/main, renumber it to the next free number and update every reference. Do both without asking — ask only before a force-push.`
    Nothing else is ever sent — never Jira or Slack content. For each message:
    - **Ready:** `terminal wait --for tui-idle --timeout-ms 60000`; `wait.satisfied` false → once more with
-     `--timeout-ms 120000`. Then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` until `SCREEN=agent` (an input box is up;
-     read again every 3 s, up to 10 times, while `unknown`) — `tui-idle` alone is not enough, a bare shell is idle too.
-     `shell` / `login` / `gone` on two reads, or still `unknown` → `❌ agent did not start`, close that
-     terminal (`terminal close --terminal <handle>`), send nothing, tell the user (re-running `/developer <KEY>` reuses
-     the worktree and opens a fresh coordinator).
+     `--timeout-ms 120000`. Then read the screen with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` (a hint plus the last lines; again every 3 s while the
+     TUI is still drawing) until an agent's input box is up — `tui-idle` alone is not enough, a bare shell is idle too. The agent did not start
+     only when reads over a good while show a shell prompt, a login screen or a gone terminal and no agent UI ever appeared — not on one read, and not
+     because a notice shows beside an input box (an agent that has chat open can print those and work). Then close that
+     terminal (`terminal close --terminal <handle>`), send nothing, and tell the user what you saw (re-running `/developer <KEY>` reuses
+     the worktree and opens a fresh coordinator). Unclear after the reads → say so and ask, don't close.
    - **Send:** `terminal send --text "<message>" --enter --wait-submit 10`; never resend on a receipt that only says
      `input_accepted` — it is unconfirmed: `terminal read` and confirm the agent is working before the next step. Text
-     landed in a shell → close that terminal, `❌`, tell the user.
+     landed in a shell (the screen shows a shell prompt and the text as a command) → close that terminal and tell the user.
    - **Finished:** `terminal wait --for tui-idle --timeout-ms 600000`, then `terminal read`. Next message only
      when the screen shows it done, not waiting on a question. `/run-pipeline --bug` (which dispatches `/bugfix`) and `/assign` are last messages and run
      their own loop: stop after the send is submitted, no finished-wait.
    - **Assign gate** (standard, resume — after `/plan-deep` finished, before `/assign`): the chain sends `/assign` only when none of
-     these holds, each read from the evidence, not the agent's say-so: the screen is `attention` or still `working`; the spec dir's
+     these holds, each read from the evidence, not the agent's say-so: the coordinator is waiting on a person or still mid-turn; the spec dir's
      `open-question.md` has an unchecked `- [ ]` item; `spec.md` has a task marked `blocked on OQ-`; the screens of `/spec-from-ticket`,
-     `/design-recon` or `/plan-deep` show a `❌`, `⚠` or an unanswered question (a design-recon with no artifact asks for one — that is a
+     `/design-recon` or `/plan-deep` show a failure, a warning or an unanswered question (a design-recon with no artifact asks for one — that is a
      blocker). Any hit → send nothing, exit, and this session tells the user the blocker in one line (which OQ or which step) —
      the user resolves it in the coordinator terminal and sends `/assign` themselves. None → send `/assign <KEY> --agent kiro` as the last message.
    - **Question on screen:** a question that offers a recommended default (marked recommended, or the first option) →
      send that default yourself, no relay. Surface it only when it has no default or is destructive (force-push, delete,
-     overwrite): tell the user once (`needs attention — terminal <handle>`), never answer for them, then relaunch the background task (it waits
+     overwrite): tell the user once, naming the terminal and the question, never answer for them, then relaunch the background task (it waits
      for idle and re-reads there). The user answers in the terminal; the skill sees the question gone and sends the next
      message by itself — no "go" needed. Still unanswered after 3 waits → stop and report.
 4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then, if the *Assign gate* passes, `/assign` is running in terminal
