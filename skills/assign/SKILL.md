@@ -137,8 +137,8 @@ Say what was decided and why in one line per submodule (`behind n, overlap: yes 
 **Agent mode (only when Step 1.5 printed `transport: agent`).** Dispatch every submodule left in the wave **in one message**: one `Agent` call each, `subagent_type`
 `general-purpose` (the running agent's own kind), `run_in_background: true`, `model: "sonnet"` and `effort: "medium"` (implementing a brief is routine coding; the coordinator that reviews and accepts the work keeps the session's own model), no
 worktree isolation (each agent owns a distinct submodule); the brief tells it to work only inside `PATH`. No waiting
-between submodules — this is the whole point. Each agent's final line must be exactly
-`✅ implemented <path> (N/M tasks, committed, not pushed)` or `❌ <reason>`.
+between submodules — this is the whole point. Each agent's final line says whether it finished, the path, how many tasks it did, and that it committed and did not push — or why it could not (wording is its own; the
+coordinator trusts git, not that line).
 Per submodule, `PATH` = its path,
 `NAME` = its name, and `BRIEF` is composed of (free-form mode: Step 1's `BRIEF` as-is, `NAME` = repo dir name):
 - **Grounding:** read the submodule's `CLAUDE.md` + `docs/<service>.md` first; reuse existing
@@ -147,8 +147,11 @@ Per submodule, `PATH` = its path,
   `branch` (config) if missing; else continue on the existing one.
 - **Objective + tasks:** only this submodule's checkbox items from `## Tasks`, each with its
   `REQ-NNN`, plus the absolute path of `spec.md`.
-- **Allowlist:** only the file paths those tasks name — never write outside it; if a needed file
-  isn't listed, **stop** and report the gap (don't widen the allowlist itself).
+- **Allowlist:** the file paths those tasks name **plus the files they cannot be done without** — never write outside it. The coordinator finds
+  the second kind while composing the brief, from the code, not from the plan: the file that declares an interface or type a task adds to
+  or implements, generated outputs the submodule's own generate step rewrites, mocks and their config, and registration or wiring points. Each
+  addition is named in the brief with the task that needs it. If a needed file is still missing, the worker **stops** and reports the gap
+  (it never widens the allowlist itself); widening it afterwards is the user's call.
 - **Guard:** work only inside `PATH` and that allowlist; **never run `git push`** — no branch, no flag, no force, not even the feature
   branch: the coordinator pushes after it accepts the work. Never touch a database or docker. (kiro runs with every tool trusted — this is its only brake.)
 - **Discipline:** the conventions the submodule's own `CLAUDE.md` states (layering, contract-first, generate steps) and
@@ -170,15 +173,14 @@ Per submodule, `PATH` = its path,
 - **Commit, don't push:** `git add <allowlisted paths>` (never `-A`); one commit citing the task ids; leave the branch unpushed and say so in the final line.
 
 **`AGENT=claude` in Orca mode is a worker like kiro.** The steps of `orca-mode.md` apply to both agents — one path to maintain —
-and differ only in the launch (`worker-start --agent claude --model sonnet --effort medium`; no `kiro-cli whoami`) and in the
-kiro-only screen pattern for a spent quota. The kiro → claude fallback is that same `worker-start`, and a run mixing both waits on
+and differ only in the launch (`worker-start --agent claude --model sonnet --effort medium`; no `kiro-cli whoami`). The kiro → claude fallback is that same `worker-start`, and a run mixing both waits on
 `check` alone. Agent mode (no Orca) keeps the `Agent` dispatch above.
 
 **Orca mode** — `AGENT=kiro` or `claude`. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/assign/orca-mode.md` and follow it (it also
 says to load the `orca-cli` and `orchestration` skills first). Same `BRIEF`, one worker per submodule, same wave order:
 `/assign` is the **coordinator**, Orca creates and supervises each kiro terminal. It covers the `kiro-cli whoami` check, one
-Run per invocation, brief-as-a-file, why a settled terminal is never reused, `worker-start`, `check --wait` and its message handling, empty waits,
-and the kiro → claude fallback. Step 6 below reads what it records.
+Run per invocation, brief-as-a-file, why a settled terminal is never reused, `worker-start`, `check --wait` and its message handling, reading a quiet
+worker from evidence (*Reading a worker*), and the kiro → claude fallback. Step 6 below reads what it records.
 
 ### Accept, then push (both modes — per submodule, once its worker or agent reports done)
 Workers only commit; nothing reaches the remote until the coordinator agrees. For each submodule that reported success:
@@ -187,11 +189,11 @@ Workers only commit; nothing reaches the remote until the coordinator agrees. Fo
    origin/<target>...HEAD --name-only` lists only files inside that submodule's allowlist (or an accepted generated artifact).
    The summary says the tests of the changed files ran green (a `pre-existing on origin/<default>` line is not red), and the diff addresses the tasks' `REQ-NNN`, nothing unrelated.
 2. **All hold → accept.** Push the branch: `git -C <PATH> push -u origin <branch>` (`--force-with-lease` only if Step 4b
-   rebased it and the user approved that). With `--no-push` stop here instead: report `✅ committed, not pushed` and leave
+   rebased it and the user approved that). With `--no-push` stop here instead: report that it is committed and not pushed (`✅`) and leave
    the push to the caller. Then check the tasks off (Step 6) and `✅`.
-3. **Anything fails → don't push.** Report `❌ not accepted: <what>` with the commits left local, and offer the follow-up
-   (a fix task and a re-run on the same worker, like any other retry). A push the hooks refuse (for example the weekend
-   PR-branch guard) is reported `✅ committed — push blocked: <reason>`; the user pushes.
+3. **Anything fails → don't push.** Report it `❌` with what failed and the commits left local, and offer the follow-up
+   (a fix task and a new worker on that submodule, like any other retry). A push the hooks refuse (for example the weekend
+   PR-branch guard) is `✅` committed with the refusal's reason stated; the user pushes.
 
 ## Step 6 — Reconcile + report
 Per accepted `✅`, check off its tasks `[x]` in `spec.md` (only the ones it confirmed — never assume
@@ -208,7 +210,7 @@ Wave 2: <submodule-c>          ❌ test failure — see assign-failure-<TICKET>.
 (**Required for every run** — also a one-task fix run called by `/pr` or `/bugfix`, and a free-form run — and written from the real Orca rows, never invented: with `transport: orca`, the `run=`, `terminal=`, `task=` and `dispatch=` values are the ids `run-create`, `worker-start` and `dispatch` printed; none printed → the field is `unassigned`, never a guess or a backfill. A `transport: orca` run with no run, terminal, task or dispatch is a failed run, not a finished one. Orca mode: write the `run`, then each handle, agent kind, submodule, `task` and `dispatch` as soon as its worker is
 started — a terminal with no brief yet is `unassigned`; a follow-up worker on a submodule also gets `previous=<old handle>` read from here; a `✅` worker also gets
 `idle-since=<epoch>` until its idle close, then `closed (idle 3 min)`: `orca-mode.md`, *Idle close*.)
-Keep earlier runs' lines in that file (a re-run adds or updates its own; a follow-up worker reads the old handle and branch from them). Report the same table to the user (`Next:` always names the next step while one remains — a success included (the skill to run next, or what the user must do by hand); `Next: none` only when nothing remains. For a success the `/verify` then `/pr` hand-off below is that `Next:`.), its `transport:` line on top (the caller reads it) and, in Orca mode, the `Idle close:` line(s) from `orca-mode.md` (*Idle close*) under it, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
+Keep earlier runs' lines in that file (a re-run adds or updates its own; a follow-up worker reads the old handle and branch from them). Report the same table to the user (`Next:` always names the next step while one remains — a success included (the skill to run next, or what the user must do by hand); `Next: none` only when nothing remains. For a success the `/verify` then `/pr` hand-off below is that `Next:`.), its `transport:` line on top (the caller reads it) and, in Orca mode, the `Idle close:` line from `orca-mode.md` (*Idle close*) under it, then: "Run `/verify --ticket <ticket>` first — it proves each requirement on the running app (FE screenshot, BE data) — then `/pr <ticket>` to open PRs for the completed
 submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` first.)
 
 ## Gotchas
@@ -228,9 +230,10 @@ submodules." (Failed ones need a fix-and-retry `/assign <ticket> --only <name>` 
   or settle them — the user ends up asking whether the agent is done.
 - **One Run per invocation.** A second `run-create` from the same terminal fences the first (`consumer_fenced`): reuse
   the id for every wave.
-- **kiro liveness is `unverifiable`.** `worker-list` can never prove a kiro agent dead or stuck; absence never
-  authorizes stop, abandon, retry or release — only a positive `exited`, or the screen read for `attention` / `login` /
-  `shell` / `gone`, does.
+- **kiro liveness is `unverifiable`, and one screen line proves nothing.** `worker-list` can never prove a kiro agent dead or stuck, and a
+  banner or an idle input box can be on screen while it works. Judge from the transcript, the tree and Orca's messages (`orca-mode.md`,
+  *Reading a worker*); silence never authorizes stop, abandon, retry or release — only positive proof the process exited does, and the user is
+  asked only for a decision that is theirs (changing agent, widening the allowlist, a product call), not because a line looked bad.
 - **Trust git, not the agent's last line.** Before checking off tasks, confirm via `probe.sh state` that the feature branch
   exists, carries the worker's commit (`unpushed>0`) and the tree is clean; otherwise record `❌ no commit` / `❌ dirty tree`.
   Only after *Accept, then push* does the branch show `unpushed=0` (with `--no-push` it stays `unpushed>0` on purpose).
