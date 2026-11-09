@@ -15,7 +15,8 @@ tells you where to read next, never what to conclude or what to ask the user. Ev
 is yours, made from the evidence in *Reading a worker*, and a report or a question to the user cites that evidence (which commits, which
 files changed since the last look, which transcript turn, which message). Wording of reports and questions is never fixed: say what was
 found, what you decided and why and — only when it is the user's call — what the choices are, in the language the user writes in.
-The invariants that do not bend: workers never push; a permission prompt is never answered on the user's behalf; stop, abandon or retry
+The invariants that do not bend: workers never push; a permission prompt is never answered on the user's behalf, except kiro's workspace-trust prompt under every condition of
+*Kiro's trust prompt* below; stop, abandon or retry
 only on positive proof the process exited; one Run per invocation; a settled terminal is never reused; a brief never goes in with
 `terminal send`.
 
@@ -33,7 +34,7 @@ Allowlist + Guard + Discipline, Observable acceptance = Verify). Orca-mode diffe
   --outcome failed` naming the gap; never widen the allowlist. (Agent mode keeps the `✅` / `❌` final line.)
 - **It may `ask`** (the command in its preamble). The coordinator answers **only** from `spec.md`, the plan or the
   submodule's `CLAUDE.md`; a product decision, or anything that widens the allowlist → `AskUserQuestion` or a refusing
-  reply. A permission prompt on a terminal is never answered on the user's behalf.
+  reply. A permission prompt on a terminal is never answered on the user's behalf (the one exception: *Kiro's trust prompt*).
 - **UI task:** the `Design` bullet of the `BRIEF` applies; the `worker_done` summary says the 1-to-1 comparison was done, or names the
   differences left. Once that worker settles, or is stopped, run `scripts/cleanup-browsers.sh` on its scratch directory (SKILL.md, *Design*).
 
@@ -77,8 +78,30 @@ left uncommitted stay in the working tree, so the new brief says to run `git sta
    `failedStage` / `residualResources`. A refusal before any launch (e.g. `agent_unconfigured`) leaves nothing behind. A
    start that launched leaves a terminal owned by that worker (`worker-list` shows it `reclaimable`): release it with
    `worker-release` (or, if the user wants to read it, `worker-retain` and record it `unassigned`) — never `terminal close` — and retry only with `--task <id> --retry-of <dispatch>`, never a blind
-   relaunch. (A failure after launch was not reproduced; this follows the recovery reference.)
+   relaunch. The retry carries no `--spec`: `--task` and `--spec` are mutually exclusive (`invalid_argument`); the task already holds the brief. A kiro start that
+   failed on `agent-trust-workspace` is handled by *Kiro's trust prompt* below. (Other failures after launch were not reproduced; this follows the recovery reference.)
 4. Record per submodule in the state file: `task=<id> dispatch=<id>` beside the handle, kind and submodule.
+
+**Kiro's trust prompt — the one prompt the coordinator answers.** The first `worker-start --agent kiro` in a worktree kiro has not trusted fails
+`ok: false`, `failedStage: agent_readiness`, `lastError: Agent startup blocked: agent-trust-workspace`, `residualResources` = the terminal, `next` =
+`worker-release`. That terminal shows "Trust this workspace?", a folder path, a warning that the folder can hold hooks, agents, MCP servers and workflows
+that run commands, and one option, "Trust, continue". Answer it yourself **only when all of these hold**, each read, not assumed:
+- the receipt has that `failedStage` **and** that `lastError`;
+- the residual terminal's screen (`ORCA terminal read --terminal <handle> --screen --json`) shows "Trust this workspace?", a folder path **exactly equal**
+  to the path `ORCA worktree current --json` gives (a path the screen wraps or shortens is not equal), and the "Trust, continue" option.
+
+Then: (1) `ORCA terminal send --terminal <handle> --text "" --enter`; (2) read the screen once — it should move on ("Initializing…", then kiro's input
+box); (3) `ORCA orchestration worker-release --dispatch <id> --json`; (4) retry `worker-start --task <taskId> --retry-of <dispatchId> --agent kiro
+--worktree current --run <RUN> --json` — **no `--spec`**. If the retry fails with `failedStage: dispatch_input` and `agent_not_in_foreground` (kiro is up at its
+input box), release that dispatch and retry the same way once more after about 3 s, with `--retry-of` that failed retry's dispatch id. A second failure, or a screen that did not move after the Enter,
+goes to the user with the receipts and the screen lines. Trust persists for the folder, so later workers in that worktree meet no prompt.
+
+Any other prompt, any other option, a folder that differs, or anything unread is **not answered**: put it to the user as with every other permission
+prompt. Never press a bare Enter on a kiro menu you have not read — a fresh `kiro-cli` showed a "Switch to V3" menu whose first option rewrites the
+user's configs. Tell the user in one line which folder was trusted for kiro. *Verified 2026-11-09 on the real Orca CLI:* the receipt and screen above; Enter sent with
+`terminal send` moves the prompt on (tested on a terminal made with `ORCA agent launch --agent kiro`); trust persisted after it; the release-and-retry
+above succeeded, and the first retry after a hand-trust failed with `agent_not_in_foreground`. *Not verified:* sending that Enter into the residual terminal of a failed
+`worker-start` — if the screen does not move, that is the user's. claude workers showed no trust prompt (they run in bypass-permissions mode): nothing to add for them.
 
 **Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
 pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
@@ -125,7 +148,7 @@ without touching the worker:
 
 Then **conclude one of these, with the evidence**, and act on it:
 - **Working** — the tree or the transcript is moving, or the agent is visibly in a turn. Keep waiting.
-- **Blocked** — it is stopped on something a person or the coordinator can answer: a permission prompt (never answered for the user), a
+- **Blocked** — it is stopped on something a person or the coordinator can answer: a permission prompt (never answered for the user, bar *Kiro's trust prompt*), a
   `question` or `ask`, an allowlist gap it named. Answer per the rules above, or put it to the user.
 - **Done but silent** — the work is on the branch and the agent is idle without having sent `worker_done`. Audit it as a `worker_done`
   (*Accept, then push*); the missing report is a note, not a failure, when git shows the tasks done.

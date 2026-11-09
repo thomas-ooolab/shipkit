@@ -35,7 +35,7 @@ Implements code only (ticket mode reads the plan; free-form mode takes the task 
 3. `specs/NNN-slug/spec.md` — check off `[x]` tasks the agent confirmed done (and git verifies).
 4. `.shipkit/assign-<ticket>.md` — starts with the `transport:` line (Step 1.5), then the per-submodule wave/status log (Orca mode: plus each agent's terminal handle).
 5. `.shipkit/assign-failure-<ticket>.md` — on any agent failure (submodule, error, recovery).
-6. Orca mode (kiro or claude workers): one `orchestration run-create` per invocation, then `worker-start`, `check`, `reply`, `worker-retain` / `worker-release` / `worker-stop` / `worker-abandon` (the last two only on positive proof the agent exited) — never an Orca worktree, `dispatch --inject`, `orchestration reset`, or a brief sent with `terminal send`.
+6. Orca mode (kiro or claude workers): one `orchestration run-create` per invocation, then `worker-start`, `check`, `reply`, `worker-retain` / `worker-release` / `worker-stop` / `worker-abandon` (the last two only on positive proof the agent exited), and — only for kiro's workspace-trust prompt, under the conditions of `orca-mode.md` (*Kiro's trust prompt*) — one Enter sent with `terminal send` — never an Orca worktree, `dispatch --inject`, `orchestration reset`, or a brief sent with `terminal send`.
 **Forbidden side-effects:** never open/merge a PR; never touch the parent repo; never write outside
 a submodule's own task allowlist; no push by a worker, ever; no force-push unless that submodule's branch was rebased.
 
