@@ -4,7 +4,8 @@
 
 **Orca mode** (REQUIRED: load the `orca-cli` and `orchestration` skills first; `ORCA skills get orchestration` is the
 version-matched guide). Same `BRIEF`, one worker per submodule, same wave order — only the agent's home and the plumbing
-change: `/assign` is the **coordinator**; Orca creates and supervises each worker terminal (kiro or claude) itself and injects the brief.
+change: `/assign` is the **coordinator**; Orca supervises each worker terminal (kiro or claude) and injects the brief. Orca launches a claude worker itself; for kiro
+the coordinator opens the terminal first (*Starting kiro*), because `worker-start --agent kiro` hands the brief over too early.
 **`AGENT=kiro` (the default, or the flag): run `kiro-cli whoami` first**, before starting a worker on a new terminal — not logged in (or an
 error) → start nothing; tell the user, in their language, that kiro is not logged in and that `! kiro-cli login` fixes it, and put the
 claude fallback (below) to them for the whole run instead of stopping dead. (Orchestration does not check
@@ -44,7 +45,8 @@ whose worker has settled: `agent_unconfigured` — "Terminal <handle> is not run
 `agentIdentity: claude`, never retained) was refused with the call written `--spec … --terminal` **and** with Orca's own documented
 `task-create` then `worker-start --task <id> --terminal`; an earlier test refused it after the ack, after a screen read and after minutes idle,
 and `--terminal` with `--agent`, `--model` or `--effort` is refused for the flag itself. No state was found in which it is accepted, so the
-coordinator **does not try it** — a failed call per follow-up buys nothing. Never confirmed to work for any agent kind (kiro, claude, codex, …).
+coordinator **does not try it** — a failed call per follow-up buys nothing. Never confirmed to work for any agent kind (kiro, claude, codex, …). A kiro *warm
+terminal* (*Starting kiro*) is not that case: it has never had a worker, and `worker-start --terminal` on it is the route that works.
 
 A follow-up on a submodule that already has a worker — a later wave, a fix after `/verify`, a retry, a user-widened allowlist after a `❌` — is
 a normal `worker-start --agent <AGENT>` below, on a new terminal. What the new worker needs is in git, not in the old terminal:
@@ -61,13 +63,13 @@ settled worker and the work continues in a new worker, then start that worker as
 left uncommitted stay in the working tree, so the new brief says to run `git status` first and keep them.
 
 **Start the whole wave before waiting.** For every submodule in the wave:
-1. `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent <AGENT> --worktree current --run <RUN> --json`
-   A wave starts its workers in parallel (`&` then `wait` in one `bash -c`). The
-   agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
+1. **claude:** `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent claude --worktree current --run <RUN> --model sonnet --effort medium --json`
+   (implementing a brief is routine coding). **kiro:** open a warm terminal first (*Starting kiro*), then `ORCA orchestration worker-start --spec "$(cat <brief file>)"
+   --terminal <handle> --worktree current --run <RUN> --json` — no `--agent`, `--model` or `--effort` (refused together with `--terminal`; kiro runs with the model of its own
+   config, and the CLI takes those flags only for Claude, Codex, Cursor, Antigravity and Muse). A wave starts its workers in parallel (`&` then `wait` in one `bash -c`).
+   The agent shares this checkout and owns only its `PATH`, as in Agent mode. Always `--worktree current` — never `worktree
    create` (a second checkout `probe.sh` can't see) — and never `dispatch --inject` or a brief sent with
-   `terminal send`. A brief can't land in a shell: Orca launches the agent itself. `claude` always gets `--model sonnet --effort medium`
-   (implementing a brief is routine coding); kiro gets neither flag — it runs with the model of its own config (the CLI takes them only for Claude,
-   Codex, Cursor, Antigravity and Muse).
+   `terminal send`. A brief never lands in a shell: Orca launches a claude worker itself, and for kiro it injects only into a terminal it recognises as kiro.
 2. Read the receipt: `taskId`, `dispatchId`, `state: ready`, `stage: input_accepted`, `turnStart` (`unsupported` for kiro, `observed` for claude). The
    terminal handle is `worker-show --dispatch <id>` → `worker.agentTerminalHandle`. **`input_accepted` is not proof the
    agent took the brief** (Orca cannot observe kiro's turn; for claude `turnStart: observed` already is the confirmation), so for kiro make **one** read-only confirmation with *Reading a worker*:
@@ -79,29 +81,50 @@ left uncommitted stay in the working tree, so the new brief says to run `git sta
    start that launched leaves a terminal owned by that worker (`worker-list` shows it `reclaimable`): release it with
    `worker-release` (or, if the user wants to read it, `worker-retain` and record it `unassigned`) — never `terminal close` — and retry only with `--task <id> --retry-of <dispatch>`, never a blind
    relaunch. The retry carries no `--spec`: `--task` and `--spec` are mutually exclusive (`invalid_argument`); the task already holds the brief. A kiro start that
-   failed on `agent-trust-workspace` is handled by *Kiro's trust prompt* below. (Other failures after launch were not reproduced; this follows the recovery reference.)
+   failed on `agent_not_in_foreground` or `agent-trust-workspace` is *Starting kiro* below — never a second or third `--agent kiro`. Orca allows a Task 3 failed starts; the third locks it
+   (`task_not_startable`), so a retry is for a cause you have understood, not for waiting. (Other failures after launch were not reproduced; this follows the recovery reference.)
 4. Record per submodule in the state file: `task=<id> dispatch=<id>` beside the handle, kind and submodule.
 
-**Kiro's trust prompt — the one prompt the coordinator answers.** The first `worker-start --agent kiro` in a worktree kiro has not trusted fails
-`ok: false`, `failedStage: agent_readiness`, `lastError: Agent startup blocked: agent-trust-workspace`, `residualResources` = the terminal, `next` =
-`worker-release`. That terminal shows "Trust this workspace?", a folder path, a warning that the folder can hold hooks, agents, MCP servers and workflows
-that run commands, and one option, "Trust, continue". Answer it yourself **only when all of these hold**, each read, not assumed:
-- the receipt has that `failedStage` **and** that `lastError`;
-- the residual terminal's screen (`ORCA terminal read --terminal <handle> --screen --json`) shows "Trust this workspace?", a folder path **exactly equal**
-  to the path `ORCA worktree current --json` gives (a path the screen wraps or shortens is not equal), and the "Trust, continue" option.
+**Starting kiro — a warm terminal, then the brief. Never `worker-start --agent kiro`.** Why (AR-688, 2026-11-11, Orca 1.4.x; traced in Orca's code and reproduced):
+`--agent kiro` opens a terminal, types `kiro-cli chat --tui --trust-all-tools --v3` and injects the brief at once, while kiro V3 still shows "Initializing…" (its
+kiro-cli → kiro-cli-chat → bun process tree takes several seconds to settle). The injection needs Orca to see kiro in the foreground, and on POSIX only that verdict
+passes — `unknown` or `shell` fails with `failedStage: dispatch_input`, `lastError: agent_not_in_foreground`. Orca allows 3 failed starts per Task and the third locks it
+(`task_not_startable`: "failed 3 times … Do not retry this Task or start a replacement"); AR-688 spent all three, two of them on retries of this same timing failure.
+Orca does not misread kiro: a terminal opened with `terminal create` and left about 10 s reports `agentIdentity: kiro` at kiro's input box. The brief only arrived too early.
 
-Then: (1) `ORCA terminal send --terminal <handle> --text "" --enter`; (2) read the screen once — it should move on ("Initializing…", then kiro's input
-box); (3) `ORCA orchestration worker-release --dispatch <id> --json`; (4) retry `worker-start --task <taskId> --retry-of <dispatchId> --agent kiro
---worktree current --run <RUN> --json` — **no `--spec`**. If the retry fails with `failedStage: dispatch_input` and `agent_not_in_foreground` (kiro is up at its
-input box), release that dispatch and retry the same way once more after about 3 s, with `--retry-of` that failed retry's dispatch id. A second failure, or a screen that did not move after the Enter,
-goes to the user with the receipts and the screen lines. Trust persists for the folder, so later workers in that worktree meet no prompt.
+For each kiro worker, before `worker-start`:
+1. `ORCA terminal create --worktree current --title "<ticket> kiro" --command "kiro-cli chat --tui --trust-all-tools --v3" --json` → the handle (the command Orca itself typed in
+   AR-688). Write it to the state file as `terminal=<handle> (kiro, warm terminal)` and `unassigned` until the brief is in.
+2. Wait until kiro's input box is up and "Initializing…" is gone — read `ORCA terminal read --terminal <handle> --screen --json` every few seconds (AR-688 took about 10 s;
+   `wait-for-agent.sh <handle> --once` is a hint, and `terminal show` reporting `agentIdentity: kiro` is a second sign). "Trust this workspace?" is *Kiro's trust prompt* below.
+   **The wait happens here, never inside retries** — each failed start costs one of Orca's 3. A terminal that is still not at an input box after a good while (a shell prompt with the command
+   typed, an error, a login screen) did not start: read it, tell the user as with any start failure, and close the terminal you created (`terminal close --terminal <handle>`; it never had a
+   worker, so there is nothing to `worker-release` — not verified).
+3. `worker-start --spec … --terminal <handle>` as in step 1; read the receipt (`state: ready`) and confirm with step 2 of the list above (one screen read after about 10 s shows kiro reading the brief).
+   A failure here is judged like any start failure (step 3), from the receipt and the screen.
 
-Any other prompt, any other option, a folder that differs, or anything unread is **not answered**: put it to the user as with every other permission
-prompt. Never press a bare Enter on a kiro menu you have not read — a fresh `kiro-cli` showed a "Switch to V3" menu whose first option rewrites the
-user's configs. Tell the user in one line which folder was trusted for kiro. *Verified 2026-11-09 on the real Orca CLI:* the receipt and screen above; Enter sent with
-`terminal send` moves the prompt on (tested on a terminal made with `ORCA agent launch --agent kiro`); trust persisted after it; the release-and-retry
-above succeeded, and the first retry after a hand-trust failed with `agent_not_in_foreground`. *Not verified:* sending that Enter into the residual terminal of a failed
-`worker-start` — if the screen does not move, that is the user's. claude workers showed no trust prompt (they run in bypass-permissions mode): nothing to add for them.
+A Task Orca has locked (`task_not_startable`) is neither retried nor replaced under that Task: release its residual terminal, then run this route again with a new warm terminal and `worker-start --spec`
+(a new Task), the brief opening as a follow-up (*A follow-up on a submodule*). That is what finished AR-688, although Orca's message says not to start a replacement — tell the user in one line that you did.
+
+*Verified in AR-688:* this route took the brief, the worker sent `worker_done` / `succeeded` and left a clean commit. *Not verified:* the route with several kiro workers in one wave
+(one warm terminal each — start them the same way and judge each from its own screen); where `--v3` comes from (not in Orca's code, `kiro-cli --version` 2.35.1 — probably kiro's own config);
+the same route on a host where Orca types another kiro command.
+
+**Kiro's trust prompt — the one prompt the coordinator answers.** A folder kiro has not trusted shows, on first use only, "Trust this workspace?", a folder path, a warning that the folder can
+hold hooks, agents, MCP servers and workflows that run commands, and one option, "Trust, continue". The warm terminal meets it before any brief is handed over. Answer it yourself **only when
+all of these hold**, each read, not assumed:
+- the terminal is the warm terminal you created in this invocation (or the residual terminal of a failed `--agent kiro` start whose receipt had `failedStage: agent_readiness` and
+  `lastError: Agent startup blocked: agent-trust-workspace`);
+- its screen (`ORCA terminal read --terminal <handle> --screen --json`) shows "Trust this workspace?", a folder path **exactly equal** to the path `ORCA worktree current --json` gives
+  (a path the screen wraps or shortens is not equal), and the "Trust, continue" option.
+
+Then send `ORCA terminal send --terminal <handle> --text "" --enter` and read the screen once — it should move on ("Initializing…", then kiro's input box) — and carry on with the wait of
+step 2 above. For a residual terminal of a failed start: `worker-release --dispatch <id>`, then use the warm route with a new terminal (trust now persists), never `--agent kiro` again.
+A screen that did not move after the Enter goes to the user with the screen lines. Any other prompt, any other option, a folder that differs, or anything unread is **not answered**: put it to the
+user as with every other permission prompt. Never press a bare Enter on a kiro menu you have not read — a fresh `kiro-cli` showed a "Switch to V3" menu whose first option rewrites the user's configs.
+Tell the user in one line which folder was trusted for kiro. *Verified 2026-11-09:* Enter sent with `terminal send` moves the prompt on in a terminal made with `ORCA agent launch --agent kiro`, and the trust
+persisted for the folder. *Not verified:* the same Enter in a terminal made with `terminal create --command`, or in the residual terminal of a failed start — if the screen does not move, that is the user's.
+claude workers showed no trust prompt (they run in bypass-permissions mode): nothing to add for them.
 
 **Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
 pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
