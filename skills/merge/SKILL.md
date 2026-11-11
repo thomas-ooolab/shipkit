@@ -1,6 +1,6 @@
 ---
 name: merge
-description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land; also moves the Jira ticket after the merge. Asks only on a problem (missing sign-off, conflict, failed pipeline, a root rebase/force-push, a merge rejection). Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
+description: "Use when a ticket's child submodule PRs already have reviewer sign-off (from /pr's review loop) and no conflict, and are ready to land; also moves the Jira ticket after the merge. Asks only on a problem (missing sign-off, conflict, failed pipeline, a non-gitlink rebase conflict, a merge rejection). Trigger: /merge <ticket>. Examples: \"merge AR-450's PRs\", \"/merge AR-458\", \"the reviewer signed off on AR-450, merge it and wait for the pipeline\""
 argument-hint: "<jira-ticket>"
 ---
 
@@ -36,14 +36,14 @@ pointer logic. The root PR is **never merged while any child pipeline is FAILED 
    performs**, gated by Step 5's checks: it proceeds on its own only when nothing is off, and asks on any problem.
 2. `.shipkit/merge-<ticket>.md` — per-PR merge sha + pipeline status, for resumability.
 3. Root repo: a pointer-bump commit on the ticket's parent branch, pushed; if that branch conflicts
-   with the default branch, a rebase and `--force-with-lease` push of **that branch only**; then the
-   root PR merge (Step 9, gated).
+   with the default branch, a rebase and `--force-with-lease` push of **that branch only** (no prompt; the report
+   says so); then the root PR merge (Step 9, gated).
 4. Jira, always in this order and without asking: transition, then assignee (decided from config override or recent
    history, Step 10), then the `/verify` evidence comment (Step 10.6). Only a blocker stops it. **No other Jira
    comment** without explicit approval.
 **Forbidden side-effects:** never merge without confirmed sign-off, or a PR with a git-detected
 conflict; never merge while a problem
-from Step 5 or Step 9.4 is unresolved; never merge the root PR unless every child pipeline is SUCCESSFUL; never
+from Step 5 or Step 9 is unresolved; never merge the root PR unless every child pipeline is SUCCESSFUL; never
 merge a PR whose Part-order predecessor didn't qualify, even if it individually passes; never
 force-merge over a conflict; never hand-resolve a rebase conflict that isn't a submodule gitlink.
 
@@ -97,16 +97,16 @@ Nothing left qualifying → stop and report why (Step 8's report, `Merged:` empt
 ## Step 5 — Plan, then go — ask only on a problem
 Print the plan — repo, PR #, title, source → destination branch, Part order position — and warn that merging into
 `<pr_target>` **triggers that repo's Bitbucket deploy pipeline** (staging/main), not a test run; then the root-PR plan
-("after all pipelines are SUCCESSFUL: bump pointers to the merge shas, merge; a rebase/force-push would be asked
-about first; transition Jira").
+("after all pipelines are SUCCESSFUL: bump pointers to the merge shas, rebase and force-push the root branch if it
+conflicts, merge; transition Jira").
 - **Nothing off** — every candidate has confirmed sign-off (Step 3), no git-detected conflict and is not blocked by
   Part order (Step 4) → **do not ask.** Go ahead with the recommended order: Part order for the children, then the root
   after the bump. The printed plan is the record of what was decided. Say nothing more once the plan is printed: no line that sign-off is confirmed or that there is no conflict.
 - **Anything off** — a candidate with missing sign-off, a conflict, or blocked by Part order → stop and ask
   (`AskUserQuestion`): name each excluded PR and why; options: "merge only the qualifying ones" / "stop". Never merge
   an excluded PR. Nothing qualifying → stop (Step 4's rule).
-Later problems stop the run the same way: a merge rejection (Step 6), a failed pipeline (Step 8), a root rebase or
-force-push (Step 9.4).
+Later problems stop the run the same way: a merge rejection (Step 6), a failed pipeline (Step 8), a rebase conflict
+that is not a gitlink (Step 9.3). A root rebase and force-push of the ticket's own branch is not a problem and is not asked.
 
 ## Step 6 — Merge, in Part order, capture shas
 For each confirmed PR, in Part order, run the bundled script — never an inline `curl` / `python3 -c`, and never
@@ -156,8 +156,11 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
    steps — the root PR already exists.) Record `OLD=$(git rev-parse origin/<feature-branch>)` before
    any history rewrite.
 2. **Conflict check** against the default branch (ground truth, not the API flag alone):
-   `git fetch origin && git merge-tree --write-tree origin/<default> HEAD` — non-zero exit = conflict.
-3. **Conflict → rebase.** `git rebase origin/<default>`. Every conflicted path must be a submodule
+   `git fetch origin && git merge-tree --write-tree origin/<default> HEAD` — non-zero exit = conflict. Exit 0 is not
+   proof: when main moved the same gitlink, Bitbucket can still refuse the merge ("You can't merge until you resolve
+   all merge conflicts"). If step 5 gets that rejection after a bump, go straight to step 3's rebase path — it is
+   not a failure to report.
+3. **Conflict → rebase, no question.** `git rebase origin/<default>`. Every conflicted path must be a submodule
    gitlink; anything else (spec files included) → `git rebase --abort`, stop, report the paths, and
    leave them to the user. Gitlink-only conflicts resolve to *my* pointer (stage 3), via `bash -c`
    (zsh breaks the loop form):
@@ -174,11 +177,10 @@ Root PR = the ticket's parent-repo PR (`/pr` Step 6), source `feat/<TICKET>-<slu
    ```
    Exit 9 → abort the rebase and stop as above. Then **verify** every submodule pointer equals its
    Step 6 merge sha (`git rev-parse HEAD:<path>`); any mismatch → stop. Push with
-   `git push --force-with-lease=<feature-branch>:$OLD` (that branch only, never the default branch).
-4. **Rebase/force-push → confirm; otherwise go.** Show the root PR and its final pointer table (path → merge sha).
-   If step 3 ran (a rebase or `--force-with-lease` push happened) → wait for an explicit go-ahead (a rewritten branch
-   restarts the pipelines, which can take 40 minutes, so no earlier "go" covers it). If the root needed **no** rebase
-   or force-push and every pointer equals its Step 6 merge sha → don't ask; merge.
+   `git push --force-with-lease=<feature-branch>:$OLD` (that branch only, never the default branch). `$OLD` always
+   comes from `git rev-parse origin/<feature-branch>` (full sha, recorded in step 1) — never typed by hand.
+4. **Go.** Show the root PR and its final pointer table (path → merge sha). Every pointer equals its Step 6 merge
+   sha → don't ask, whether or not step 3 rebased and force-pushed; merge. The Step 11 report shows `rebased: yes`.
 5. Merge with `merge-pr.sh` exactly as in Step 6 (repo default strategy), read its own exit status, append the printed
    line to `.shipkit/merge-<TICKET>.md`. Non-zero → stop, report verbatim.
 
@@ -215,7 +217,8 @@ Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and
   breaks — wrap loops in `bash -c '...'`. There is no `timeout` on macOS; scripts track their own
   deadline. Never nest `python3 -c '...'` in shell — use a `.py` file.
 - **Rebase conflicts: only gitlinks are auto-resolved**, always to the child merge sha, then verified.
-  Force-push is `--force-with-lease=<branch>:<old-sha>` on the feature branch only.
+  Force-push is `--force-with-lease=<branch>:<old-sha>` on the ticket's own feature branch only, with the sha read
+  from `git rev-parse origin/<branch>`, never retyped.
 - **Sign-off is a two-source check, never an assumption.** `.shipkit/pr-<ticket>.md`'s concern list,
   or `.shipkit/pipeline-<ticket>.md`'s stage 5 — absence of both means "unconfirmed," not "probably
   fine."
@@ -226,9 +229,9 @@ Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and
 - **Match pipeline runs by merge commit sha, not recency** — near-simultaneous submodule merges can
   each trigger a run within the same few seconds.
 - **Ask only on a problem — never on a clean run.** Sign-off confirmed, no conflict, Part order satisfied → the plan is
-  printed and the children merge in Part order (Step 5); every child pipeline SUCCESSFUL and the root needing no
-  rebase/force-push → the root merges without a prompt (Step 9.4). A missing sign-off, a conflict, a failed pipeline, a
-  root rebase/force-push or a merge rejection stops the run and asks. "All checks passed" is the reason not to ask;
+  printed and the children merge in Part order (Step 5); every child pipeline SUCCESSFUL → the root merges without a
+  prompt, after a gitlink-only rebase and force-push of its own branch if it needs one (Step 9.4). A missing sign-off, a
+  conflict, a failed pipeline, a non-gitlink rebase conflict or a merge rejection stops the run and asks. "All checks passed" is the reason not to ask;
   any problem is the reason to.
 - **Jira status and assignee are decided from history, not asked.** Config `jira.after_merge_transition` /
   `jira.qc_account_id` override; otherwise the most frequent hand-off in the last ~10 tickets this user moved decides
