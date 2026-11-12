@@ -47,7 +47,9 @@ that single write is the user's own call and is allowed — only through the san
 (`jira-comment.py`, `post-slack.js`; never the Atlassian or Slack MCP write tools — `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`) and only what was asked.
 
 ## Hard rule: post directly, speak as the user
-URL mode, like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait. (Observer
+URL mode, like `/pr`'s Slack phase: draft, check the rules below, post — no approval wait, **except a DM**: it
+goes to one person and cannot be edited or deleted afterwards when the token lacks `im:write`, so show its exact text and send it
+once the user approves (`--auto` or a scope the user stated covers it, as for any draft). (Observer
 mode drafts first — see *Observer mode*; everything else here applies to both.) The post goes out as
 the user, so write the way they type: first person, plain sentences, no bolded outline, no stock
 phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents. A DM is written in the voice of

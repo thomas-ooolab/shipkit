@@ -51,5 +51,5 @@ You answer from the seat of the developer who built it.
   mentions are not live. Read the comment back after posting.
 - **Slack DM.** `SLACK_REVIEW_TOKEN` may lack `im:write` / `im:read`, so a sent DM can't be edited
   (`chat.update` needs the channel id). Read the DM's history first for the language and how the user addresses the person
-  (`${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md`, step 0); ask the user only when the history cannot tell. Confirm the
-  wording with the user BEFORE sending; send once.
+  (`${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md`, step 0); ask the user only when the history cannot tell. A DM is the
+  one send that waits for approval in URL mode too (SKILL.md, *Hard rule*; `--auto` or a scope the user stated covers it): show the exact text, send once after the OK.
