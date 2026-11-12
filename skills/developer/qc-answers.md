@@ -50,5 +50,6 @@ You answer from the seat of the developer who built it.
   `jira-comment.py`'s `@[Name](accountId)` (an ADF mention node), or plain names and tell the user the
   mentions are not live. Read the comment back after posting.
 - **Slack DM.** `SLACK_REVIEW_TOKEN` may lack `im:write` / `im:read`, so a sent DM can't be edited
-  (`chat.update` needs the channel id). Confirm the wording, the language and how to address the person
-  (formal or informal address) with the user BEFORE sending; send once.
+  (`chat.update` needs the channel id). Read the DM's history first for the language and how the user addresses the person
+  (`${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md`, step 0); ask the user only when the history cannot tell. Confirm the
+  wording with the user BEFORE sending; send once.
