@@ -35,6 +35,13 @@ public comment; only the comment describing it does.)
    don't post because "no one objected" or "it's obviously fine, it's just an ack."
 4. Only once approved: post it, then continue.
 
+**The user waves a draft off.** "skip", "don't post it", "no comment needed", "/merge will post it" — any answer that says this comment
+is not to go out is the user's decision, and it is final for that draft: do not post it, and do not ask again. Record it in the state
+file as `skipped-by-user: <draft path> — <the user's reason in a few words>` (above the item list, kept when the file is rewritten),
+set `pending_comment: null`, and leave the draft file where it is. The item it reported is checked off with the note `no comment, skipped
+by the user`. Later summaries, `Next:` lines and reports never mention the skipped draft. Only the user's words skip a draft: silence,
+a quiet wake or "it is only an ack" never do, and nothing else is posted in its place.
+
 If the poller's notification arrives unattended (nobody has replied to the draft) → show the draft, write it into
 `pending_comment` in the state file, and stop — don't relaunch the poller, since nothing new has been posted to poll replies
 against. The next turn picks up from `pending_comment`, confirms it, and relaunches the poller only once it is posted.

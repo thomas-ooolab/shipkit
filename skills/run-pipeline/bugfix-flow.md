@@ -40,7 +40,7 @@ Audit line before any dispatch: `shipkit bug <ticket>: bugfix=<done|pending> con
 
 ## State file
 `Status:`, `Next:`, the context rows (`PRs:`, `Evidence:`; the wait on the reporter is read from `.shipkit/bugfix-<ticket>.md` by the pane, so no `Poller:` line) and the optional `  - detail:` line under a stage are written as `SKILL.md` Step 3 says (rewritten after every stage and before every stop;
-here `waiting-user` also covers a Jira comment awaiting the user's confirmation and the reporter's reply).
+here `waiting-user` also covers a Jira comment that asks the reporter or the PO something and awaits the user's confirmation, and the reporter's reply — never a fixed-and-pushed note, whether it is not yet approved or skipped by the user: `/bugfix` announces that note once, and `/merge` sends the evidence).
 `.shipkit/pipeline-<ticket>.md`, same line shape as the standard flow (the `/pipeline` pane reads `- [x] <id> <name>`), header `Flow: bug`:
 ```markdown
 # Pipeline state — <ticket>
@@ -69,7 +69,7 @@ Evidence: .shipkit/evidence/<ticket>/
   for the reporter; re-run `/run-pipeline <ticket> --bug` when it produced a fix." When a concern was handed off, the message also names each owner and ticket (`handed off: <concern> → <owner>, <ticket>`).
 - **Stage 2 — verify** *(gate, only when the spec changed)*: `/verify --ticket <ticket> --req <REQ-NNN> … --no-jira` (the set above), otherwise exactly Stage 4.5 of `SKILL.md`
   (`FAILED` / `INCOMPLETE` stop the run, never waived in `AUTO=true`). `--no-jira`: no evidence comment is drafted — in this flow `/bugfix`
-  drafts the one Jira comment (Step 3.3, confirmed by the user before it posts), so `/merge` finds no `/verify` evidence draft (`jira-comment-*.md`) and sends nothing. Spec unchanged → mark `[x]` with `skipped: spec unchanged`; nothing is dispatched.
+  drafts the one Jira comment (Step 3.3, confirmed by the user before it posts), so this run adds no feature evidence draft; `/merge` sends the bug-fix table that `/bugfix`'s own `--concern` run wrote (`jira-comment-*.md`), as its evidence comment. Spec unchanged → mark `[x]` with `skipped: spec unchanged`; nothing is dispatched.
 - **Stage 3 — review:** `/review-changes --ticket <ticket>`; a blocking ⚠️ stops the run (`AUTO=true` surfaces, continues only if non-blocking).
 - **Stage 4 — prs:** `/pr <ticket> --target <pr_target> --bug`; stops at the open PRs, review loop on `/pr`'s own pollers. `--bug` makes `/pr` take the affected submodules from the fix's own git diff, never from the spec's `## Tasks` tags (the spec belongs to the feature already built).
 - **Stage 5 — merged** *(gate)* and **Stage 6 — bump:** exactly Stages 6–7 of `SKILL.md`.
