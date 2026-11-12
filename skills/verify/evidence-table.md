@@ -58,7 +58,8 @@ not `PASS`. The Jira comment never lists the per-check rows that the summary row
 
 One row per concern and per named variant, in the tester's numbering. The file holds this table and nothing else: the prose
 around it (the @-mentions, a decision still open) is `/bugfix`'s own comment, and it pastes these rows as they are, never
-retyped or reworded.
+retyped or reworded. The same file is also sent by `/merge`, once the status and assignee have changed, as the ticket's own
+evidence comment (the table alone, no mention), so a tester finds the final proof on the ticket even when `/bugfix`'s tick comment came earlier.
 
 ```
 | Concern | FE/BE | Check | Result | Evidence |
@@ -78,5 +79,5 @@ the screenshot, or re-run the check) to the person. Silently weakening a claim h
 
 ## After writing
 
-Report `verify: evidence for <TICKET> ready — <path>` (Feature: add "it will be sent by /merge just before the status change").
+Report `verify: evidence for <TICKET> ready — <path>` (add "it will be sent by /merge right after it changes the status and assignee" — for a feature and for a bug fix alike).
 Stop there: sending is Step 7.

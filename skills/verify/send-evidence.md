@@ -4,25 +4,26 @@
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` after it has changed the status and assignee)
 Reads the saved draft; drives no app and re-checks nothing. The draft is the newest `.shipkit/evidence/<TICKET>/jira-comment-*.md`
-whose first header cell is `/verify`. Two other outcomes send nothing, and they are told apart by the newest file's first header cell,
-never lumped together: **no `jira-comment-*.md` at all** → `no evidence draft — run /verify --ticket <TICKET> first`; **the newest
-file is a bug fix's table (first cell `Concern`)** → the draft exists and `/verify` did pass, but that table is carried by `/bugfix`'s own
-comment and is never sent from here — say `Jira <TICKET>: evidence not sent from here — bug-fix table <path>, carried by /bugfix's own
-comment`, never "no evidence draft". A person running it by hand outside `/merge` is the
-only other case; never send at any other point of a verify run.
+whose first header cell is `/verify` (a feature) **or `Concern` (a bug fix's table)** — the newest file decides which. Both are sent the
+same way, as the ticket's one evidence comment, once the status and assignee have changed; the differences are the marker in 1 and the
+completeness check in 2. **No `jira-comment-*.md` at all** → send nothing: `no evidence draft — run /verify --ticket <TICKET> first`.
+A bug fix's evidence comment holds the table and nothing else, with no @-mention: `/bugfix`'s own tick comment (the prose to the
+tester, with the rows pasted into it) is a separate comment and is neither replaced nor edited here. A person running it by hand outside
+`/merge` is the only other case; never send at any other point of a verify run.
 1. **Find the existing evidence comment first — there is only ever one.** Look up its id:
    (a) `.shipkit/evidence/<TICKET>/jira-comment-id`, if present; else (b) scan the ticket's comments
-   (`getJiraIssue` with comments) for one whose body is a table with `/verify` as its first header cell. Found
+   (`getJiraIssue` with comments) for one whose whole body is a table with the draft's first header cell (`/verify` or `Concern`); a
+   `/bugfix` tick comment is prose around a table, so it never matches. Found
    (a) or (b) → this run is an **edit**. Several found → edit the newest and tell the user about the extras.
    None found, and no id file → this is the **first post**. An id file exists but its comment is gone (deleted)
    → create it anew and say so in the report (the one-comment rule holds: the old one is gone). Nobody is asked.
 2. **Check the draft is complete — then send it without asking.** The format is already agreed (Step 6), so a draft
-   that meets it needs no approval. Complete = (a) one table, first header cell `/verify`, nothing else; (b) one
-   row per check and every result cell `✅ PASS`; (c) no "not checked / only covered by a unit test"
+   that meets it needs no approval. Complete = (a) one table, first header cell `/verify` (`Concern` for a bug fix), nothing else; (b) one
+   row per check (per concern, for a bug fix) and every result cell `✅ PASS`; (c) no "not checked / only covered by a unit test"
    row; (d) every `![caption](path)` points at an existing PNG; every FE row either embeds at least one PNG or quotes a
    concrete text proof (a request and its status, a count, a line, a value — a bare file name is not a proof); a FE row that
    claims something visible (a value on screen, layout, colour, an element present or disabled, a message) with no PNG is
-   incomplete; every BE row holds a redacted excerpt with no token, credential or personal data; (e) the `UI` row is present when Part A ran. All
+   incomplete; every BE row holds a redacted excerpt with no token, credential or personal data; (e) the `UI` row is present when Part A ran (a bug fix's table has none). All
    hold → print the exact text and the attachment list, labelled **"EDIT comment <id>"** or **"POST the first
    evidence comment"**, for the record, and go straight to step 3. Any one fails → send **nothing**; report
    `Jira <TICKET>: evidence NOT sent — incomplete: <which row / what is missing>` (a blocker: `/merge` reports it, the status and assignee are already changed).

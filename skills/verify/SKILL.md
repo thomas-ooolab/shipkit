@@ -47,13 +47,13 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
 ## Write surface
 1. **Evidence files:** `.shipkit/evidence/<TICKET>/<id>-<slug>-after.png|txt` (and `-before` when a
    bug was reproduced first). `<id>` = `REQ-NNN` or the concern number. No code, no git/Bitbucket call.
-2. **The one evidence comment on the ticket** — **feature runs only** (spec-driven, no `--concern`), only on
+2. **The one evidence comment on the ticket** — a feature run (spec-driven) or a `--concern` run (a bug fix), only on
    `PASS`. A normal run only **drafts** it into `.shipkit/evidence/<TICKET>/jira-comment-<date-time>.md` (Step 6) and sends
    nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right after
    it has changed the ticket's status and assignee, once the draft passes Step 7's completeness check (no approval wait). It is created once; every later send
-   **edits that same comment in place and never posts a second one**. `--concern` runs (how `/bugfix` calls it)
-   and `--no-jira` never draft or send a Jira comment — the caller's own comment carries the evidence; a `--concern` run still writes
-   the evidence *table* for the caller to paste (the same `jira-comment-<date-time>.md`, Step 6). (Optional: with `--ticket` and
+   **edits that same comment in place and never posts a second one**. A `--concern` run (how `/bugfix` calls it) writes the bug fix's
+   evidence *table* into the same `jira-comment-<date-time>.md` (Step 6) for `/bugfix` to paste into its tick comment, and `/merge`
+   sends that table the same way as a feature's, as its own comment. `--no-jira` never drafts or sends a Jira comment. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
    click, call endpoints) to exercise a scenario, using test data you create for it; DB access is `SELECT` only,
@@ -251,7 +251,7 @@ and again when the user asks for the Jira comment ("soạn jira") with the evide
 `.shipkit/evidence/<TICKET>/jira-comment-<YYYYMMDD-HHMM>.md`, the table for a feature and the table for a bug fix (FE proof is the
 embedded screenshot or the quoted text proof, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
 them. **Verify never posts or edits a Jira comment in a normal run:** a feature's evidence reaches the ticket only when `/merge`
-has changed its status and assignee (Step 7); a bug fix's table is pasted by `/bugfix` into its own comment.
+has changed its status and assignee (Step 7), a bug fix's table included; `/bugfix` also pastes the rows into its own tick comment.
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` after it has changed the status and assignee)
 **REQUIRED in send mode:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/send-evidence.md` and follow it. It reads the saved
