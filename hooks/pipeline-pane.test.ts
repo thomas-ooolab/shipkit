@@ -530,6 +530,8 @@ test('parseBugfix and parsePrLoop read what the loops are still waiting for, and
   expect(parseBugfix('silent_ticks: 2\npending_comment: null\n## Concerns (QC comment 46702)\n- [x] 1 done\n- [ ] 2 open\n- [ ] 3 open\n## Boris decisions\n- [ ] not a concern\n')).toEqual({ open: 2, silent: 2, pending: false })
   expect(parseBugfix('pending_comment: .shipkit/drafts/b.md\n## Concerns\n- [ ] 1\n')).toEqual({ open: 1, silent: 0, pending: true })
   expect(parseBugfix('# nothing')).toEqual({ open: 0, silent: 0, pending: false })
+  // a draft that only reports fixes (every concern checked off) is not a message the user must confirm before the pipeline goes on
+  expect(parseBugfix('pending_comment: .shipkit/bugfix-AR-1-draft.md\n## Concerns\n- [x] 1 fixed + verified\n- [x] 2 fixed + verified\n')).toEqual({ open: 0, silent: 0, pending: false })
   const pr = '# PR loop state\nsilent_ticks: 1\nround: 2\npending_action: null\n## PR approvals\n- ai-roleplay-be #294 — lgtm@abc123\n- ai-roleplay #467 — pending\n- ai-roleplay-sdd #142 — changes\n## Concerns\n- [ ] x\n'
   expect(parsePrLoop(pr)).toEqual({ waiting: 2, total: 3, round: 2, silent: 1, pending: false })
   expect(parsePrLoop(pr.replace('pending_action: null', 'pending_action: post the reminder to Slack')).pending).toBe(true)

@@ -150,12 +150,13 @@ export const parseClarify = (md: string): { pending: boolean; silent: number; ro
   rounds: Number(/^follow_up_rounds:[ \t]*(\d+)/m.exec(md)?.[1] ?? 0),
 })
 
-// /bugfix's state file: the concerns still unchecked, and the poll windows the reporter has stayed silent
-export const parseBugfix = (md: string): { open: number; silent: number; pending: boolean } => ({
-  open: openItems(md, '## Concerns').length,
-  pending: isSet(md, 'pending_comment'),
-  silent: Number(/^silent_ticks:[ \t]*(\d+)/m.exec(md)?.[1] ?? 0),
-})
+// /bugfix's state file: the concerns still unchecked, and the poll windows the reporter has stayed silent.
+// `pending` = a drafted comment waits for the user's go-ahead AND something is still open: a draft that only reports fixes leaves
+// every concern checked off (/bugfix, "Pending and skipped drafts"), asks nobody anything and must not hold the pipeline's buttons.
+export const parseBugfix = (md: string): { open: number; silent: number; pending: boolean } => {
+  const open = openItems(md, '## Concerns').length
+  return { open, pending: open > 0 && isSet(md, 'pending_comment'), silent: Number(/^silent_ticks:[ \t]*(\d+)/m.exec(md)?.[1] ?? 0) }
+}
 
 // /pr's state file: how many PRs have no `lgtm@<sha>` yet (`pending` or `changes`), of how many, the Slack round and the silence
 export const parsePrLoop = (md: string): { waiting: number; total: number; round: number; silent: number; pending: boolean } => {
