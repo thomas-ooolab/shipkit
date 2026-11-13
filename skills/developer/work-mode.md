@@ -1,6 +1,6 @@
 # /developer — daily briefing, continue a ticket, start mode
 
-> Loaded by SKILL.md for the daily briefing, for continuing a ticket, and for Start mode. The Slack answering rules (read-only, post directly, language, verified answers) stay in SKILL.md and apply here too.
+> Loaded by SKILL.md for the daily briefing, for continuing a ticket, and for Start mode. The Slack answering rules (read-only, post directly, language, verified answers) stay in SKILL.md and apply here too. So does waiting for a person's answer: a DM you sent is waited on with `wait-for-slack-reply.sh --until dm <D…> <sent_ts> <me>` (SKILL.md, *Step 3 — Watch*), never with the thread scripts and the ts of the message you sent, and never with a script of your own; `${CLAUDE_PLUGIN_ROOT}/references/existing-scripts.md` lists the scripts that exist.
 
 ## Daily briefing (first run of the day, every mode)
 Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks which

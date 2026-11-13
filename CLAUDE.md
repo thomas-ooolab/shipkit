@@ -31,4 +31,7 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
 - Never write a dollar sign followed by a digit in a SKILL.md command (awk's third-field print, positional shell args): the skill loader
   substitutes them with the command's arguments. Use `git rev-parse HEAD:<path>`, `sed` with a backslash-digit group, or a
   script file.
+- Before a skill writes a new script or a long one-off command, look in `references/existing-scripts.md`, `scripts/` and the other
+  skills' folders: reuse a script that does it, extend one that nearly does (a mode or flag, same exit codes and error text, a
+  `--self-test` case), and write a new one only when none fits — then add its row to `references/existing-scripts.md`.
 - Secrets never go on a command line: pass them to curl on stdin (`curl -K -`), as `merge-pr.sh` and `bitbucket-api.sh` do.

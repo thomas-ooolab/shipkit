@@ -217,6 +217,19 @@ posted. Exit codes:
 - **3** token unset → tell the user, stop. **4** Slack rejected (token/scope/channel/thread) → tell
   the user, don't retry. **6** wrong ts → relaunch with the root ts the script prints.
 
+**A DM you sent, and the user says to wait for the answer.** The answer is a top-level message of the `D…` channel, not a reply in a thread,
+so the two thread scripts above never see it: given the ts of the DM you just sent they wait for ever (it happened twice). Use the DM mode of the
+same poller — `channel` is the `D…`/`G…` id (`post-slack.js` prints `channel=<id>` on stderr when it was given a user id; the id you sent to otherwise),
+`<sent_ts>` is the `ts` from its `OK ts=…` line (`ts=-` → the ts of your message from `conversations.history`, `limit=1`):
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-slack-reply.sh" --until dm <channel_id> <sent_ts> <my_account_id> [interval_s] [max_minutes]
+```
+Run it with `Bash(run_in_background: true)`; same exit codes (**0** `NEW <n> latest_ts=<ts> author=<user>` → read the DM with `conversations.history`
+`oldest=<sent_ts>` and answer from there; **2** nothing yet → relaunch; **3**/**4** as above, `missing_scope` = `im:history` / `mpim:history`). It also
+fires when the person answers in a thread under your message. Needs only `SLACK_REVIEW_TOKEN`: the push script and the Observer need
+`SLACK_APP_TOKEN` and a thread, so they do not apply. Do not write a throwaway poll script for this, or for anything else this skill does:
+`${CLAUDE_PLUGIN_ROOT}/references/existing-scripts.md` lists what exists — run it, or extend it in the plugin, and write a new script only when none fits.
+
 ## Stop
 Stop and report to the user when: the asker says it's solved/thanks (post a short acknowledgment in
 their language first, then delete the state file); `silent_ticks` hits 3; `round` hits 5 with the

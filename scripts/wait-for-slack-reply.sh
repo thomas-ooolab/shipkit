@@ -16,6 +16,16 @@
 #     of your own trigger message, else the previous round's answer reads as "changed" on poll one.
 #     Prints `AGENT REPLIED: <text>`; the caller classifies it ("LGTM after X" is NOT an approval).
 #
+#   dm       (/developer, a DM you sent and now wait on)  the other person answered in a DM / group DM. A
+#     DM answer is a TOP-LEVEL message of the D…/G… channel, not a reply in a thread, so the thread
+#     modes above never see it (they would wait forever). This one polls conversations.history.
+#     usage: wait-for-slack-reply.sh --until dm <channel_id> <after_ts> <my_user_id> [interval_s] [max_minutes]
+#     <channel_id> = the D…/G… id and <after_ts> = the ts that post-slack.js printed for the message you
+#     sent (`channel=D… ts=…`). Messages by <my_user_id> never count. Also fires when someone else replied
+#     in a thread under that very message. Prints `NEW <count> latest_ts=<ts> author=<user>`; the CALLER
+#     reads the DM (conversations.history, oldest=<after_ts>) and decides what to do. Needs im:history
+#     (1:1 DM) or mpim:history (group DM) on the user token.
+#
 # <thread_ts>/<parent_ts> is the thread ROOT.
 #
 # exit 0  news — the CALLER reads the thread (conversations.replies) and decides what to do.
@@ -35,6 +45,52 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PR_DIR="${HERE}/../skills/pr"
 API="${SLACK_API_BASE:-https://slack.com/api}"
 
+if [ "${1:-}" = "--self-test" ]; then
+  # Local mock of conversations.history: the channel id picks the scenario. Checks the dm mode end to end.
+  tmp=$(mktemp -d); srv=""; trap 'kill $srv 2>/dev/null; rm -rf "$tmp"' EXIT
+  cat >"$tmp/mock.py" <<'PY'
+import http.server, json, sys, urllib.parse
+n = {}
+class H(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+    def do_GET(self):
+        u = urllib.parse.urlparse(self.path); q = urllib.parse.parse_qs(u.query)
+        ch = q.get("channel", [""])[0]; n[ch] = n.get(ch, 0) + 1
+        good = (u.path == "/conversations.history" and q.get("oldest") == ["100.000000"]
+                and q.get("inclusive") == ["true"] and self.headers.get("Authorization") == "Bearer xoxp-test")
+        mine = {"ts": "100.000000", "user": "UME", "text": "q"}
+        other = {"ts": "101.000000", "user": "UOTHER", "text": "a"}
+        own_thread = dict(mine, thread_ts="100.000000", reply_count=1, reply_users=["UME"], latest_reply="100.500000")
+        body = {"ok": False, "error": "bad_request"}
+        if good and ch == "DOTHER": body = {"ok": True, "messages": [other, mine]}
+        elif good and ch == "DLATER": body = {"ok": True, "messages": [other, mine] if n[ch] > 1 else [own_thread]}
+        elif good and ch == "DTHREAD": body = {"ok": True, "messages": [dict(mine, thread_ts="100.000000", reply_count=1, reply_users=["UOTHER"], latest_reply="102.000000")]}
+        elif good and ch == "DERR": body = {"ok": False, "error": "channel_not_found"}
+        elif good and ch == "DEMPTY": body = {"ok": True, "messages": [mine]}
+        data = json.dumps(body).encode()
+        self.send_response(200); self.send_header("Content-Type", "application/json"); self.end_headers(); self.wfile.write(data)
+s = http.server.HTTPServer(("127.0.0.1", 0), H)
+open(sys.argv[1], "w").write(str(s.server_port)); s.serve_forever()
+PY
+  python3 -I "$tmp/mock.py" "$tmp/port" & srv=$!
+  for _ in $(seq 1 50); do [ -s "$tmp/port" ] && break; sleep 0.1; done
+  [ -s "$tmp/port" ] || { echo "self-test: mock did not start" >&2; exit 1; }
+  bad=0
+  check() { # <label> <want exit> <want stdout regex> <channel> <max_minutes> — dm mode against the mock
+    local out code
+    out=$(SLACK_API_BASE="http://127.0.0.1:$(cat "$tmp/port")" SLACK_REVIEW_TOKEN=xoxp-test \
+      bash "$0" --until dm "$4" 100.000000 UME 1 "$5" 2>"$tmp/err"); code=$?
+    if [ "$code" = "$2" ] && printf '%s\n' "$out" | grep -Eq "$3" && ! printf '%s\n%s\n' "$out" "$(cat "$tmp/err")" | grep -q xoxp-test; then echo "  ok $1"
+    else echo "  FAIL $1 (exit $code, wanted $2; stdout: $out; stderr: $(cat "$tmp/err"))"; bad=1; fi
+  }
+  check "answer in the DM"                       0 '^NEW 1 latest_ts=101.000000 author=UOTHER$' DOTHER 1
+  check "keeps polling past my own message"      0 '^NEW 1 latest_ts=101.000000 author=UOTHER$' DLATER 1
+  check "someone else replied under my message"  0 '^NEW 1 latest_ts=102.000000 author=UOTHER$' DTHREAD 1
+  check "Slack error"                            4 '^$' DERR 1
+  check "deadline reached, nothing new"          2 '^$' DEMPTY 0
+  [ "$bad" = 0 ] && echo "self-test ok"; exit "$bad"
+fi
+
 MODE=others
 if [ "${1:-}" = "--until" ]; then
   MODE="${2:-}"
@@ -50,6 +106,14 @@ case "$MODE" in
     INTERVAL="${5:-15}"
     TIMEOUT_MIN="${6:-60}"
     LIMIT=200
+    ;;
+  dm)
+    CHANNEL="${1:?usage: wait-for-slack-reply.sh --until dm <channel_id> <after_ts> <my_user_id> [interval_s] [max_minutes]}"
+    AFTER_TS="${2:?missing after_ts (the ts post-slack.js printed for the message you sent)}"
+    ME="${3:?missing my_user_id}"
+    INTERVAL="${4:-15}"
+    TIMEOUT_MIN="${5:-60}"
+    LIMIT=50
     ;;
   verdict)
     THREAD_TS="${1:?usage: wait-for-slack-reply.sh --until verdict <parent_ts> [channel_id] [timeout_minutes] [after_ts]}"
@@ -92,7 +156,7 @@ PYCFG
     last_wait=none
     ;;
   *)
-    echo "usage: wait-for-slack-reply.sh [--until others|verdict] ... (see the header of this script)" >&2
+    echo "usage: wait-for-slack-reply.sh [--until others|dm|verdict] ... (see the header of this script)" >&2
     exit 2
     ;;
 esac
@@ -111,11 +175,38 @@ deadline=$(( $(date +%s) + TIMEOUT_MIN * 60 ))
 while [ "$(date +%s)" -lt "$deadline" ]; do
   # || true so one transient network failure never kills the wait.
   # the token goes to curl on stdin (a curl config), not onto its command line (visible in `ps`)
-  resp=$(printf 'header = "Authorization: Bearer %s"\n' "$SLACK_REVIEW_TOKEN" | curl -sS -K - --max-time 20 \
-    --data-urlencode "channel=${CHANNEL}" --data-urlencode "ts=${THREAD_TS}" \
-    --data-urlencode "limit=${LIMIT}" -G "${API}/conversations.replies" 2>/dev/null) || true
+  if [ "$MODE" = dm ]; then
+    # a DM answer is a top-level message: read the channel's history after our own message, our message included (its thread)
+    resp=$(printf 'header = "Authorization: Bearer %s"\n' "$SLACK_REVIEW_TOKEN" | curl -sS -K - --max-time 20 \
+      --data-urlencode "channel=${CHANNEL}" --data-urlencode "oldest=${AFTER_TS}" --data-urlencode "inclusive=true" \
+      --data-urlencode "limit=${LIMIT}" -G "${API}/conversations.history" 2>/dev/null) || true
+  else
+    resp=$(printf 'header = "Authorization: Bearer %s"\n' "$SLACK_REVIEW_TOKEN" | curl -sS -K - --max-time 20 \
+      --data-urlencode "channel=${CHANNEL}" --data-urlencode "ts=${THREAD_TS}" \
+      --data-urlencode "limit=${LIMIT}" -G "${API}/conversations.replies" 2>/dev/null) || true
+  fi
 
-  if [ "$MODE" = verdict ]; then
+  if [ "$MODE" = dm ]; then
+    state=$(printf '%s' "$resp" | AFTER_TS="$AFTER_TS" ME="$ME" python3 -c '
+import json, os, sys
+from decimal import Decimal
+try:
+    r = json.load(sys.stdin)
+except Exception:
+    print("retry"); sys.exit()
+if not r.get("ok"):
+    print("SLACK_ERROR|%s" % r.get("error", "unknown")); sys.exit()
+after, me, hits = Decimal(os.environ["AFTER_TS"]), os.environ["ME"], []
+for m in r.get("messages", []):
+    if Decimal(m["ts"]) > after and m.get("user") != me:
+        hits.append((Decimal(m["ts"]), m["ts"], m.get("user", "?")))
+    elif Decimal(m["ts"]) == after and Decimal(m.get("latest_reply", "0")) > after:
+        who = [u for u in m.get("reply_users", []) if u != me]  # someone answered in a thread under our message
+        if who: hits.append((Decimal(m["latest_reply"]), m["latest_reply"], who[-1]))
+top = max(hits) if hits else None
+print("NEW %d latest_ts=%s author=%s" % (len(hits), top[1], top[2]) if top else "waiting")
+' 2>/dev/null) || true
+  elif [ "$MODE" = verdict ]; then
     state=$(printf '%s' "$resp" | BOT_ID="$BOT_ID" PARENT_TS="$THREAD_TS" AFTER_TS="$AFTER_TS" python3 "${PR_DIR}/verdict-predicate.py" 2>/dev/null) || true
   else
     state=$(printf '%s' "$resp" | THREAD_TS="$THREAD_TS" AFTER_TS="$AFTER_TS" ME="$ME" python3 -c '
@@ -171,8 +262,12 @@ print("NEW %d latest_ts=%s author=%s" % (len(new), new[-1]["ts"], new[-1].get("u
           echo "  /invite for it in that channel." >&2
           ;;
         missing_scope)
-          echo "SLACK_ERROR: $err — token lacks groups:history (a PRIVATE channel needs it;" >&2
-          echo "  channels:history covers public only). Re-check the app's scopes." >&2
+          if [ "$MODE" = dm ]; then
+            echo "SLACK_ERROR: $err — token lacks im:history (1:1 DM) or mpim:history (group DM). Re-check the app's scopes." >&2
+          else
+            echo "SLACK_ERROR: $err — token lacks groups:history (a PRIVATE channel needs it;" >&2
+            echo "  channels:history covers public only). Re-check the app's scopes." >&2
+          fi
           ;;
         invalid_auth|token_revoked|account_inactive)
           echo "SLACK_ERROR: $err — the token is bad or revoked. Check \$SLACK_REVIEW_TOKEN." >&2
@@ -188,7 +283,7 @@ print("NEW %d latest_ts=%s author=%s" % (len(new), new[-1]["ts"], new[-1].get("u
   sleep "$INTERVAL"
 done
 
-if [ "$MODE" = others ]; then
+if [ "$MODE" = others ] || [ "$MODE" = dm ]; then
   echo "TIMEOUT after ${TIMEOUT_MIN}m: nothing new from anyone else." >&2
 elif [ "${last_wait:-none}" = "none" ]; then
   echo "TIMEOUT after ${TIMEOUT_MIN}m: the agent has posted NOTHING in this thread. It never picked" >&2
