@@ -34,4 +34,7 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
 - Before a skill writes a new script or a long one-off command, look in `references/existing-scripts.md`, `scripts/` and the other
   skills' folders: reuse a script that does it, extend one that nearly does (a mode or flag, same exit codes and error text, a
   `--self-test` case), and write a new one only when none fits — then add its row to `references/existing-scripts.md`.
+- A skill that answers a person or reports a result points to `references/answer-with-evidence.md` (every claim has evidence fetched
+  in that turn; a fact a read-only check can settle is checked before the answer, "not verified" only for what cannot be checked, with
+  what blocks it, who opens it and what was tried) instead of restating it, and never words an answer "not checked" for something it could have read.
 - Secrets never go on a command line: pass them to curl on stdin (`curl -K -`), as `merge-pr.sh` and `bitbucket-api.sh` do.

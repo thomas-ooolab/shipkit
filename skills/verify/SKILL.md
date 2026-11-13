@@ -28,7 +28,8 @@ it does not edit code.
 >
 > **Evidence rule.** A passing unit test is not a pass. A check is `PASS` only when its evidence file exists
 > and you opened it and confirmed it shows the expected behavior. Can't run it (missing env, creds, data) →
-> `UNVERIFIED` with the exact blocker, never inferred from code or tests.
+> `UNVERIFIED` with the exact blocker, never inferred from code or tests. The same holds for every other claim in the report:
+> `${CLAUDE_PLUGIN_ROOT}/references/answer-with-evidence.md` (checkable → check first; the blocker names who opens it and what was tried).
 >
 > **Never-guess rule.** Unknown running route, API base URL, environment or contract → AskUserQuestion.
 > Don't assume the dev-server URL or which component to check.

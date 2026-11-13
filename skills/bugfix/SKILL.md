@@ -28,6 +28,8 @@ concern whose comment asks someone something is not checked off until that comme
 
 **REQUIRED:** every write to Slack or Jira goes through the plugin's scripts, never an MCP write tool: `${CLAUDE_PLUGIN_ROOT}/references/write-through-scripts.md`.
 
+**REQUIRED:** every claim in a triage, a comment or a report (what the code does, what a config or a server holds, whether a fix is deployed) rests on evidence fetched in that turn; a fact a read-only check can settle is checked before the answer, and "not verified" is only for what cannot be checked, with what blocks it, who opens it and what was tried: `${CLAUDE_PLUGIN_ROOT}/references/answer-with-evidence.md`.
+
 Business-language example for this skill — Bad: "`CanViewCallReview` gates on `c.RecordedAt.After(m.AssignedAt)`, so this is by design." Good: "That's how it's built today — a manager only sees calls recorded after they joined the team, not the team's full history before that. Wanted to check: should managers see everything the team ever recorded, or only what happened since they joined?"
 
 One more excuse that belongs to this skill:

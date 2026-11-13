@@ -15,7 +15,8 @@ nothing. **PR mode** (`--pr`) reviews an open Bitbucket PR diff and posts a lock
 One quality bar, two surfaces.
 
 > **Cite-sources rule.** Every finding traces to a specific diff line or a confirmed rubric
-> observation. Never report a finding not grounded in the diff.
+> observation. Never report a finding not grounded in the diff. A fact a finding or a "this is fine" rests on beyond the
+> diff (what a config holds, what a callee does) is read in that turn, never assumed: `${CLAUDE_PLUGIN_ROOT}/references/answer-with-evidence.md`.
 >
 > **Never-guess rule.** If the mode/target is ambiguous, AskUserQuestion. Don't assume a PR or ticket.
 >

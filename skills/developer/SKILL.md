@@ -100,8 +100,11 @@ still none → ask the user once.
 A support answer is a claim about the product. Before replying, find the answer in the **real source**
 (grep/read the relevant submodule as set by *Ground the code* — not `specs/` or `docs/`) and, when a ticket key appears in the
 thread, the live Jira ticket (`getJiraIssue`: description, comments, status). Cite nothing you did not
-read. Nothing verifiable → post a short "let me check and get back to you" in the thread's language,
-tell the user in the terminal what is unresolved, and wait.
+read. A fact the answer needs that a read-only action can check — a file, a grep, a config value, a read-only command or `GET` on a
+non-production host this session can already reach — is checked **before** you reply, and the answer says what it showed
+(`${CLAUDE_PLUGIN_ROOT}/references/answer-with-evidence.md`; never "not checked" on something you could have read). Only what cannot be checked
+(no access, someone else must act, a side effect) → post a short "let me check and get back to you" in the thread's language, naming what blocks it, who or what
+opens it and what you tried, tell the user in the terminal what is unresolved, and wait.
 
 Never commit the user to anything: dates or ETAs, refunds or pricing, granting access, prod/data
 changes, "we'll fix it in X". Those get "let me check with the team" in the thread plus a terminal
