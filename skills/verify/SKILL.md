@@ -253,6 +253,7 @@ and again when the user asks for the Jira comment ("soạn jira") with the evide
 embedded screenshot or the quoted text proof, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
 them. **Verify never posts or edits a Jira comment in a normal run:** a feature's evidence reaches the ticket only when `/merge`
 has changed its status and assignee (Step 7), a bug fix's table included; `/bugfix` also pastes the rows into its own tick comment.
+The report of a normal run says the draft is ready and where it is, nothing about sending: no "will be sent", no "sent", no mention of `--send-evidence`.
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` after it has changed the status and assignee)
 **REQUIRED in send mode:** Read `${CLAUDE_PLUGIN_ROOT}/skills/verify/send-evidence.md` and follow it. It reads the saved

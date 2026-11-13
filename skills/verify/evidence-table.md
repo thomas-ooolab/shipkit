@@ -79,5 +79,5 @@ the screenshot, or re-run the check) to the person. Silently weakening a claim h
 
 ## After writing
 
-Report `verify: evidence for <TICKET> ready — <path>` (add "it will be sent by /merge right after it changes the status and assignee" — for a feature and for a bug fix alike).
-Stop there: sending is Step 7.
+Report `verify: evidence for <TICKET> ready — <path>` and stop there: no sentence about the comment being sent, going to be sent or by whom
+(`/merge` sends it, Step 7, and reports that itself), for a feature and for a bug fix alike.
