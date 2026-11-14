@@ -19,6 +19,7 @@ run "after-hours-push-guard hook"       python3 -I hooks/after-hours-push-guard.
 run "hooks.json is valid JSON"         python3 -I -c "import json; json.load(open('hooks/hooks.json'))"
 run "jira-comment.py"                   python3 -I scripts/jira-comment.py --self-test
 run "review-delta.py"                   python3 -I scripts/review-delta.py --self-test
+run "set-output-style.py"               python3 -I scripts/set-output-style.py --self-test
 run "merge-pr.py"                       python3 -I skills/merge/merge-pr.py --self-test
 run "pipelines-status.py"               python3 -I skills/merge/pipelines-status.py --self-test
 run "verdict-predicate tests"           python3 -I skills/pr/test-verdict-predicate.py

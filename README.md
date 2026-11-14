@@ -366,6 +366,26 @@ only; older versions and `claude -p` simply do not show it. It reads the state f
 
 **The check.** The files only claim a state, so `/stages` also starts a check by a read-only agent (`shipkit:pipeline-collector`, hidden from the model) that runs on Haiku (one constant, `COLLECTOR_MODEL` in `hooks/pipeline-pane.tsx`, switches it to `inherit` for the session's own model). It is handed what the files say as claims, verifies them against the real sources (git, the spec directory, Bitbucket, Jira and Slack through their read tools) and answers JSON. The pane draws the files at once, shows `⟳ checking…`, then lays the answer over them: its value wins wherever it gave one (a key it left out was not checked, so the file's value stands), and each place that differs is marked `≠` (a stage row, whose state or detail lines differ, and `Next:`, `PRs:`); the checker is told to answer in fragments, and the pane cuts what is still long (a detail line to 80 characters and 4 per stage, `Next:` to 130). The answer is read defensively (a stage the state file does not list, a link that is not https or a value of the wrong shape is dropped). The agent has `Read`, `Grep`, `Glob`, `Bash` and the Jira/Slack read tools (it finds the review thread through `skills/pr/config.json` and `thread_ts` in `.shipkit/pr-<ticket>.md`, since the reviewer's verdict is on Slack, not Bitbucket), and `Edit`/`Write` are withheld; that it never writes with `Bash` is its prompt's rule, not a sandbox. One check runs at a time, with a 4-minute limit; the `refresh` chip asks again, and while one runs it is an `X` chip that stops the agent with the `TaskStop` tool (the pane stops waiting at once and ignores a late answer; if the tool refuses, the agent is sent a message to stop; what it already used is spent); closing the pane (`Close`, or any other way) or ending the session stops a running check the same way, and the last answer stays on screen while the next is awaited. It costs Haiku tokens on every `/stages` and every refresh.
 
+## Output style (opt-in)
+
+The plugin ships `output-styles/shipkit.md`: finished work is reported as the result first, then only what was done differently, what is
+blocked and what cannot be known (a check that passed gets no line); a question is answered in plain sentences, answer first; claims rest
+on evidence read in the same turn. `check-skills.py` fails if the file loses `keep-coding-instructions: true` or gains `force-for-plugin`. It is the session-wide form of the *Report style*
+block at the top of every `SKILL.md` (those blocks stay: a style does not reach subagents, so they keep binding the workers). The style does not
+turn itself on and has no `force-for-plugin`, so installing the plugin changes nothing. `/bootstrap` turns it on for the project it configures
+(local scope, `--keep-existing`: a style you already chose stays; audit / `--dry-run` writes nothing). By hand, set `outputStyle` there:
+
+```bash
+python3 -I scripts/set-output-style.py shipkit:shipkit            # .claude/settings.local.json — yours only (default scope)
+python3 -I scripts/set-output-style.py shipkit:shipkit --scope project   # .claude/settings.json — committed, the team's
+python3 -I scripts/set-output-style.py --clear             # remove the key;  --show lists the value in each file
+```
+
+The script edits only the `outputStyle` key, keeps every other key, and never overwrites a file that is not valid JSON. Inside a git
+worktree the local file is the main checkout's, as Claude Code itself reads it, so one run covers every worktree of the project. A running
+session picks the edit up from the next message. The style's name is `shipkit:shipkit` (a plugin's styles carry the plugin name as a prefix,
+checked with `/output-style` in Claude Code 2.1.325); a plain `shipkit` matches nothing and leaves the default style. `/output-style` with no argument lists the names.
+
 ## Developing shipkit itself
 
 `git config core.hooksPath .githooks` once per clone; the pre-commit hook runs `bash scripts/self-test.sh` — the pipeline

@@ -28,3 +28,4 @@ The checks stay in the plugin and the token stays off the command line (stdin to
 | Measure a page against a design contract | `scripts/recon-extract.js`, `scripts/recon.sh` |
 | Project facts, state of a ticket (spec, branch, PR) | `bash scripts/probe.sh` |
 | Review delta since the last reviewed sha | `python3 -I scripts/review-delta.py` |
+| Set, clear or show `outputStyle` in a project's, local or user settings file (other keys kept) | `python3 -I scripts/set-output-style.py` |

@@ -6,8 +6,8 @@ argument-hint: "[--dry-run | audit]"
 
 # shipkit · bootstrap
 
-<!-- report-style:v1 -->
-> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, with the reason; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
+<!-- report-style:v2 -->
+> **Report style.** While this skill runs, the words sent to the user are only: (a) the result, in this skill's own report template; (b) anything done differently from the skill, one line `- <item>: <what was done>`, for example `- service-fe #377: rebased` — a departure that left what was built unchanged is that line and nothing after it; one that changed what was built or what the user must do continues with that change; (c) what is blocked, or a decision only the user can make; (d) what the skill cannot know — an error, a measurement, a risk. Do not list the steps you are about to do that the skill already defines, do not repeat the skill's gates or rules — a gate that passed is silent (no "sign-off confirmed", "no conflict", "all checks passed" line), only a gate that failed is reported — do not summarise what you just said. A background wait is one line. No closing menu of "you decide" unless there is a real decision. The skill's report template is the whole report: no extra "Next" or "what's next" paragraph the template does not have.
 
 Set up shipkit for **this** project by writing one file — `.shipkit/config.yml`. Everything else
 (commands, templates) lives in the plugin. This is the only per-project state.
@@ -26,7 +26,8 @@ Set up shipkit for **this** project by writing one file — `.shipkit/config.yml
 ## Bounded scope
 Bootstrap configures shipkit's SDD workflow only. It does **not**: install dependencies, run tests,
 scaffold app code, write `.lsp.json` / format hooks, or rewrite `CLAUDE.md`. It reads `CLAUDE.md`
-for routing context but never overwrites it.
+for routing context but never overwrites it. Besides the config, its one other write is the `outputStyle`
+key of this project's `.claude/settings.local.json` (Step 6), and only when no style is chosen yet.
 
 ---
 
@@ -176,6 +177,17 @@ Create `.shipkit/` if absent. No confirmation.
 
 After writing, verify with `test -f .shipkit/config.yml`; if missing, report the failure and stop.
 
+Then turn on shipkit's output style for this project (not on audit / dry-run, which stopped at Step 5):
+
+```bash
+python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/set-output-style.py" shipkit:shipkit --keep-existing
+```
+
+A plugin's style is named `<plugin>:<style>`, so the value is `shipkit:shipkit`; plain `shipkit` matches no style. It prints one line
+(`set to 'shipkit:shipkit'`, `already 'shipkit:shipkit'`, or `kept as '<style>'` when the user had chosen another) —
+Step 7 quotes that line. Exit 1 (the settings file is not valid JSON) is reported as a blocker for that file only; the config is
+already written. Never pass `--scope user` or `--scope project` here: those change other people's sessions.
+
 ## Step 7 — Report
 Print the written file (or the diff on a re-run), then:
 ```
@@ -186,6 +198,7 @@ Print the written file (or the diff on a re-run), then:
    Sourced:    <value = winner (repo n, config n, memory n, claude-mem n), for project_key, base_url and
                any stack not probed — a source with no hit shows 0>
    Backed up:  <bak file or "none">
+   Style:      <the line set-output-style.py printed, path shortened to .claude/settings.local.json>
 
    Tip: commit .shipkit/config.yml so the whole team shares one config.
    Next: /run-pipeline <TICKET>

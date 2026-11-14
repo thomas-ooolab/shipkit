@@ -106,11 +106,22 @@ def review_loop_lint(loop, config):
         out.append("skills/pr/config.json waiter.default_timeout_minutes is below 20 (a full review takes 12-15 minutes)")
     return out
 
-REPORT_STYLE_MARK = "<!-- report-style:v1 -->"
+REPORT_STYLE_MARK = "<!-- report-style:v2 -->"
 
 def report_style_lint(text):
     """Every SKILL.md opens with the Report style block (written in the file, not pointed at); the fixed marker line must sit in its first 25 lines."""
     return [] if REPORT_STYLE_MARK in "\n".join(text.splitlines()[:25]) else [f"no '{REPORT_STYLE_MARK}' Report style block at the top of SKILL.md"]
+
+def output_style_lint(text):
+    """A shipped output style keeps Claude Code's coding instructions and never forces itself on: README promises that installing the plugin changes nothing, and force-for-plugin would override every user's outputStyle."""
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    head = m.group(1) if m else ""
+    out = [f"output style has no '{k}:' in its frontmatter" for k in ("name", "description") if not re.search(rf"^{k}:", head, re.M)]
+    if not re.search(r"^keep-coding-instructions:\s*true\s*$", head, re.M):
+        out.append("output style lost 'keep-coding-instructions: true'")
+    if re.search(r"^force-for-plugin:\s*true", head, re.M):
+        out.append("output style sets force-for-plugin: true, which overrides the user's outputStyle in every session")
+    return out
 
 def browser_lint(name, texts):
     """A skill that has an agent drive a browser must point at the rules and at the cleanup script (stopping an agent does not stop its browsers)."""
@@ -143,6 +154,11 @@ def self_test():
     assert report_style_lint("\n" * 40 + REPORT_STYLE_MARK) != []
     assert browser_lint("verify", "") != [] and browser_lint("x", "uses Playwright") != [] and browser_lint("x", "uses Playwright " + both) == []
     assert browser_lint("x", "no browsers here") == [] and browser_lint("assign", both) == [] and browser_lint("assign", "references/browser-agents.md") != []
+    st = "---\nname: s\ndescription: d\nkeep-coding-instructions: true\n---\nbody\n"
+    assert output_style_lint(st) == [] and output_style_lint("body only") != []
+    assert output_style_lint(st.replace("keep-coding-instructions: true", "keep-coding-instructions: false")) != []
+    assert any("force-for-plugin" in f for f in output_style_lint(st.replace("---\nbody", "force-for-plugin: true\n---\nbody")))
+    assert any("'description:'" in f for f in output_style_lint(st.replace("description: d\n", "")))
     print("check-skills: self-test ok")
 
 def main():
@@ -167,6 +183,8 @@ def main():
     lost = borrowed_lint(texts) + scoped_lint(texts) + premise_lint(texts) + transport_lint(texts.get("skills/assign/SKILL.md", ""))
     lost += review_loop_lint("\n".join((ROOT / "skills/pr" / n).read_text() for n in ("review-loop.md", "decisions-block.md", "per-pr-review.md", "SKILL.md")), json.loads((ROOT / "skills/pr/config.json").read_text()))
     lost += reuse_lint((ROOT / "skills/assign/orca-mode.md").read_text(), texts.get("skills/assign/SKILL.md", ""))
+    for f in sorted((ROOT / "output-styles").glob("*.md")):
+        lost += [f"{f.relative_to(ROOT)}: {o}" for o in output_style_lint(f.read_text())]
     for o in lost:
         bad += 1
         print(f"FAIL {o}")
