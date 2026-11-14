@@ -3,8 +3,8 @@
 > Loaded by SKILL.md for the daily briefing, for continuing a ticket, and for Start mode. The Slack answering rules (read-only, post directly, language, verified answers) stay in SKILL.md and apply here too. So does waiting for a person's answer: a DM you sent is waited on with `wait-for-slack-reply.sh --until dm <D…> <sent_ts> <me>` (SKILL.md, *Step 3 — Watch*), never with the thread scripts and the ts of the message you sent, and never with a script of your own; `${CLAUDE_PLUGIN_ROOT}/references/existing-scripts.md` lists the scripts that exist.
 
 ## Daily briefing (first run of the day, every mode)
-Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks which
-unfinished ticket, if any, to continue. **The briefing itself is read-only: it prints, writes the marker below and types into nothing.** What runs after it is *Start-of-day continue* (below): the user's own unfinished tickets are resumed with `/run-pipeline <KEY> auto`, unless the run was given `--no-continue` or names a target of its own.
+Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday, continues
+the unfinished tickets that are the user's own, and asks which new ticket to take. **The briefing itself is read-only: it prints, writes the marker below and types into nothing.** What runs after it is *Start-of-day continue* (below): the user's own unfinished tickets are resumed with `/run-pipeline <KEY> auto`, unless the run was given `--no-continue` or names a target of its own.
 
 **First run of the day** = `.shipkit/developer-daily.md` at the SDD root does not say today. Read it as
 `last_briefing: <YYYY-MM-DD>`; `today` = `date +%F`, with `TZ=<timezone>` in front when `.shipkit/config.yml` sets `timezone` (the day turns at local midnight there). Equal → skip
@@ -40,17 +40,16 @@ evidence of a stage → say `stage unknown`, never infer one.
 opened/merged, review loop running, wave running) and where it stands (Jira status, open PR). Nothing found → "no activity found
 yesterday (Orca worktrees, state files)". **Unfinished** = stage mid-pipeline (implement unfinished, verify, review, PR loop), or every PR merged while Jira has not moved
 on. The printing starts and types nothing; *Start-of-day continue* follows it. **Last lines**, in the user's language, one per outcome of that procedure:
-`<KEY>: continuing with /run-pipeline auto` for each ticket it started, `<KEY>: not continued — <reason>` for each unfinished ticket it did not. **Only
-when no ticket is unfinished** the last line is a short question about what they start today (with `--no-continue` it is instead one short question naming the unfinished tickets, as *Start-of-day continue* says). Merged and handed-over tickets with nothing
+`<KEY>: continuing with /run-pipeline auto` for each ticket it started, `<KEY>: not continued — <reason>` for each unfinished ticket it did not. **After them** comes the *Day plan* question (new tickets, ranked) whenever it has candidates; with `--no-continue` the line about the unfinished tickets is instead one short question naming them, as *Start-of-day continue* says. Merged and handed-over tickets with nothing
 pending are listed, not offered.
 
 **Don't slow the other modes.** Run the local reads in parallel with at most one Jira search; past ~20 s, print what is
 ready and mark the rest `not checked`. Observer mode starts watching right after printing — *Start-of-day continue* runs as background tasks and never blocks it. When the run already names its target (a
-ticket, URL or description), print the summary only — no question, nothing is continued, and *Start-of-day continue* does not run (the user chose another job).
+ticket, URL or description), print the summary only — no question, no *Start-of-day continue*, no *Day plan* (the user chose the job), and that target itself runs under `auto`: *Start mode* for a new ticket, *Continue a ticket* for one already in progress. A Slack thread URL is URL mode, unchanged; it too prints the summary only (no *Start-of-day continue*, no *Day plan*).
 
 ### Start-of-day continue
 Runs right after the briefing is printed and the marker written — first run of the day, every mode — unless `$ARGUMENTS` has `--no-continue` or names a target. It walks the briefing's
-**unfinished** tickets in the order printed and continues each through *Continue a ticket* steps 1–5, as a background task per ticket. A ticket is skipped, with one
+**unfinished** tickets in the order printed, then every other ticket that has a worktree and a `.shipkit/pipeline-<KEY>.md` whose `Status:` is not `done` and whose PRs are not all merged (in progress, only not touched in the briefing's window), and continues each through *Continue a ticket* steps 1–5, as a background task per ticket. A ticket is skipped, with one
 `<KEY>: not continued — <reason>` line, at the first of these that fails (each read that turn, none assumed):
 1. **Mine, by ID** (SKILL.md, *Hard rule: who owns a ticket*): a display name or a cc does not count.
 2. **It has its own Orca worktree and a `.shipkit/pipeline-<KEY>.md`.** A ticket with neither is listed, not started.
@@ -71,6 +70,14 @@ What differs from *Continue a ticket*: step 6's question is **not asked** — th
 | `/merge`, only when `loop-rules.md` §5 holds; then the Jira status, the assignee and a complete evidence comment, never asked | a held concern, a question for the PO, `verify` `INCOMPLETE`, a conflict with the target, 3 rounds of a stage or 6 of a ticket used |
 
 The standing go covers nothing outside the left column.
+
+### Day plan (new tickets)
+Only **tickets already in progress** run on their own. A **new** ticket never starts on its own: the user picks, each morning, which of them to take that day, from a list ordered by priority. Runs on the first run of the day, every mode, unless the run names a target (the *Day plan* is then not printed). `--no-continue` does not skip it: it only asks.
+1. **Candidates** (one read-only `searchJiraIssuesUsingJql`, failing → say `not checked` and ask what to start): `assignee = currentUser() AND statusCategory != Done ORDER BY priority DESC, duedate ASC, Rank ASC`, at most 10, minus every
+   key that has a local trace (an Orca worktree by *Worktree match*, a `.shipkit/*<KEY>*` state file in the root or a worktree) — those are in-progress tickets, handled by *Start-of-day continue*, never listed here.
+2. **Order** = the query's own order (Jira priority, then due date, then Jira rank), nothing re-ranked by guess. Print numbered, one line each: `<n>. <KEY> — <summary> · <priority> · due <date|—>`.
+3. **Ask** as the last line, in plain text (never a blocking prompt; Observer mode keeps watching, the answer arrives as an ordinary message): "Which of these do you take today? (numbers, in the order to start; none is fine)". Nothing is started before the answer. With the push window closed (`--minutes-left` prints 0) the line adds that picked tickets start now but their pushes wait for the next window.
+4. **The answer is the go, for those tickets and that day only.** Each picked ticket then runs *Start mode* under `auto`, all started at once, in the order the user gave, one background task each. A ticket the user did not pick is not started and not asked about again that day.
 
 ### Continue a ticket
 **Only for a ticket the user names in the conversation, answers yes to when the briefing asks, or that *Start-of-day continue* selects** — never for a ticket the user did not name unless it passes that procedure's four checks. Resume it **in that
@@ -101,8 +108,8 @@ would only bounce it). Run it as a background task so the observer is not blocke
    supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in
    `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen is relayed to the user (`needs attention — terminal <handle>`) and never answered with its default — *Start mode*'s default-answer rule does not apply to a continued ticket.
 6. **No blocker → ask the user for an explicit go, for this ticket, every time** (*Start-of-day continue* does not ask: its standing go and fixed text apply, above). The carry-on pushes branches, opens PRs and posts
-   review requests — outward-facing, hard to undo. Naming the ticket, a yes to the briefing question, or an earlier go for
-   another ticket or an earlier run is not that go. Say in one line what it will do and ask (in the user's language). Only on a
+   review requests — outward-facing, hard to undo. Naming the ticket in the conversation, a yes to the briefing question, or an earlier go for
+   another ticket or an earlier run is not that go — except that **`/developer <KEY | Jira URL>` is the go for that ticket**: the invocation names it, so the run asks nothing and sends the fixed carry-on of *Start-of-day continue*. Say in one line what it will do and ask (in the user's language). Only on a
    clear go (yes, go, run it) for `<KEY>`, tell it to carry on to the end, judged from the situation, not from a fixed next command; no answer or anything else → send nothing:
    `Continue <KEY> from its current state to the end of the pipeline: do exactly the next step the real situation calls for —
    judge it from the state files and the real state (git, PR, Jira), then use the fitting skill (for example /assign for
@@ -118,7 +125,8 @@ messages above (context-read, situation question, carry-on — the last one only
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira
 comment URL (`…?focusedCommentId=<id>`), or a plain description. The user asked, so there is no approval
-gate; nothing is posted to Slack or Jira. Every key must match `^[A-Z][A-Z0-9]+-\d+$` and every comment id
+gate, and the run goes on under `auto`: this skill posts nothing to Slack or Jira itself, and the pipeline it starts follows the table in *Start-of-day continue*
+(what runs alone, what waits for the user). Every key must match `^[A-Z][A-Z0-9]+-\d+$` and every comment id
 `^\d+$` before it is typed anywhere. Resolve `ORCA` and load the `orca-cli` skill; `ORCA worktree list --json`
 fails → tell the user and stop. Never `ORCA open`.
 1. **Read fast, decide the intent.** Read what the input points at: `getJiraIssue` (type, summary, description,
@@ -128,9 +136,9 @@ fails → tell the user and stop. Never `ORCA open`.
 
    | Intent | Observable | Coordinator runs |
    |---|---|---|
-   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (never sent by this chain — the user runs it when an open question stops the chain), `/design-recon --ticket <KEY>` (only when the ticket names a visual reference: a screenshot, an HTML prototype or a design link), `/plan-deep --ticket <KEY> --auto`, then `/assign <KEY> --agent kiro` **only when the *Assign gate* of step 3 passes** |
-   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/run-pipeline <KEY> --bug [<commentId>] --agent kiro` (first stage `/bugfix`, then verify when the spec changed, review, PR, merge) |
-   | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/bootstrap`, `/plan-deep --ticket <KEY> --auto`, then `/assign <KEY> --agent kiro` only when the *Assign gate* passes — never `/spec-from-ticket` |
+   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/bootstrap`, `/spec-from-ticket <KEY>`, `/clarify <KEY>` (never sent by this chain — the user runs it when an open question stops the chain), `/design-recon --ticket <KEY>` (only when the ticket names a visual reference: a screenshot, an HTML prototype or a design link), `/plan-deep --ticket <KEY> --auto`, then `/run-pipeline <KEY> auto` **only when the *Assign gate* of step 3 passes** (it dispatches `/assign` itself and goes on to review, verify, PR and merge) |
+   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/bootstrap`, then `/run-pipeline <KEY> --bug [<commentId>] --agent kiro auto` (first stage `/bugfix`, then verify when the spec changed, review, PR, merge) |
+   | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/bootstrap`, `/plan-deep --ticket <KEY> --auto`, then `/run-pipeline <KEY> auto` only when the *Assign gate* passes — never `/spec-from-ticket` |
    | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |
 
    Resume check (for anything that is not a bug): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*'` in
@@ -155,9 +163,9 @@ fails → tell the user and stop. Never `ORCA open`.
    | yes | yes | **reuse** |
    | yes | no | **replace**: the work is in the target and nothing else lives here |
 
-   **Reuse:** standard / resume → `ORCA terminal list --worktree <id> --json`: terminals listed → tell the user its path and
-   terminal titles and stop, never a second set; none listed (a failed start was closed) → reuse the worktree and open a
-   fresh coordinator. Bug → reuse it and open the coordinator (step 2, *Reused worktree*): the fix goes on the unmerged branch.
+   **Reuse:** standard / resume → `ORCA terminal list --worktree <id> --json`: terminals listed → this is a ticket already in progress, so
+   *Continue a ticket* takes over (steps 1–5; the invocation is the go, step 6) — never a second set of terminals; none listed (a failed start was closed) → reuse the worktree and open a
+   fresh coordinator. Bug → reuse it: terminals listed → *Continue a ticket* as above; none listed → open the coordinator (step 2, *Reused worktree*); the fix goes on the unmerged branch.
    **Replace:** first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
    an agent idle at its input box is fine; one in the middle of a turn, or waiting on a person → tell the user and stop, delete nothing. Then
    `ORCA worktree rm --worktree id:<repoId>::<path> --json` (never `--force`: git refuses a dirty tree, which is the guard;
@@ -211,23 +219,23 @@ fails → tell the user and stop. Never `ORCA open`.
      `input_accepted` — it is unconfirmed: `terminal read` and confirm the agent is working before the next step. Text
      landed in a shell (the screen shows a shell prompt and the text as a command) → close that terminal and tell the user.
    - **Finished:** `terminal wait --for tui-idle --timeout-ms 600000`, then `terminal read`. Next message only
-     when the screen shows it done, not waiting on a question. `/run-pipeline --bug` (which dispatches `/bugfix`) and `/assign` are last messages and run
-     their own loop: stop after the send is submitted, no finished-wait.
+     when the screen shows it done, not waiting on a question. `/run-pipeline` (any flow; it dispatches `/bugfix`, `/assign` and the later stages) is a last message and runs
+     its own loop: stop after the send is submitted, no finished-wait.
    - **Assign gate** (standard, resume — after `/plan-deep` finished, before `/assign`): the chain sends `/assign` only when the
      coordinator is not waiting on a person or mid-turn **and** the `clarify`, `plan` and `design-recon` predicates of
      `${CLAUDE_PLUGIN_ROOT}/skills/run-pipeline/SKILL.md` Step 2 all hold — read from the spec dir's files, not the agent's say-so; this is the one
      definition of "plan ready", the same `/run-pipeline` uses (a design-recon with no artifact fails its predicate — that is a blocker). The screens of
      `/spec-from-ticket`, `/design-recon` or `/plan-deep` also block when they show a failure or an unanswered question. Any miss → send nothing, exit, and this
      session tells the user the blocker in one line (which OQ or which step) —
-     the user resolves it in the coordinator terminal and sends `/assign` themselves. None → send `/assign <KEY> --agent kiro` as the last message.
+     the user resolves it in the coordinator terminal and sends `/run-pipeline <KEY> auto` themselves. None → send `/run-pipeline <KEY> auto` as the last message.
    - **Question on screen:** a question that offers a recommended default (marked recommended, or the first option) →
      send that default yourself, no relay. Surface it only when it has no default or is destructive (force-push, delete,
      overwrite): tell the user once, naming the terminal and the question, never answer for them, then relaunch the background task (it waits
      for idle and re-reads there). The user answers in the terminal; the skill sees the question gone and sends the next
      message by itself — no "go" needed. Still unanswered after 3 waits → stop and report.
-4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then, if the *Assign gate* passes, `/assign` is running in terminal
+4. **Report.** Keep it to a line or two. Resume: say `/plan-deep` then, if the *Assign gate* passes, `/run-pipeline auto` is running in terminal
    `<handle>` on the existing branches. Standard: say the chain (`/spec-from-ticket`, `/design-recon` when it applies, `/plan-deep`) is running in terminal
-   `<handle>`, that `/assign` follows only when no open question or blocker remains — else it stops and says which — and that kiro
+   `<handle>`, that `/run-pipeline auto` follows only when no open question or blocker remains — else it stops and says which — and that kiro
    terminals appear per submodule once `/assign` hands out tasks. Bug: say
-   `/run-pipeline --bug` is running in terminal `<handle>` (`/bugfix` first: it hands the fix to kiro through `/assign`, then verify when the spec changed, review, PR and merge), and asks the user to approve every Jira comment there.
-   `ORCA worktree set --worktree <id> --comment "developer: <KEY> <spec running | assign running | bugfix running>" --json`.
+   `/run-pipeline --bug auto` is running in terminal `<handle>` (`/bugfix` first: it hands the fix to kiro through `/assign`, then verify when the spec changed, review, PR and merge), and that every Jira comment there waits for the user's approval.
+   `ORCA worktree set --worktree <id> --comment "developer: <KEY> <spec running | pipeline running | bugfix running>" --json`.
