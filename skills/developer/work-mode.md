@@ -4,14 +4,14 @@
 
 ## Daily briefing (first run of the day, every mode)
 Before anything else, the **first** `/developer` run of the day tells the user what they did yesterday and asks which
-unfinished ticket, if any, to continue. **Read-only: it never types into a terminal, never starts, resumes or continues work, never sends a carry-on** — its one write is the marker below. *Continue* is a separate procedure that runs only for a ticket the user names.
+unfinished ticket, if any, to continue. **The briefing itself is read-only: it prints, writes the marker below and types into nothing.** What runs after it is *Start-of-day continue* (below): the user's own unfinished tickets are resumed with `/run-pipeline <KEY> auto`, unless the run was given `--no-continue` or names a target of its own.
 
 **First run of the day** = `.shipkit/developer-daily.md` at the SDD root does not say today. Read it as
 `last_briefing: <YYYY-MM-DD>`; `today` = `date +%F`, with `TZ=<timezone>` in front when `.shipkit/config.yml` sets `timezone` (the day turns at local midnight there). Equal → skip
 this whole section; missing or older → run it, then write `last_briefing: <today>` — right after printing, so a
 dismissed briefing is not repeated. A lost marker (ephemeral worktree) only means one extra briefing.
 
-**Yesterday** = the previous day in that timezone (`date -v-1d +%F`; GNU: `date -d yesterday +%F`; same `TZ=` prefix). Sources are
+**Yesterday** = the previous working day in that timezone: the day before, except on a Monday, which looks back to Friday 00:00 (`date -v-1d +%F`, Monday `date -v-3d +%F`; GNU: `date -d yesterday +%F`, Monday `date -d "3 days ago" +%F`; same `TZ=` prefix), so a Friday ticket still shows on Monday. Sources are
 evidence only — a line with nothing behind it is not written; git history is **not** read (no commits):
 1. **Orca worktrees** (load the `orca-cli` skill for the CLI; read-only, never `ORCA open` — Orca not running → this
    source is `not checked`): one `ORCA worktree ps --json`, keep the worktrees whose `lastActivityAt` (epoch ms) is **at or after
@@ -39,19 +39,41 @@ evidence of a stage → say `stage unknown`, never infer one.
 **Print** at most ~6 lines, in the user's language, each ticket on one line — its **stage**, what happened (PR
 opened/merged, review loop running, wave running) and where it stands (Jira status, open PR). Nothing found → "no activity found
 yesterday (Orca worktrees, state files)". **Unfinished** = stage mid-pipeline (implement unfinished, verify, review, PR loop), or every PR merged while Jira has not moved
-on. Nothing is continued, started or typed into a terminal by the briefing. **Last line** = one short question naming the
-unfinished tickets and asking which to continue (in the user's language; "none" is a fine answer, and the user may name new work instead). **Only
-when no ticket is unfinished** the last line is a short question about what they start today. Merged and handed-over tickets with nothing
+on. The printing starts and types nothing; *Start-of-day continue* follows it. **Last lines**, in the user's language, one per outcome of that procedure:
+`<KEY>: continuing with /run-pipeline auto` for each ticket it started, `<KEY>: not continued — <reason>` for each unfinished ticket it did not. **Only
+when no ticket is unfinished** the last line is a short question about what they start today (with `--no-continue` it is instead one short question naming the unfinished tickets, as *Start-of-day continue* says). Merged and handed-over tickets with nothing
 pending are listed, not offered.
 
 **Don't slow the other modes.** Run the local reads in parallel with at most one Jira search; past ~20 s, print what is
-ready and mark the rest `not checked`. Observer mode starts watching right after printing — the closing question never blocks it; an
-answer arrives as an ordinary message. When the run already names its target (a
-ticket, URL or description), print the summary only — no question, and nothing is continued (the user chose another job).
+ready and mark the rest `not checked`. Observer mode starts watching right after printing — *Start-of-day continue* runs as background tasks and never blocks it. When the run already names its target (a
+ticket, URL or description), print the summary only — no question, nothing is continued, and *Start-of-day continue* does not run (the user chose another job).
+
+### Start-of-day continue
+Runs right after the briefing is printed and the marker written — first run of the day, every mode — unless `$ARGUMENTS` has `--no-continue` or names a target. It walks the briefing's
+**unfinished** tickets in the order printed and continues each through *Continue a ticket* steps 1–5, as a background task per ticket. A ticket is skipped, with one
+`<KEY>: not continued — <reason>` line, at the first of these that fails (each read that turn, none assumed):
+1. **Mine, by ID** (SKILL.md, *Hard rule: who owns a ticket*): a display name or a cc does not count.
+2. **It has its own Orca worktree and a `.shipkit/pipeline-<KEY>.md`.** A ticket with neither is listed, not started.
+3. **The push window is open:** `python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left` prints at least 1. Outside it (weekend, before 08:00, from 18:00) nothing is continued: the run's own pushes would be blocked.
+4. **No blocker** by *Continue a ticket* step 5 — an open question, an unresolved failure, an open PR concern, Jira or PR state that needs a person are all blockers; the reason is that blocker. Read the files first: a blocker they already show skips the ticket
+   without typing the situation question.
+
+With `--no-continue` this procedure does not run, and the briefing ends as before with one short question naming the unfinished tickets; a run that names a target prints the summary only, no question. A ticket's line is printed once its outcome is known: `continuing` when the carry-on has been sent, `not continued — <reason>` at the first failed check or when the coordinator's reply names a blocker; step 7's report line follows when its task ends.
+
+What differs from *Continue a ticket*: step 6's question is **not asked** — the user's standing instruction for the morning run is the go, for that ticket and that run only, and the carry-on is this fixed text (`/run-pipeline` reads the flow from the pipeline file's
+`Flow:` header; for `Flow: bug` it adds `--agent kiro`, as *Start mode* does for a bug): `Continue <KEY> with /run-pipeline <KEY> auto [--agent kiro]. Stop and report when you hit a blocker or need a decision. Answer in <language>.`
+
+**What runs on its own and what waits for the user** (the whole contract of an `auto` morning):
+| Runs on its own | Waits for the user, every time |
+|---|---|
+| the stages inside the repo (spec, plan, branches, design-recon, `/assign`, review, verify) and their bounded fix rounds (`run-pipeline/loop-rules.md`) | every other Jira comment: `/clarify`, `/bugfix`, `/pr` draft it, show it, and post only on approval; an evidence comment whose table is incomplete |
+| `/pr`: open the PRs, post in the review Slack thread to call the bot, fix the defects it names | every DM this skill drafts |
+| `/merge`, only when `loop-rules.md` §5 holds; then the Jira status, the assignee and a complete evidence comment, never asked | a held concern, a question for the PO, `verify` `INCOMPLETE`, a conflict with the target, 3 rounds of a stage or 6 of a ticket used |
+
+The standing go covers nothing outside the left column.
 
 ### Continue a ticket
-**Only for a ticket the user names in the conversation, or answers yes to when the briefing asks** — never from the briefing alone, never
-for a ticket the user did not name. Resume it **in that
+**Only for a ticket the user names in the conversation, answers yes to when the briefing asks, or that *Start-of-day continue* selects** — never for a ticket the user did not name unless it passes that procedure's four checks. Resume it **in that
 ticket's own worktree, with its own claude** — no new
 worktree. A resume goes here, never into *Start mode* (whose "worktree already matches → tell the user and stop"
 would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
@@ -78,7 +100,7 @@ would only bounce it). Run it as a background task so the observer is not blocke
    one; `open-question.md` has an unchecked item; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
    supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in
    `pr-<KEY>.md`; Jira/PR state needs a person. A question on screen is relayed to the user (`needs attention — terminal <handle>`) and never answered with its default — *Start mode*'s default-answer rule does not apply to a continued ticket.
-6. **No blocker → ask the user for an explicit go, for this ticket, every time.** The carry-on pushes branches, opens PRs and posts
+6. **No blocker → ask the user for an explicit go, for this ticket, every time** (*Start-of-day continue* does not ask: its standing go and fixed text apply, above). The carry-on pushes branches, opens PRs and posts
    review requests — outward-facing, hard to undo. Naming the ticket, a yes to the briefing question, or an earlier go for
    another ticket or an earlier run is not that go. Say in one line what it will do and ask (in the user's language). Only on a
    clear go (yes, go, run it) for `<KEY>`, tell it to carry on to the end, judged from the situation, not from a fixed next command; no answer or anything else → send nothing:
@@ -91,7 +113,7 @@ would only bounce it). Run it as a background task so the observer is not blocke
 7. **Report** one line: `<KEY>: pinged <handle> (idle|new coordinator) — stage <s>, <carry-on sent → running to the end | no blocker, waiting for the user's go | blocker: …>`;
    only when step 6 sent the carry-on: `ORCA worktree set --worktree <id> --comment "developer: <KEY> resumed" --json`.
 This is the one place this skill types into an existing terminal — only for a ticket the user named, only the worktree's claude, only the three fixed
-messages above (context-read, situation question, carry-on — the last one only after the user's go) (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
+messages above (context-read, situation question, carry-on — the last one only after the user's go, or as *Start-of-day continue* sends it) (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
 
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira

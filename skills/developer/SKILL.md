@@ -1,7 +1,7 @@
 ---
 name: developer
-description: "Use when the user, as the developer, wants Slack questions answered on their behalf (a teammate, support or QC asked about behavior, fix status, test data or regression scope), wants their Slack notifications watched with drafted replies, or hands over a Jira ticket, Jira comment URL or description to start or resume work in an Orca worktree. The first run of each day opens with a briefing of yesterday's tickets. Trigger: /developer [<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url | description>] [--auto]. Examples: \"/developer <slack-thread-url>\", \"/developer\", \"/developer AR-450\", \"start AR-450\", \"watch my Slack and draft replies\""
-argument-hint: "[<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url | description>] [--auto]"
+description: "Use when the user, as the developer, wants Slack questions answered on their behalf (a teammate, support or QC asked about behavior, fix status, test data or regression scope), wants their Slack notifications watched with drafted replies, or hands over a Jira ticket, Jira comment URL or description to start or resume work in an Orca worktree. The first run of each day opens with a briefing of yesterday's tickets and then continues the user's own unfinished ones with /run-pipeline auto. Trigger: /developer [<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url | description>] [--auto] [--no-continue]. Examples: \"/developer <slack-thread-url>\", \"/developer\", \"/developer AR-450\", \"start AR-450\", \"watch my Slack and draft replies\""
+argument-hint: "[<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url | description>] [--auto] [--no-continue]"
 ---
 
 # shipkit · developer
@@ -38,7 +38,7 @@ an environment. The only writes it may make are the thread reply (*post directly
 attached to it are read from disk, never created),
 `.shipkit/developer-<channel_id>-<thread_ts>.md`, `.shipkit/developer-daily.md` (the *Daily briefing* marker),
 and draft answers in `.shipkit/developer-<TICKET>-draft.md` (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
-in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket* (only for a ticket the user names — the *Daily briefing* itself never starts, resumes or types anything): this session still writes no
+in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket* (a ticket the user names, or one the first run of the day continues under *Start-of-day continue*; the *Daily briefing*'s own printing starts, resumes and types nothing): this session still writes no
 code and no Jira/Slack content — it creates the Orca worktree, runs the few git commands that prepare that new worktree
 (rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the fixed messages
 into the worktree's claude terminal, and hands the work to the agents there, which own every code write.
@@ -134,8 +134,10 @@ reproduce), the developer's stance, numbers-from-data, and how a batch of answer
 ## Daily briefing, Continue, Start mode
 **REQUIRED for these three:** Read `${CLAUDE_PLUGIN_ROOT}/skills/developer/work-mode.md` and follow the part that applies.
 - **Daily briefing** — the **first** `/developer` run of the day, every mode: what the user did yesterday and which tickets look
-  unfinished, ending with one question on which to continue. Read-only: it types into no terminal and starts nothing. Marker: `.shipkit/developer-daily.md`.
-- **Continue a ticket** — only for a ticket the user names (or says yes to): resume it in its own worktree with its own claude; the carry-on to the end of the pipeline needs the user's explicit go for that ticket every time.
+  unfinished. The printing is read-only: it types into no terminal and starts nothing. Marker: `.shipkit/developer-daily.md`.
+- **Start-of-day continue** — right after the briefing, on the first run of the day: each unfinished ticket that is the user's by ID, has its own worktree and pipeline file, has no blocker and is inside the push window
+  is continued with `/run-pipeline <KEY> auto`, without asking. `--no-continue`, or a run that names its own target, skips it. What runs alone and what waits for the user's approval is its table in `work-mode.md`.
+- **Continue a ticket** — a ticket the user names (or says yes to): resume it in its own worktree with its own claude; the carry-on to the end of the pipeline needs the user's explicit go for that ticket every time (*Start-of-day continue* is the one standing go).
 - **Start mode** — `/developer <ticket | jira-comment-url | description>`: standard vs bug vs resume, an Orca worktree,
   a coordinator (claude) and its workers (kiro, via `/assign`). Referenced below by *Delegate a bug*.
 
