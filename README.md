@@ -144,7 +144,7 @@ auto-trigger it by description.
 | `/shipkit:help [<use case>]` | **Lost? Start here** — prints the installed shipkit version and drafts step-by-step instructions (which skills, in what order, your ticket filled in, prerequisites, where you must approve) for a use case; `/shipkit:help <skill>` shows one skill. Read-only. |
 | `/fix-permissions` | One-time per-repo — allow the read-only probe so injected context can run |
 | `/bootstrap` | One-time per-project setup → `.shipkit/config.yml` |
-| `/run-pipeline <ticket> [--bug]` | **Everyday skill** — ticket → scope → branches → one lean spec; `--bug` runs the shorter bug-fix flow (`/bugfix` → verify if the spec changed → review → PR → merge) |
+| `/run-pipeline <ticket> [--bug]` | **Everyday skill** — ticket → scope → branches → one lean spec; `--bug` runs the shorter bug-fix flow (`/bugfix` → verify if the spec changed → review → PR → merge); `auto` runs it unattended — bounded fix rounds, and `/merge` only once its preconditions hold (sign-off still at the PR's head, verify current, no open concern, inside the push window) |
 | `/spec-from-ticket <ticket>` | Just write the spec (no branches) |
 | `/clarify <ticket>` | Sends the spec's open business questions to the PO in one Jira comment (real @mention, your approval before every post) and waits for the reply in a background poller until every question is resolved. Called right after `/spec-from-ticket`. A question that splits on a type, kind, status, role or plan is sent only after the real values were listed from the code (a `values:` line); a split that is empty is dropped, "settled at plan time" is looked up, and a line already decided is re-read when a new fact arrives. |
 | `/bugfix <ticket> [<comment-id>] [--agent kiro]` | A tester's Jira comment (or a Bug ticket's own description) reports a bug: traces each concern to the code, tells you what each bug is (symptom, root cause `file:line`, who introduced it, the fix) before fixing it, fixes at once what nothing blocks (regression test first, proved with `/verify`) and holds one that is not this ticket's, goes against the spec or cannot be fixed on what is known until you answer and `/cross-check` has run again, explains what is by design, asks the PO about product decisions, hands a defect that someone else's change introduced to that change's author (tagged in a comment on the bug ticket) instead of fixing it, and keeps checking Jira until the reporter confirms. |
@@ -235,9 +235,11 @@ it's absent (they block with a clear message, never fake a pass).
 > **even on tickets without a contract**.
 
 `/run-pipeline` runs `/verify` as a gate for **every** ticket (behavior evidence: FE screenshot, BE data); a UI
-ticket additionally asks once whether to run the design-fidelity half (recon→verify, remembered for resumes) —
-opt in and recon runs after the spec and the built UI is diffed against the contract before PRs. `FAILED` and
-`INCOMPLETE` halt like a review blocker; `auto` runs skip only the design-fidelity half.
+ticket additionally gets the design-fidelity half (recon→verify) — always on and never asked, remembered for resumes:
+recon runs after the spec and the built UI is diffed against the contract before PRs (a UI ticket no one can supply a
+mockup for is noted and skipped). `FAILED` and `INCOMPLETE` halt like a review blocker; with `auto`, a `FAILED` verify or
+a blocking review is fixed and re-run in rounds (3 per stage, 6 per ticket, stopped early when a round changes nothing —
+`skills/run-pipeline/loop-rules.md`), and `INCOMPLETE` still halts.
 
 ## Permissions (run `/fix-permissions` first)
 

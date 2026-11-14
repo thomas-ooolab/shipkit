@@ -29,7 +29,7 @@ improvise a workflow.
 | Use case | Skills, in order |
 |---|---|
 | First time in a repo | `/fix-permissions` → `/bootstrap` |
-| Ticket → merged PRs, end to end | `/run-pipeline <ticket>` — it runs the stages below and stops at the open-questions, implement and merge gates |
+| Ticket → merged PRs, end to end | `/run-pipeline <ticket>` — it runs the stages below and stops at the open-questions gate and wherever a stage needs a decision; without `auto` it also stops at implement and merge |
 | Same flow, one step at a time | `/spec-from-ticket` → `/cross-check` → `/clarify` (only if questions are open) → `/plan-deep` → implement (`/assign` when ≥2 submodules) → `/verify` → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Ticket is unclear / PO must answer | `/cross-check` → `/clarify` |
 | UI ticket with a mockup | `/design-recon` → implement → `/verify` (it also diffs the built UI against the design contract) |

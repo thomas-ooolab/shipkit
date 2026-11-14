@@ -43,6 +43,7 @@ implementer / `/pr --implement`), open a PR, generate a *new* design, or verify 
 ## Write surface (the ONLY things written)
 1. `specs/NNN-slug/design-contract.md` and `design-contract.elements.json`, the full element dump (Step 6; overwrite vs `-v2` is user-confirmed).
 2. A **transient** local static server for HTML artifacts (`recon.sh serve`), always stopped in Step 6.
+3. `specs/NNN-slug/open-question.md` — **appended** with the Step 5b `[design-omission]` items (never edits or renumbers an existing item), and the one-line `Design contract:` pointer under `spec.md`'s `## Contracts` (Step 6).
 **Forbidden side-effects:** no git/Jira/Bitbucket mutation; no component/style edits; the browser
 session only reads (navigate + `getComputedStyle` + screenshot) plus the in-page UI triggers needed to
 reveal hidden states (clicking toggles/tabs/menus within the mockup) — it never submits a form, never
@@ -217,14 +218,17 @@ feature lives, starting from it, not parked on another feature's page/tab.
 Add a `## Fidelity and placement` section after `## State matrix`, one row per drawn screen/region:
 `region | lives on (real screen, entry point) | drawn on | placement ok? | fidelity (fields/labels/layout/steps match?) | impossible-today? | → OQ#`.
 Every row that is not `ok` gets an Open Question tagged `[design-omission]` (design omission, not a
-dev defect; real-screen screenshot attached by `/clarify`). Never pick a placement for the PO.
+dev defect; real-screen screenshot attached by `/clarify`). Never pick a placement for the PO. Step 6 writes each of these into `open-question.md`
+(`- [ ] **OQ-N** — {question, plain business language} — blocks: REQ-NNN [design-omission]`, the next free `OQ-N`; a row whose `→ OQ#` already names an item in the file adds none), so the
+`→ OQ#` column and the file never disagree — `/clarify` and `/run-pipeline` read the file, not the contract.
 
 ## Step 6 — Write + report
 - Stop any transient server: `recon.sh stop <SERVE_PID>`.
 - Assign the spec dir (from `--ticket`, else next spec number). If `design-contract.md` exists →
   AskUserQuestion `["Overwrite?", "Overwrite", "Write -v2", "Cancel"]`.
 - Write `specs/NNN-slug/design-contract.md` (+ the reference image and `design-contract.elements.json`). Add a one-line pointer under the
-  spec's `## Contracts` section: `Design contract: design-contract.md (fidelity: <exact|low>)`.
+  spec's `## Contracts` section: `Design contract: design-contract.md (fidelity: <exact|low>)`. Then append the Step 5b `[design-omission]` items to
+  `open-question.md` (create it when the spec has none) and put each one's `OQ-N` in its row's `→ OQ#` cell of the contract just written.
 
 ```
 shipkit · design-recon — <artifact>  (tier: <html|url|screenshot>, fidelity: <exact|low>)
@@ -241,9 +245,8 @@ Next: implement, then /verify --ticket <ticket>  to diff the build against this 
 ## How it fits the pipeline
 For a UI ticket with a mockup: `/spec-from-ticket` → **`/design-recon --ticket <T>`** (writes the
 contract) → implement (the contract is the styling brief) → `/verify --ticket <T>` (Half 2,
-gates fidelity) → `/review-changes` → `/pr`. `/run-pipeline` folds this in as an **opt-in**
-gate — it asks once (for UI tickets) whether to run recon→verify, runs `/design-recon` after the spec
-and `/verify` before PRs when you opt in, and skips it otherwise. `/design-recon` captures a
+gates fidelity) → `/review-changes` → `/pr`. `/run-pipeline` folds this in as a gate that is **always on for a UI ticket** and never asked — it runs
+`/design-recon` after the spec and `/verify` before PRs, and skips it only for a ticket with no frontend scope or no mockup anyone can supply. `/design-recon` captures a
 design you must **match**.
 
 ## Gotchas

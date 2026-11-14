@@ -1,7 +1,7 @@
 ---
 name: assign
-description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they would otherwise be implemented one submodule at a time, or when a single target or free-form task should be handed to a background agent. Trigger: /assign <jira-ticket | task> [--only <submodule,...>] [--agent claude|kiro] [--no-push]. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\""
-argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent claude|kiro] [--no-push]"
+description: "Use when a ticket's spec.md tags tasks across ≥2 submodules and they would otherwise be implemented one submodule at a time, or when a single target or free-form task should be handed to a background agent. Trigger: /assign <jira-ticket | task> [--only <submodule,...>] [--agent claude|kiro] [--no-push] [--continue]. Examples: \"/assign AR-450\", \"parallelize AR-458's implementation across submodules\""
+argument-hint: "<jira-ticket | task text> [--only <submodule,...>] [--agent claude|kiro] [--no-push] [--continue]"
 ---
 
 # shipkit · assign
@@ -51,7 +51,7 @@ run: delegation to an agent needs only a path and a brief. `/bootstrap` is requi
 
 ## Step 1 — Parse
 Tokenize `$ARGUMENTS`; strip `--only <a,b>` → `ONLY[]` (each must be in the config's
-`submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--no-push` → `NO_PUSH` (the coordinator accepts the commits but pushes nothing; the caller pushes, e.g. `/bugfix` after `/verify` passes); strip `--agent claude|kiro` →
+`submodules[].name`, else stop: "`<name>` isn't a configured submodule."); strip `--no-push` → `NO_PUSH` (the coordinator accepts the commits but pushes nothing; the caller pushes, e.g. `/bugfix` after `/verify` passes); strip `--continue` → `CONTINUE` (the caller states that the dirty or unpushed work on the branch is the earlier round of this same fix, so Step 4 re-runs the agent on it without asking — `/bugfix` and `/run-pipeline` pass it from their second round on); strip `--agent claude|kiro` →
 `AGENT` (default `kiro`; an explicit flag always wins. Whenever Step 1.5 prints `transport: orca`, both agents are Orca-supervised workers (`worker-start`; `claude` with `--model sonnet --effort medium`) — the transport decides that, not the agent kind. `kiro` runs as an Orca-supervised worker (its tools are trusted, so the BRIEF's Guard is its only brake) and needs the Orca transport. Only with `transport: agent` and no flag is the default `claude`, a background `Agent` call).
 - **Ticket mode** — exactly one ticket-shaped token (`AR-450`) **and** `meta-with-submodules` with a
   config: continue to Step 2. Single-repo topology + ticket token: one target (repo root), same
@@ -100,7 +100,8 @@ single-target run (no waves to print). Read the **Fan-out**/**Part order** note 
 ## Step 4 — Ground-truth skip check (per submodule, before its wave runs)
 From the Step 2 probe: `dirty=yes` or `unpushed>0` on that submodule's `feat/<ticket>-*` (or `fix/<ticket>-*`) branch means
 work already started. Default: skip it (report "already in progress — skip", don't overwrite).
-To force a re-run anyway, the user must say so explicitly — AskUserQuestion: "`<submodule>` already
+With `CONTINUE` the caller has already said so for this run: no question, the agent continues from the branch as it is (Step 4b still runs).
+To force a re-run anyway otherwise, the user must say so explicitly — AskUserQuestion: "`<submodule>` already
 has {dirty|unpushed} changes on its branch — re-run its agent anyway and let it continue from
 there, or skip?" (`--only <name>` alone does not imply force.)
 

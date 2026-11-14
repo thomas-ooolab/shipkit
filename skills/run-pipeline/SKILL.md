@@ -1,6 +1,6 @@
 ---
 name: run-pipeline
-description: "Use when the user wants to take a Jira ticket — any spec-driven change, or a reported bug with --bug — through the whole pipeline with one command and resume where it stopped. Stops at the open-questions, implement and merge gates; never merges. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto]"
+description: "Use when the user wants to take a Jira ticket — any spec-driven change, or a reported bug with --bug — through the whole pipeline with one command and resume where it stopped. Stops at the open-questions gate and wherever a stage needs a person's decision; without auto it also stops at implement and merge, with auto it fixes and re-runs a failing stage in bounded rounds and dispatches /merge once its preconditions hold. Not for hotfixes. Trigger: /run-pipeline <jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto]"
 argument-hint: "<jira-ticket> [--bug [<comment-id>]] [--agent kiro] [auto|--auto]"
 ---
 
@@ -35,8 +35,8 @@ with no spec, redirect: "Run `/spec-from-ticket <ticket>` first, then `/run-pipe
 Everything else happens inside a dispatched command (`spec-from-ticket`, `plan-deep`,
 `design-recon`, `review-changes`, `verify`, `pr`, `bump-submodule`), each with its
 own write surface.
-**Forbidden side-effects:** never edit app/test/doc code; never merge a PR (stops at the open PR);
-never bump a submodule before its child PR is confirmed merged; no force-push.
+**Forbidden side-effects:** never edit app/test/doc code; never merge a PR itself (without `auto` it stops at the open PR; with `auto`
+`/merge` is dispatched only under `loop-rules.md` §5); never bump a submodule before its child PR is confirmed merged; no force-push.
 
 ---
 
@@ -76,29 +76,33 @@ open/merged PRs per affected submodule with `bash "${CLAUDE_PLUGIN_ROOT}/scripts
 If creds absent, note "PR state: unknown (no Bitbucket creds) — will rely on local branch state."
 If Atlassian MCP is connected, read the Jira ticket status.
 
-Derive each stage's status from observations:
-| Stage | Complete when |
+A stage is **done only when its result predicate holds**, read from a file or a command in this turn — a stage that ran is not a stage that passed.
+**REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/skills/run-pipeline/loop-rules.md` — what to do when a predicate fails (failure classes, fixers, rounds, caps),
+how a PASS is pinned to the code it saw, and the `auto` advance rules; it applies to every stage below.
+
+| Stage | Passes when |
 |---|---|
-| **spec** | `SPEC=<spec dir>/NNN-…` (not `none`) |
-| **clarify** *(gate)* | the spec dir has no `open-question.md`, or it has no unchecked `- [ ]` item |
-| **plan** | the spec's frontmatter `status:` is `planned` (or `in-progress` / `shipped`) |
-| **design-recon** *(opt-in, UI)* | design gate is `off`, or `design-contract.md` exists in the spec dir |
+| **spec** | `SPEC=<spec dir>/NNN-…` (not `none`); `spec.md` has at least one `**REQ-` line and every such line carries `*(source:` |
+| **clarify** *(gate)* | the spec dir has no `open-question.md`, or every unchecked `- [ ]` item in it reads `decided (dev, confirmed …)` |
+| **plan** | frontmatter `status:` is `planned` (or `in-progress` / `shipped`); `spec.md` has no `[UNVERIFIED` and no `blocked on OQ-`; the last `/plan-deep` report line `Review: N found (M blocking, K advisory)` has M = 0 (written to the stage's detail line when it returns; a resume with no such line rests on the first two checks) |
+| **design-recon** *(UI)* | design gate is `off`, or `design-contract.md` exists in the spec dir and every row of its `## Fidelity and placement` table that is not `ok` has its `[design-omission]` item in `open-question.md` |
 | **branches** | parent + every affected submodule has `branch=feat/<ticket>-…` |
-| **implement** *(human gate)* | affected submodule branches have commits/dirty changes (`dirty=yes` or `unpushed>0`) |
-| **review** | `/review-changes` has run (state file marks it `[x]`) |
-| **verify** *(gate)* | `/verify` reported PASS (state file `[x]`); an old state file's `design-verify` line counts as this stage |
-| **prs** | a Bitbucket PR exists per affected submodule + parent (affected = has changes, as `/pr` Step 2 decides; a tagged submodule with no change is not waited on) |
-| **merged** *(external gate)* | all child PRs merged (Bitbucket) |
+| **implement** *(gate)* | every task of `spec.md` `## Tasks` is `- [x]` (`/assign` ticks it after its git audit; by hand, tick it yourself), each affected branch has commits beyond its target, and `dirty=no` |
+| **review** | the last `/review-changes` reported `0 blocking`, and its `passed @` line is current (`loop-rules.md` §4) |
+| **verify** *(gate)* | the last `/verify` printed `verify: PASS`, and its `passed @` line is current; an old state file's `design-verify` line counts as this stage |
+| **prs** | a Bitbucket PR exists per affected submodule + parent (affected = has changes, as `/pr` Step 2 decides; a tagged submodule with no change is not waited on), `/pr` reported every one signed off (a `signed-off @` line per PR) and the verify PASS is current again after `/pr` (`loop-rules.md` §4) |
+| **merged** *(gate)* | all child PRs merged (Bitbucket) |
 | **bump** | parent submodule refs point at merged shas; parent PR open/merged |
 
 **Mandatory audit line** (print before any decision/dispatch):
-`shipkit state <ticket>: spec=<dir|none> open-questions=<n> planned=<yes|no> branches=<n/m> implemented=<yes|no> review=<done|pending> prs=<n/m|unknown> merged=<yes|no|unknown>`
+`shipkit state <ticket>: spec=<dir|none> open-questions=<n> planned=<yes|no> branches=<n/m> implemented=<yes|no> review=<done|stale|pending> verify=<done|stale|pending> prs=<n/m|unknown> merged=<yes|no|unknown> rounds=<used>/6`
 
 ## Step 3 — Write/refresh the pipeline state file
 Write `.shipkit/pipeline-<ticket>.md` (mark `[x]` confirmed-complete, `[ ]` pending):
 ```markdown
 # Pipeline state — <ticket>
 Flow: standard · Spec: <spec dir> · Scope: <scope> · Auto: <yes|no> · Design gate: <on|off|unset> · Updated: <ISO-8601>
+Rounds: <used>/6
 Status: <running|waiting-user|failed|done> · <one line: what it waits on, or why it failed>
 Next: <the single next action>
 PRs: root=<pr url> <suffix>=<pr url>
@@ -109,7 +113,7 @@ Poller: <a wait the state files below do not show, e.g. Bitbucket pipelines for 
 - [ ] 1 spec          — /spec-from-ticket <ticket>
 - [ ] 1.2 clarify     — GATE: /clarify <ticket> while open-question.md has unchecked items (needs the PO — never automated)
 - [ ] 1.4 plan        — /plan-deep --ticket <ticket>
-- [ ] 1.5 design-recon — /design-recon (opt-in; UI tickets — asked once, skipped if gate off)
+- [ ] 1.5 design-recon — /design-recon (UI tickets; always on, never asked; skipped when the gate is off)
 - [ ] 2 branches      — feat/<ticket>-<slug>(+ per-submodule suffix)
   - detail: root  <parent branch>  <push state>
   - detail: <suffix>  <that submodule's branch>  <push state>
@@ -134,61 +138,67 @@ present (a PR becomes a link; a press on the evidence path opens the newest `jir
 
 `Design gate` is `unset` until Stage 1.5 runs; it is then `on` for a UI ticket and `off` for any other, written once and never asked, so resumes never re-decide.
 
+`Rounds:`, the `  - detail: round <k>/3 · …`, `passed @ …` and `signed-off @ …` detail lines and the `Blocker:` of a loop stop are written exactly as `loop-rules.md` §3–4 say; they are
+what a resume reads to know how many rounds are spent and which PASS is still current, so rewrite them in the same write as the stage they belong to.
+
 ## Step 4 — Run pending stages in order (skip completed ones)
 
 Resume from the first incomplete stage. Use the Skill/command dispatch for each. After each stage,
 re-confirm success from ground truth and append the result + timestamp to the state file.
 
-- **Stage 1 — spec** (if `SPEC=none`): dispatch `/spec-from-ticket <ticket>`. Success = `spec.md`
-  now exists. This also fixes the scope (affected submodules) used by later stages.
+- **Stage 1 — spec** (if `SPEC=none`): dispatch `/spec-from-ticket <ticket>`. Success = the spec predicate holds.
+  This also fixes the scope (affected submodules) used by later stages. A REQ without a source is class A (`loop-rules.md`).
 - **Stage 1.2 — clarify** *(gate)*: if the spec dir has an `open-question.md` with unchecked items, **stop**: "<n> open
   question(s) block a sound plan — run `/clarify <ticket>`, then re-run `/run-pipeline <ticket>`." `/clarify` is a
   long-running loop that waits for the PO and needs the user's approval before each Jira post, so the orchestrator never
-  dispatches it, `auto` included. No file, or every item checked → mark `[x]`.
+  dispatches it, `auto` included (class B: `Status: waiting-user · PO answers`). No file, every item checked, or only
+  `decided (dev, confirmed …)` items left → mark `[x]`.
 - **Stage 1.4 — plan** (spec exists, `status: draft`): dispatch `/plan-deep --ticket <ticket>` (add `--auto` only when
-  `AUTO=true`). Success = the spec's frontmatter reads `status: planned`. A plan that leaves new open questions sends the
-  run back to Stage 1.2 on the next pass.
+  `AUTO=true`). Success = the plan predicate holds. M blocking review findings → class A (re-dispatch, `AUTO` only; otherwise stop and report them).
+  `[UNVERIFIED …]` refs or tasks `blocked on OQ-N` → class C: **stop**, they need an answer — back to Stage 1.2 on the next pass.
 - **Stage 1.5 — design fidelity** *(UI tickets only; always on, never asked)*: after the spec fixes scope, run this
   only when the scope includes frontend (`fe-only` / `fe+…`). Backend-only tickets skip it and `Design gate` stays `off`.
   If `Design gate` is already `on`/`off` in the state file, honor it. Otherwise set `Design gate: on` in the state file
   **without asking** — interactive and `auto` runs alike. If `design-contract.md` already exists in the spec dir, the
   stage is complete. If not, resolve a mockup (design URL / attachment cited in the spec; if none, ask for a path/URL —
   the only question this stage may ask; if the user can't provide one, note-and-skip and set the gate `off`). Then dispatch
-  `/design-recon --ticket <ticket>`. Success = `design-contract.md` exists in the spec dir. This runs
+  `/design-recon --ticket <ticket>`. Success = the design-recon predicate holds (it writes each `[design-omission]` question into
+  `open-question.md` itself); a new open question sends the run back to Stage 1.2. This runs
   **before** implement so the contract is the styling brief, not an afterthought.
 
 - **Stage 2 — branches** (if any affected branch missing): create from each submodule's tracking
   branch, named by `probe.sh branch <ticket> <submodule>` (config `suffix`); parent branch from `main`,
   named by `probe.sh branch <ticket>`. Skip unaffected; flag `staging_only`.
   Success = `probe.sh state` shows the branches.
-- **Stage 3 — implement** *(human gate)*: if no changes detected on the affected branches, **stop**:
-  "Spec, plan and branches ready. Implement the tasks in the submodule branches — by hand, or run `/assign <ticket>` — then
-  re-run `/run-pipeline <ticket>` to continue." In `AUTO=true`, still stop here — the orchestrator never
-  writes app code.
-- **Stage 4 — review** (changes present, review not done): dispatch `/review-changes --ticket <ticket>`.
-  Success = output reports per-submodule ✅/⚠️ and checks off tasks. On ⚠️ blocking issues in strict
-  mode, stop and report; in `AUTO=true`, surface them but continue only if non-blocking.
+- **Stage 3 — implement** *(gate)*: the implement predicate fails → without `auto`, **stop**:
+  "Spec, plan and branches ready. Implement the tasks in the submodule branches — by hand (tick each finished task `- [x]` in
+  `spec.md`), or run `/assign <ticket>` — then re-run `/run-pipeline <ticket>` to continue." With `AUTO=true`, dispatch
+  `/assign <ticket> [--agent kiro]` (`loop-rules.md` §5) — the orchestrator never writes app code itself; the predicate holds → Stage 4 without a stop.
+- **Stage 4 — review** (implement passed, review not done or stale): dispatch `/review-changes --ticket <ticket>`.
+  Success = the report reads `0 blocking`; write its `passed @` line. `<n> blocking` → without `auto`, stop and report; with `AUTO=true`, class A
+  (`loop-rules.md`): fix, re-run, in rounds. The review writes nothing itself: the count and the `HEAD`s come from its output and `git`, so record them.
 - **Stage 4.5 — verify** *(gate, every ticket)*: dispatch `/verify --ticket <ticket>`. It exercises each
   `REQ-NNN` on the running app and saves evidence (FE screenshot, BE request/response and data); when
   `Design gate = on` it also diffs the built UI against `design-contract.md` (responsive included). It needs
   the app/service running (+ Playwright MCP for FE) — if they aren't, `/verify` asks the user to start them
   and otherwise reports `INCOMPLETE`. One browser agent at a time, and when one ends or is stopped its browsers are cleaned with
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>` (`${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`: stopping an agent does not
-  stop its children). On `PASS` → the evidence draft is saved locally (`/verify` Step 6), mark `[x]` and continue; the
-  report says nothing about sending it (`/merge` sends it and reports that itself). On `FAILED: N` → **stop** like a review blocker: "verify
-  FAILED: N — fix and re-run `/run-pipeline <ticket>`." On `INCOMPLETE: N` → **stop** too: an unverified
-  requirement is not a pass; unblock it or have the user waive it explicitly, then re-run. In `AUTO=true`
+  stop its children). On `PASS` → the evidence draft is saved locally (`/verify` Step 6), mark `[x]`, write its `passed @` line and continue; the
+  report says nothing about sending it (`/merge` sends it and reports that itself). On `FAILED: N` → without `auto`, **stop** like a review blocker: "verify
+  FAILED: N — fix and re-run `/run-pipeline <ticket>`"; with `AUTO=true`, class A (`loop-rules.md`): fix, re-run, in rounds. On `INCOMPLETE: N` → **stop** in both: an unverified
+  requirement is not a pass (class C); unblock it or have the user waive it explicitly, then re-run. In `AUTO=true`
   never waive.
 
 - **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): dispatch
   `/pr <ticket> --target <pr_target>`. It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket
   PR per affected submodule + parent PR), then Phase 2 pings the reviewer and triages their concerns
-  until sign-off. Stage success = the PRs are open; the review loop keeps running on `/pr`'s own
-  background pollers (`.shipkit/pr-<ticket>.md` tracks it). **Stop here by default** — the pipeline
-  never merges. Report the PR URLs and "review loop running".
-- **Stage 6 — merged** *(gate)*: only re-runs find this; if not all child PRs merged, stop:
+  until sign-off. The review loop runs on `/pr`'s own background pollers (`.shipkit/pr-<ticket>.md` tracks it) and carries
+  its own round cap. Without `auto`, **stop** once the PRs are open: report the PR URLs and "review loop running". With `AUTO=true`, stay on this stage
+  until `/pr` reports every PR signed off (write the `signed-off @` lines, then the post-`/pr` re-verify of `loop-rules.md` §4) or stops itself (its cap, a question — class B or C).
+- **Stage 6 — merged** *(gate)*: without `auto` — only re-runs find this; if not all child PRs merged, stop:
   "Waiting on child PRs to merge: <list>. Run `/merge <ticket>` (it asks only on a problem), then re-run
-  `/run-pipeline <ticket>`." The orchestrator itself never merges.
+  `/run-pipeline <ticket>`." With `AUTO=true`, dispatch `/merge <ticket>` only when every precondition of `loop-rules.md` §5 holds. The orchestrator
+  itself never merges: `/merge` does, under its own sign-off, conflict and pipeline checks.
 - **Stage 7 — bump** (all child PRs merged; skip when the root PR is already merged or its pointers already equal the merged
   shas — `/merge` does that): dispatch
   `/bump-submodule <path>@<sha> … --closes <ticket>` with the merged shas. Success = parent refs
@@ -215,11 +225,12 @@ Next:   <the single next action — implement / wait for merge / bump / done>
   `Design gate: on` at Stage 1.5 (written once to the state file, so resumes never re-decide), `auto`/headless runs
   included. The one exception is a UI ticket with no mockup anyone can supply: it is noted and skipped, gate `off`.
   Backend tickets never see the stage. When `on`, Stage 4.5's `FAILED` halts the pipeline like a review blocker.
-- **Non-automatable gates.** Stage 1.2 (open questions) needs the PO; Stage 3 (implement) needs a human or `/assign`;
-  Stage 6 is `/merge`, run by the user. The orchestrator stops at each and at the open PR — it never edits code and
-  never merges.
-- **`auto` only removes pauses between automatable stages** (spec → plan → branches → review → prs). It
-  never crosses the clarify, implement or merge gates, and never merges a PR.
+- **Gates.** Stage 1.2 (open questions) needs the PO and is never automated. Without `auto`, Stage 3 (implement) needs a human or `/assign`
+  and Stage 6 is `/merge`, run by the user: the run stops at each and at the open PR. The orchestrator never edits code.
+- **`auto` removes pauses and runs bounded fix loops.** It removes the pauses between automatable stages (spec → plan → branches → review → verify → prs),
+  fixes and re-runs a failing `review`, `verify` or `plan` in rounds (3 per stage, 6 per ticket, stop early on no progress), dispatches `/assign` for an unfinished
+  `implement`, and dispatches `/merge` once `loop-rules.md` §5 holds. It never crosses the clarify gate, never posts to Jira or Slack without the user's approval,
+  never waives `INCOMPLETE`, and stops on any class C reason with the concrete cause in `Status:`.
 - **Multi-repo fan-out** is inherent: stages 2/5/7 act per affected submodule; the parent PR is the
   throughline that ties the child PRs and the bump to the ticket.
 - **Transient Bitbucket/Jira errors:** retry up to 3× (2s→4s→8s) before treating as failure.

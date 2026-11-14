@@ -191,11 +191,12 @@ fails → tell the user and stop. Never `ORCA open`.
    - **Finished:** `terminal wait --for tui-idle --timeout-ms 600000`, then `terminal read`. Next message only
      when the screen shows it done, not waiting on a question. `/run-pipeline --bug` (which dispatches `/bugfix`) and `/assign` are last messages and run
      their own loop: stop after the send is submitted, no finished-wait.
-   - **Assign gate** (standard, resume — after `/plan-deep` finished, before `/assign`): the chain sends `/assign` only when none of
-     these holds, each read from the evidence, not the agent's say-so: the coordinator is waiting on a person or still mid-turn; the spec dir's
-     `open-question.md` has an unchecked `- [ ]` item; `spec.md` has a task marked `blocked on OQ-`; the screens of `/spec-from-ticket`,
-     `/design-recon` or `/plan-deep` show a failure, a warning or an unanswered question (a design-recon with no artifact asks for one — that is a
-     blocker). Any hit → send nothing, exit, and this session tells the user the blocker in one line (which OQ or which step) —
+   - **Assign gate** (standard, resume — after `/plan-deep` finished, before `/assign`): the chain sends `/assign` only when the
+     coordinator is not waiting on a person or mid-turn **and** the `clarify`, `plan` and `design-recon` predicates of
+     `${CLAUDE_PLUGIN_ROOT}/skills/run-pipeline/SKILL.md` Step 2 all hold — read from the spec dir's files, not the agent's say-so; this is the one
+     definition of "plan ready", the same `/run-pipeline` uses (a design-recon with no artifact fails its predicate — that is a blocker). The screens of
+     `/spec-from-ticket`, `/design-recon` or `/plan-deep` also block when they show a failure or an unanswered question. Any miss → send nothing, exit, and this
+     session tells the user the blocker in one line (which OQ or which step) —
      the user resolves it in the coordinator terminal and sends `/assign` themselves. None → send `/assign <KEY> --agent kiro` as the last message.
    - **Question on screen:** a question that offers a recommended default (marked recommended, or the first option) →
      send that default yourself, no relay. Surface it only when it has no default or is destructive (force-push, delete,

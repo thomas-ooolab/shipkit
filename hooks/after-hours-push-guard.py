@@ -11,7 +11,8 @@ lifts the block for that session.
 Not covered: pushes through an MCP tool, and anything the user types in their own terminal.
 
 stdin: the hook JSON (tool_name, tool_input). Exit 0 = allow; exit 2 = block, the reason on stderr goes to the model.
-Usage: python3 -I after-hours-push-guard.py [--self-test]
+`--minutes-left` prints how many minutes of today's window remain (0 outside it), for a caller that must not start a push-heavy job near 18:00.
+Usage: python3 -I after-hours-push-guard.py [--self-test | --minutes-left]
 """
 import datetime, importlib.util, json, os, sys
 
@@ -39,8 +40,18 @@ def decide(command, now, env):
                     "(The user can lift this for a session with SHIPKIT_ALLOW_AFTER_HOURS=1 in Claude Code's environment.)")
     return None
 
+def minutes_left(now, env):
+    """Minutes until pushes stop being allowed today: 0 outside the window, 9999 when SHIPKIT_ALLOW_AFTER_HOURS=1 lifts it."""
+    if env.get("SHIPKIT_ALLOW_AFTER_HOURS") == "1":
+        return 9999
+    if now.weekday() < 5 and OPEN_HOUR <= now.hour < CLOSE_HOUR:
+        return CLOSE_HOUR * 60 - (now.hour * 60 + now.minute)
+    return 0
+
 def self_test():
     at = lambda day, h, m=0: datetime.datetime(2026, 10, day, h, m)  # 19 = Mon … 23 = Fri, 24 = Sat
+    assert minutes_left(at(21, 9, 0), {}) == 540 and minutes_left(at(21, 17, 59), {}) == 1 and minutes_left(at(21, 18, 0), {}) == 0
+    assert minutes_left(at(21, 7, 59), {}) == 0 and minutes_left(at(24, 12), {}) == 0 and minutes_left(at(24, 12), {"SHIPKIT_ALLOW_AFTER_HOURS": "1"}) == 9999
     assert at(19, 0).weekday() == 0 and at(23, 0).weekday() == 4 and at(24, 0).weekday() == 5
     D = lambda c, now=at(21, 20), env={}: decide(c, now, env)  # Wed 20:00, outside the window
     for c in ["git push", "git push origin main", "git push -u origin HEAD", "git -C sub push --force-with-lease origin x",
@@ -59,6 +70,9 @@ def self_test():
 def main():
     if "--self-test" in sys.argv:
         return self_test()
+    if "--minutes-left" in sys.argv:  # not a hook run: print the minutes left in today's push window (/run-pipeline reads it before an auto-merge)
+        print(minutes_left(common.now_in(os.environ), os.environ))
+        return
     try:
         event = json.load(sys.stdin)
     except ValueError:
