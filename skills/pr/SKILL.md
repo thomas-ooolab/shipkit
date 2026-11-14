@@ -110,7 +110,7 @@ For each candidate submodule, bind from config + git:
 - **default branch**: `git -C <path> symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@'` (fallback `main`).
 - ⚠️ if `staging_only` and `PR_TARGET=main`: warn and skip that submodule's PR to `main` (offer `staging`).
 - **Existing PR?** Query Bitbucket for an OPEN PR from the feature branch to `PR_TARGET` (reuse the
-  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22<branch>%22%20AND%20destination.branch.name%3D%22<PR_TARGET>%22&state=OPEN"`). Found → record its URL and mark the
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/bitbucket-api.sh" GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22<branch>%22%20AND%20destination.branch.name%3D%22<PR_TARGET>%22%20AND%20state%3D%22OPEN%22"` — the state is inside `q` because Bitbucket ignores `&state=` when `q` is present and would also return merged and declined PRs). Found → record its URL and mark the
   submodule `already-open`: Steps 3–5 skip it. Do the same for the parent branch (Step 6).
 If every submodule and the parent are `already-open`, skip to Step 7.
 

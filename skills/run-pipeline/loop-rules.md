@@ -71,9 +71,24 @@ Without `auto` the `implement` and `merged` stages stop as `SKILL.md` Step 4 say
 - **implement** — the predicate fails because tasks are unchecked: dispatch the fixer of §2 (round 1 of the stage, no stop); it passes → go on to `review`.
 - **merged** — dispatch `/merge <ticket>` only when **every** line holds, each read in that turn. One that fails is class C: stop and name it.
   1. every child PR's head sha equals its `signed-off @` line;
-  2. the `verify` PASS is current (§4, including the re-verify after `/pr`), the `review` PASS was current when `/pr` was dispatched, and the newest `.shipkit/evidence/<ticket>/jira-comment-*.md` exists;
-  3. `.shipkit/bugfix-<ticket>.md` is absent, or every concern in it is `[x]`;
-  4. `python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left` prints at least 30 — `/merge`'s root bump needs a `git push`, and a merge cut in two by the push window leaves the children merged and the root not.
-  `/merge` still asks only on a problem (its own Steps 3–5); that question is class C.
+  2. when `verify` ran, its PASS is current (§4, including the re-verify after `/pr`); when it was skipped (bug flow, spec unchanged or `SPEC=none`) nothing is pinned and `/bugfix`'s own evidence stands; the `review` PASS was current when `/pr` was dispatched; and the newest `.shipkit/evidence/<ticket>/jira-comment-*.md` exists;
+  3. `.shipkit/bugfix-<ticket>.md` is absent, or none of its concerns is `held:` and every real-defect concern has `verified:` — a concern that only waits for someone's reply (a not-a-defect note, a product decision) does not block it, as `/merge` already carries those in its own note;
+  4. no child PR overlaps its destination: after `git fetch origin <destination>` in that repo, the files changed on the destination since `git merge-base <PR head> origin/<destination>`
+     (`git diff --name-only <merge-base> origin/<destination>`) share none with the files the PR changes (`git diff --name-only <merge-base> <PR head>`) — an overlap is the conflict `/merge` would stop on;
+  5. `python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left` prints at least 30 — `/merge`'s root bump needs a `git push`, and a merge cut in two by the push window leaves the children merged and the root not.
+  A line that fails stops the merge: class B when the cause is someone's pending reply, otherwise class C — either way the cause goes into `Status:`.
+  `/merge` still asks only on a problem (its own Steps 3–5); a conflict with the target, a failed pipeline or a rejected merge that it reports is class C (`/merge` merges nothing once it finds one;
+  line 4 only catches the overlap of changed files, not a textual conflict).
 - Never `auto`: the clarify gate, any Jira/Slack post, `INCOMPLETE`, a failed precondition above. A concern `/bugfix` holds does not stop the stages before the merge
   (the fixed concerns still ship through review, verify and `/pr`); it stops the merge through precondition 3.
+
+## 6. A state file written before these rules
+
+- No `Rounds:` line → `0/6`; write it with the next state write.
+- A `[x]` `review`, `verify` or `prs` stage with no `passed @` / `signed-off @` line is **unpinned**. When `prs` is `[x]` and every repo's `HEAD` equals the head of its open PR
+  (read from Bitbucket that turn) **and** the `prs` line says the reviewer signed off (`LGTM` / `sign-off`), pin `review`, `prs` and — only when it ran, not when it was skipped — `verify` to those heads and write
+  `pinned from an earlier state file` on the detail line: the reviewer's loop covered exactly this code. A `prs` line that says nothing about the reviewer → `/pr` runs again.
+  Otherwise — no PR yet, or a `HEAD` that differs from its PR's head — the unpinned stage is stale: run it again. Never pin on the strength of the `[x]` alone.
+- An earlier stop is not a stage: a `Blocker:` line names evidence, so re-read what it names (the PR, the file, the question) before dispatching anything for it. Unchanged → stop again with the
+  same words and do not re-dispatch the earlier stages (a re-run `/pr` pings the reviewer again).
+- A concern line or note that names a sha or says "not pushed yet" is history: read the branch and the PR, not the sentence.

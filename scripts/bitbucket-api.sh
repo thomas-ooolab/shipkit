@@ -3,7 +3,7 @@
 # (/pr, /review-changes, /bump-submodule, /run-pipeline, /spec-from-ticket). /merge keeps its own merge-pr.sh.
 #
 #   usage: bash bitbucket-api.sh <GET|POST|PUT|DELETE> <path-under-2.0 | https://api.bitbucket.org/... url> [<json body file>]
-#   e.g.   bash bitbucket-api.sh GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22feat/AR-1-x%22&state=OPEN"
+#   e.g.   bash bitbucket-api.sh GET "/repositories/<workspace>/<repo>/pullrequests?q=source.branch.name%3D%22feat/AR-1-x%22%20AND%20state%3D%22OPEN%22"   (state inside q: with q present, &state= is ignored)
 #          bash bitbucket-api.sh POST "/repositories/<workspace>/<repo>/pullrequests" body.json
 #   env:   BITBUCKET_USERNAME  BITBUCKET_APP_PASSWORD   (required; BITBUCKET_API_TOKEN is read when the second is empty)
 #          The variable keeps its old name, but it may hold an API token: Bitbucket accepts either as the Basic-auth
