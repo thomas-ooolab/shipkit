@@ -138,7 +138,7 @@ present (a PR becomes a link; a press on the evidence path opens the newest `jir
 
 `Design gate` is `unset` until Stage 1.5 runs; it is then `on` for a UI ticket and `off` for any other, written once and never asked, so resumes never re-decide.
 
-`Rounds:`, the `  - detail: round <k>/3 · …`, `passed @ …` and `signed-off @ …` detail lines and the `Blocker:` of a loop stop are written exactly as `loop-rules.md` §3–4 say; they are
+`Rounds:`, the `  - detail: round <k>/3 · …`, `passed @ …` and `signed-off @ …` detail lines and the `Blocker:` of a loop stop are written exactly as `loop-rules.md` §3–4 say, and the `Waiting since:` / `Notified:` header lines and the wake-up after a stop as §7 says; they are
 what a resume reads to know how many rounds are spent and which PASS is still current, so rewrite them in the same write as the stage they belong to.
 
 ## Step 4 — Run pending stages in order (skip completed ones)

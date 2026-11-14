@@ -92,3 +92,20 @@ Without `auto` the `implement` and `merged` stages stop as `SKILL.md` Step 4 say
 - An earlier stop is not a stage: a `Blocker:` line names evidence, so re-read what it names (the PR, the file, the question) before dispatching anything for it. Unchanged → stop again with the
   same words and do not re-dispatch the earlier stages (a re-run `/pr` pings the reviewer again).
 - A concern line or note that names a sha or says "not pushed yet" is history: read the branch and the PR, not the sentence.
+
+## 7. Waiting: wake on the event, notify after 4 hours
+
+A stop is not the end of the session. With `auto`, the run never sits in `waiting-user` with nobody to resume it; `Waiting since:` and the notice below apply with or without `auto`, only the wake needs it.
+
+- **Waiting since.** When a stop writes `Status: waiting-user · <reason>` (class B or C), write a header line `Waiting since: <ISO-8601>` — only when the reason differs from the previous `Status:` (same words, digits ignored:
+  "2 open questions" becoming "1" is the same cause); an unchanged reason keeps the old line, so the clock runs from the first stop. When the stage moves on, remove `Waiting since:` and `Notified:`. (The pane ignores header lines it does not know.)
+- **Wake.** When a dispatched skill's background poller or loop ends — its notification arrives, a reply was folded in, the user approved a draft in this terminal, the reviewer signed off, `/clarify` or `/bugfix`
+  finished (a skill the user runs in this terminal ends inside this session, so its end is seen directly; a poller's end arrives as its background-task notification) — re-derive state (Step 2) and, with `AUTO=true`, carry on at once: it is the same as running `/run-pipeline <ticket> auto` again, and nobody has to type it. Without `auto` nothing is woken.
+- **Notify.** Right after writing `Waiting since:`, start in the background:
+  `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/notify-desktop.py" --after 14400 --window <observer_hours of .shipkit/config.yml, default 08:00-18:00> --unless-changed .shipkit/pipeline-<ticket>.md "Waiting since:" "<the ISO written>" --title "shipkit · <ticket>" --message "<the text of Status: after the first ·>"`.
+  It sleeps 4 hours, drops itself when the line changed meanwhile (the cause was resolved), and otherwise shows one desktop notice — at the next window start when it fires outside the window. When the task ends having
+  notified (exit 0 and the line still unchanged), write `Notified: <ISO-8601>`; there is one notice per waiting cause. The reason goes in as a single argument, never into a shell string. Exit 3 (no notifier on this system) → say so once in the `Status:` text.
+- **Resume.** The timer dies with the session. A run that finds `Waiting since:` without `Notified:` re-arms it with `--after <14400 minus the seconds since Waiting since:, at least 0>`.
+- **A new `Waiting since:` clears `Notified:`** (a changed reason is a new cause, with its own notice). The window of **Notify** is `observer_hours` every day, weekends included, as in `/developer`.
+- **A closed push window wakes itself.** A stop whose reason is the push window (`--minutes-left` below 30) starts, in the background: `bash -c 'until [ "$(python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left)" -ge 30 ]; do sleep 300; done'`. When it ends, the window is open: wake as above. Without it nothing would resume a ticket that stopped at 17:40 on a Friday.
+- **Other tickets are not held.** Each ticket has its own worktree and coordinator; one waiting ticket never delays another.
