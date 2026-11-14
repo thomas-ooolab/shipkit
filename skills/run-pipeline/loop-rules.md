@@ -74,9 +74,9 @@ Without `auto` the `implement` and `merged` stages stop as `SKILL.md` Step 4 say
   2. when `verify` ran, its PASS is current (§4, including the re-verify after `/pr`); when it was skipped (bug flow, spec unchanged or `SPEC=none`) nothing is pinned and `/bugfix`'s own evidence stands; the `review` PASS was current when `/pr` was dispatched; and the newest `.shipkit/evidence/<ticket>/jira-comment-*.md` exists;
   3. `.shipkit/bugfix-<ticket>.md` is absent, or none of its concerns is `held:` and every real-defect concern has `verified:` — a concern that only waits for someone's reply (a not-a-defect note, a product decision) does not block it, as `/merge` already carries those in its own note;
   4. no child PR overlaps its destination: after `git fetch origin <destination>` in that repo, the files changed on the destination since `git merge-base <PR head> origin/<destination>`
-     (`git diff --name-only <merge-base> origin/<destination>`) share none with the files the PR changes (`git diff --name-only <merge-base> <PR head>`) — an overlap is the conflict `/merge` would stop on;
+     (`git diff --name-only <merge-base> origin/<destination>`) share none with the files the PR changes (`git diff --name-only <merge-base> <PR head>`) — an overlap is the conflict `/merge` would stop on (child PRs only: the root PR's gitlink moves are `/merge`'s own rebase; and the test is conservative — files shared with a clean textual merge still stop, and `/merge` or the user decides);
   5. `python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left` prints at least 30 — `/merge`'s root bump needs a `git push`, and a merge cut in two by the push window leaves the children merged and the root not.
-  A line that fails stops the merge: class B when the cause is someone's pending reply, otherwise class C — either way the cause goes into `Status:`.
+  A line that fails stops the merge: class B when the cause is someone's pending reply, otherwise class C — either way the cause goes into `Status:`; when several fail, the lowest-numbered one is named.
   `/merge` still asks only on a problem (its own Steps 3–5); a conflict with the target, a failed pipeline or a rejected merge that it reports is class C (`/merge` merges nothing once it finds one;
   line 4 only catches the overlap of changed files, not a textual conflict).
 - Never `auto`: the clarify gate, any Jira/Slack post, `INCOMPLETE`, a failed precondition above. A concern `/bugfix` holds does not stop the stages before the merge
@@ -85,7 +85,7 @@ Without `auto` the `implement` and `merged` stages stop as `SKILL.md` Step 4 say
 ## 6. A state file written before these rules
 
 - No `Rounds:` line → `0/6`; write it with the next state write.
-- A `[x]` `review`, `verify` or `prs` stage with no `passed @` / `signed-off @` line is **unpinned**. When `prs` is `[x]` and every repo's `HEAD` equals the head of its open PR
+- A `[x]` `review`, `verify` or `prs` stage with no `passed @` / `signed-off @` line is **unpinned**. When `prs` is `[x]` and every affected repo's `HEAD` (the ones with a PR; an uninitialized or unchanged submodule is not affected) equals the head of its open PR
   (read from Bitbucket that turn) **and** the `prs` line says the reviewer signed off (`LGTM` / `sign-off`), pin `review`, `prs` and — only when it ran, not when it was skipped — `verify` to those heads and write
   `pinned from an earlier state file` on the detail line: the reviewer's loop covered exactly this code. A `prs` line that says nothing about the reviewer → `/pr` runs again.
   Otherwise — no PR yet, or a `HEAD` that differs from its PR's head — the unpinned stage is stale: run it again. Never pin on the strength of the `[x]` alone.
@@ -98,7 +98,7 @@ Without `auto` the `implement` and `merged` stages stop as `SKILL.md` Step 4 say
 A stop is not the end of the session. With `auto`, the run never sits in `waiting-user` with nobody to resume it; `Waiting since:` and the notice below apply with or without `auto`, only the wake needs it.
 
 - **Waiting since.** When a stop writes `Status: waiting-user · <reason>` (class B or C), write a header line `Waiting since: <ISO-8601>` — only when the reason differs from the previous `Status:` (same words, digits ignored:
-  "2 open questions" becoming "1" is the same cause); an unchanged reason keeps the old line, so the clock runs from the first stop. When the stage moves on, remove `Waiting since:` and `Notified:`. (The pane ignores header lines it does not know.)
+  "2 open questions" becoming "1" is the same cause); an unchanged reason keeps the old line, so the clock runs from the first stop; a state file written before this rule has none, so the clock starts at the next stop. When the stage moves on, remove `Waiting since:` and `Notified:`. (The pane ignores header lines it does not know.)
 - **Wake.** When a dispatched skill's background poller or loop ends — its notification arrives, a reply was folded in, the user approved a draft in this terminal, the reviewer signed off, `/clarify` or `/bugfix`
   finished (a skill the user runs in this terminal ends inside this session, so its end is seen directly; a poller's end arrives as its background-task notification) — re-derive state (Step 2) and, with `AUTO=true`, carry on at once: it is the same as running `/run-pipeline <ticket> auto` again, and nobody has to type it. Without `auto` nothing is woken.
 - **Notify.** Right after writing `Waiting since:`, start in the background:
@@ -107,5 +107,5 @@ A stop is not the end of the session. With `auto`, the run never sits in `waitin
   notified (exit 0 and the line still unchanged), write `Notified: <ISO-8601>`; there is one notice per waiting cause. The reason goes in as a single argument, never into a shell string. Exit 3 (no notifier on this system) → say so once in the `Status:` text.
 - **Resume.** The timer dies with the session. A run that finds `Waiting since:` without `Notified:` re-arms it with `--after <14400 minus the seconds since Waiting since:, at least 0>`.
 - **A new `Waiting since:` clears `Notified:`** (a changed reason is a new cause, with its own notice). The window of **Notify** is `observer_hours` every day, weekends included, as in `/developer`.
-- **A closed push window wakes itself.** A stop whose reason is the push window (`--minutes-left` below 30) starts, in the background: `bash -c 'until [ "$(python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left)" -ge 30 ]; do sleep 300; done'`. When it ends, the window is open: wake as above. Without it nothing would resume a ticket that stopped at 17:40 on a Friday.
+- **A closed push window wakes itself.** A stop whose only failing line is the push window (line 5; `--minutes-left` below 30) starts, in the background: `bash -c 'until [ "$(python3 -I "${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py" --minutes-left)" -ge 30 ]; do sleep 300; done'`. When it ends, the window is open: wake as above. Without it nothing would resume a ticket that stopped at 17:40 on a Friday.
 - **Other tickets are not held.** Each ticket has its own worktree and coordinator; one waiting ticket never delays another.

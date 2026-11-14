@@ -63,7 +63,7 @@ Runs right after the briefing is printed and the marker written — first run of
 
 With `--no-continue` this procedure does not run, and the briefing ends as before with one short question naming the unfinished tickets; a run that names a target prints the summary only, no question. A ticket's line is printed once its outcome is known: `continuing` when the one command has been sent, `not continued — <reason>` at the first failed check; step 6's report line follows when its task ends.
 
-What this procedure does not do: ask. The user's standing instruction for the morning run is the go, for that ticket and that run only, and the one command of *Continue a ticket* step 5 is all it sends (`/run-pipeline <KEY> auto`; `--agent kiro` added when the pipeline file's `Flow:` is `bug`).
+What this procedure does not do: ask. The user's standing instruction for the morning run is the go, for that ticket and that run only, and the one command of *Continue a ticket* step 5 is all it sends (`/run-pipeline <KEY> auto`; the pipeline file's `Flow:` header decides the flow, so a bug needs no flag).
 
 **What runs on its own and what waits for the user** (the whole contract of an `auto` morning):
 | Runs on its own | Waits for the user, every time |
@@ -104,9 +104,9 @@ would only bounce it). Run it as a background task so the observer is not blocke
    `ORCA terminal create --worktree id:<repoId>::<path> --title <KEY>-coordinator --command claude --json`, then the
    *Ready* check of *Start mode* step 3 (inside the background task there). A fresh claude needs no briefing: the one command of step 5 is the whole instruction.
 4. **Judge from the files, before typing anything — no question to the coordinator.** Blocker if: `open-question.md` has an unchecked item other than one reading `decided (dev, confirmed …)`; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
-   supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in `pr-<KEY>.md`; Jira/PR state needs a person. A blocker → send nothing and tell the user
+   supersedes** (a newer `assign-<KEY>.md` / `pipeline-<KEY>.md` showing that task done means it was resolved); a PR concern is open in `pr-<KEY>.md`; Jira/PR state needs a person; a `Blocker:` line of the pipeline file that still holds when its evidence is re-read (the PR, the file, the question it names — an unchanged one is a blocker, a resolved one is not). A blocker → send nothing and tell the user
    in one line which one. A question on screen is relayed to the user (`needs attention — terminal <handle>`) and never answered with its default — *Start mode*'s default-answer rule does not apply to a continued ticket.
-5. **No blocker → send ONE command** (*Send* of *Start mode* step 3): `/run-pipeline <KEY> auto`, with `--agent kiro` added when the pipeline file's `Flow:` header is `bug`. That is all this skill types: the coordinator re-derives the stage from
+5. **No blocker → send ONE command** (*Send* of *Start mode* step 3): `/run-pipeline <KEY> auto` — the flow comes from the pipeline file's `Flow:` header, so a bug needs no flag. That is all this skill types: the coordinator re-derives the stage from
    the files, git, the PR and Jira, dispatches `/bootstrap`, `/assign` and the rest itself, and stops by itself at a blocker or a decision. **Whose go it is:** `/developer <KEY | Jira URL>`, *Start-of-day continue* and a *Day plan* pick are the go for that ticket
    (the command pushes branches, opens PRs and posts review requests, so nothing less is enough); a ticket only named in the conversation, or a yes to a question, is confirmed once in one line first. No clear go → send nothing.
    It runs there; confirm by what the screen does, as in *Start mode*.
@@ -129,7 +129,7 @@ fails → tell the user and stop. Never `ORCA open`.
    | Intent | Observable | Coordinator runs |
    |---|---|---|
    | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/run-pipeline <KEY> auto` — the pipeline itself runs `/bootstrap` when the worktree has no config, `/spec-from-ticket`, `/clarify` (a gate: it stops for the PO), `/design-recon` (UI tickets with a mockup), `/plan-deep`, `/assign`, then review, verify, PR and merge |
-   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/run-pipeline <KEY> --bug [<commentId>] --agent kiro auto` — `/bugfix` first (it hands the fix to kiro through `/assign`), then verify when the spec changed, review, PR, merge |
+   | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/run-pipeline <KEY> --bug [<commentId>] auto` — `/bugfix` first (it hands the fix to kiro through `/assign`), then verify when the spec changed, review, PR, merge |
    | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/run-pipeline <KEY> auto` — resumes on the existing branches (rebases them, renumbers the spec if needed) and goes on from the stage the files show; never `/spec-from-ticket` again |
    | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |
 
@@ -174,11 +174,7 @@ fails → tell the user and stop. Never `ORCA open`.
 
    **Resume** — no match → `ORCA worktree create --name <key> --no-parent --base-branch origin/feat/<KEY>-<slug> --agent claude --json`
    (`<slug>` from the root's origin branch), then `git -C <path> branch -m feat/<KEY>-<slug>` and
-   `git -C <path> branch --set-upstream-to=origin/feat/<KEY>-<slug>`. Init only the affected submodules (those with an
-   `origin/feat/<KEY>-*` branch): `git -C <path> <ssh rewrite> submodule update --init -- <sub>`
-   — `<ssh rewrite>` is `-c url."<to>".insteadOf="<from>"` when `.shipkit/config.yml` has `git_ssh_rewrite: { from, to }` (a
-   `.gitmodules` URL that needs another SSH key), nothing otherwise; pass the same on every later fetch in that submodule — then `git -C <path>/<sub> checkout -b <branch> --track origin/<branch>` for its `origin/feat/<KEY>-*`
-   branch.
+   `git -C <path> branch --set-upstream-to=origin/feat/<KEY>-<slug>`. This skill does **not** init submodules: the coordinator does it, for the ones the ticket needs (`run-pipeline/SKILL.md`, Stage 2).
 
    Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
