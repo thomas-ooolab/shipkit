@@ -356,6 +356,8 @@ of the file; the clock is the machine's local time, or `SHIPKIT_TZ=<IANA zone>`.
 environment lifts it for the session. Not covered: pushes through an MCP tool, pushes you type in your own terminal, and agents that do not
 load this plugin (kiro workers). `python3 -I hooks/after-hours-push-guard.py --self-test` checks it.
 
+A fourth `PreToolUse` hook (`hooks/worktree-delete-guard.py`) blocks removing a git worktree — `orca worktree rm` (what `/orca-cli` runs), `git worktree remove`, a recursive delete of a registered worktree — in every session, with or without a shipkit skill loaded, until `scripts/worktree-clearance.py` has issued a clearance. A worktree's `.shipkit/` (ticket state, evidence, Jira drafts) is gitignored and goes with it, Orca drops the local branch, and an unpushed commit survives only in the reflog. The block message tells the model the procedure: read the facts (`worktree-clearance.py check`), have the Haiku agent `worktree-checker` read `.shipkit` and say whether the ticket is still in progress, and when it is not and git holds nothing to lose, grant the clearance and remove without asking; a dirty tree, a commit on no remote, or work in progress needs your explicit "delete". `SHIPKIT_ALLOW_WORKTREE_RM=1` set before Claude Code starts lifts it for that session; a removal typed in your own terminal is not covered. `python3 -I hooks/worktree-delete-guard.py --self-test` and `python3 -I scripts/worktree-clearance.py --self-test` check it.
+
 ## Stages pane (mod)
 
 `/stages` opens a pane on the newest `.shipkit/pipeline-<ticket>.md` in the session's directory, refreshed every few seconds while it is open

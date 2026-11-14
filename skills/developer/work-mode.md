@@ -159,7 +159,7 @@ fails → tell the user and stop. Never `ORCA open`.
    *Continue a ticket* takes over (the invocation is the go, its step 5) — never a second set of terminals; none listed (a failed start was closed) → reuse the worktree and open a
    fresh coordinator. Bug → reuse it: terminals listed → *Continue a ticket* as above; none listed → open the coordinator (step 2, *Reused worktree*); the fix goes on the unmerged branch.
    **Replace** (this skill's own step for a merged, clean worktree; a *user's* request to delete one is blocked by SKILL.md, *Hard rule: a request to delete a worktree*): first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
-   an agent idle at its input box is fine; one in the middle of a turn, or waiting on a person → tell the user and stop, delete nothing. Then
+   an agent idle at its input box is fine; one in the middle of a turn, or waiting on a person → tell the user and stop, delete nothing. Then `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-clearance.py" grant <path>` (exit 3 — git holds changes — means it is a *leftover* after all: reuse, say so), then
    `ORCA worktree rm --worktree id:<repoId>::<path> --json` (never `--force`: git refuses a dirty tree, which is the guard;
    it also drops the local branch, even one renamed to `fix/…`). `ok: false` (a dirty tree it refused) → it is a *leftover* after all: reuse, say so. `ok: true` is only `removing` — wait until the path is gone
    (`ls <path>` fails, re-check every 2 s up to 10 times; the new worktree reuses the name `<key>`) and carry on as *no worktree matches* in step 2 — a new worktree for the new request.

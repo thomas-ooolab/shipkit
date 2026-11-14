@@ -1,5 +1,7 @@
 {
-  "modules": ["./pipeline-pane.tsx"],
+  "modules": [
+    "./pipeline-pane.tsx"
+  ],
   "hooks": {
     "PreToolUse": [
       {
@@ -27,6 +29,15 @@
           {
             "type": "command",
             "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/hooks/after-hours-push-guard.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"${CLAUDE_PLUGIN_ROOT}/hooks/worktree-delete-guard.py\""
           }
         ]
       }
