@@ -176,7 +176,7 @@ case "${1:-}" in
     if [ -f .gitmodules ]; then echo "TOPOLOGY_MODE=meta-with-submodules"; else echo "TOPOLOGY_MODE=single-repo"; fi
     echo "SPEC=$(find_spec "$ticket")"
     echo "BRANCHES:"
-    bp=$(git branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+    bp=$(git branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[*+ ]*//' | head -1)
     if [ -f .gitmodules ]; then
       if [ -n "$bp" ]; then
         echo "- parent: branch=$bp push=$(push_state . "$bp")"
@@ -199,7 +199,7 @@ case "${1:-}" in
         [ -z "$p" ] && continue
         # not checked out: `git -C` would fall through to the parent repo and report ITS branch
         if [ ! -e "$p/.git" ]; then echo "- $p: branch=none (not checked out)"; continue; fi
-        b=$(git -C "$p" branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[* ]*//' | head -1)
+        b=$(git -C "$p" branch --list "feat/$ticket-*" "fix/$ticket-*" 2>/dev/null | sed 's/^[*+ ]*//' | head -1)
         if [ -n "$b" ]; then
           dirty=$(git -C "$p" status --porcelain 2>/dev/null | head -1)
           ahead=$(git -C "$p" rev-list --count "@{upstream}..$b" 2>/dev/null || echo "?")

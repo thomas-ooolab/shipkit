@@ -133,10 +133,10 @@ fails → tell the user and stop. Never `ORCA open`.
    | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/run-pipeline <KEY> auto` — resumes on the existing branches (rebases them, renumbers the spec if needed) and goes on from the stage the files show; never `/spec-from-ticket` again |
    | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |
 
-   Resume check (for anything that is not a bug): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*'` in
-   the root, `git ls-remote --heads <url> 'feat/<KEY>-*'` per submodule in `.gitmodules` (with the `<ssh rewrite>` from step
+   Resume check (for a bug the same, with `fix/` as well as `feat/`): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*' 'origin/fix/<KEY>-*'` in
+   the root, `git ls-remote --heads <url> 'feat/<KEY>-*' 'fix/<KEY>-*'` per submodule in `.gitmodules` (with the `<ssh rewrite>` from step
    2), and `probe.sh state <KEY>` for the spec dir (not on the primary checkout → `git ls-tree` the root's origin branch).
-   Any hit → resume.
+   Any hit → resume (a bug with a hit keeps its bug intent, but adopts that branch below: `--base-branch origin/<that branch>`, the local branch given that exact name, upstream set — never a new name while one exists on origin).
 
    No ticket key (description-only input) → ask which ticket, in the user's language, before anything else. A worktree
    already matches the key → *Existing worktree* below decides: reuse it or replace it.
@@ -158,7 +158,7 @@ fails → tell the user and stop. Never `ORCA open`.
    **Reuse:** standard / resume → `ORCA terminal list --worktree <id> --json`: terminals listed → this is a ticket already in progress, so
    *Continue a ticket* takes over (the invocation is the go, its step 5) — never a second set of terminals; none listed (a failed start was closed) → reuse the worktree and open a
    fresh coordinator. Bug → reuse it: terminals listed → *Continue a ticket* as above; none listed → open the coordinator (step 2, *Reused worktree*); the fix goes on the unmerged branch.
-   **Replace:** first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
+   **Replace** (this skill's own step for a merged, clean worktree; a *user's* request to delete one is blocked by SKILL.md, *Hard rule: a request to delete a worktree*): first `kiro-cli whoami` (step 2's login check — not logged in → stop before anything is deleted), then `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` on each of its terminals —
    an agent idle at its input box is fine; one in the middle of a turn, or waiting on a person → tell the user and stop, delete nothing. Then
    `ORCA worktree rm --worktree id:<repoId>::<path> --json` (never `--force`: git refuses a dirty tree, which is the guard;
    it also drops the local branch, even one renamed to `fix/…`). `ok: false` (a dirty tree it refused) → it is a *leftover* after all: reuse, say so. `ok: true` is only `removing` — wait until the path is gone
@@ -172,9 +172,9 @@ fails → tell the user and stop. Never `ORCA open`.
    `git -C <worktree path> branch -m <name>` — `<name>` is `fix/<KEY>-<slug>` for a bug, `feat/<KEY>-<slug>` otherwise (the line
    `probe.sh branch <KEY> [--fix]` prints when the spec exists; else the Jira summary in kebab-case, ≤5 words, as `<slug>`).
 
-   **Resume** — no match → `ORCA worktree create --name <key> --no-parent --base-branch origin/feat/<KEY>-<slug> --agent claude --json`
-   (`<slug>` from the root's origin branch), then `git -C <path> branch -m feat/<KEY>-<slug>` and
-   `git -C <path> branch --set-upstream-to=origin/feat/<KEY>-<slug>`. This skill does **not** init submodules: the coordinator does it, for the ones the ticket needs (`run-pipeline/SKILL.md`, Stage 2).
+   **Resume** (a feature or a bug alike; `<branch>` is the root's existing origin branch, `feat/<KEY>-<slug>` or `fix/<KEY>-<slug>`) — no match → `ORCA worktree create --name <key> --no-parent --base-branch origin/<branch> --agent claude --json`,
+   then `git -C <path> branch -m <branch>` and
+   `git -C <path> branch --set-upstream-to=origin/<branch>`. This skill does **not** init submodules: the coordinator does it, for the ones the ticket needs (`run-pipeline/SKILL.md`, Stage 2).
 
    Reused worktree →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works

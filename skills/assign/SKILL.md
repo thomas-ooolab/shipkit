@@ -105,6 +105,8 @@ To force a re-run anyway otherwise, the user must say so explicitly — AskUserQ
 has {dirty|unpushed} changes on its branch — re-run its agent anyway and let it continue from
 there, or skip?" (`--only <name>` alone does not imply force.)
 
+**Ground-truth task check — progress is verified, never assumed.** A task's `[x]` lives in `spec.md` in this worktree and is lost with it unless committed, so before handing out a submodule's unticked tasks, read the branch: for each task, are its file paths already changed on the branch beyond `origin/<target>` (`git diff --name-only origin/<target>...HEAD`)? A task whose every file is there is **audited like a worker's result** (the diff stays inside the allowlist, its scoped tests run now — `${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`, never the whole suite) and is checked off `[x]` only when that passes; it is not handed out again. An audit that fails (a file outside the allowlist, a test that fails) leaves it unticked **and hands it out** with the brief naming the failure ("the files exist, `<test>` fails: fix it"). A task with only some of its files there is handed out with the brief naming which files already carry the work ("continue, do not redo"). A commit message or a state line is never the evidence.
+
 ## Step 4b — Fresh enough to code on? (per submodule, before its wave runs)
 Coming back to an old branch or worktree, never hand out work on what the last `fetch` said: the branch may have been
 merged long ago, or the target may have moved under the files the tasks will touch (an agent that codes on a branch hundreds
