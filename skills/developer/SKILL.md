@@ -12,8 +12,8 @@ argument-hint: "[<slack-thread-url> | <jira-ticket | jira-url | jira-comment-url
 Answers Slack questions **as the developer — the user** (their user token, first person), and starts
 work on a ticket the user hands over. Three modes:
 - **Start** — `/developer <ticket | jira-comment-url | description>`: decides from what it reads whether
-  this is a standard (spec-driven) change or a bug, and sets up a worktree with a **coordinator** (a claude session: `/bootstrap`, then
-  `/spec-from-ticket`, or `/run-pipeline --bug` whose first stage is `/bugfix`; plans and coordinates) whose **workers** are the kiro agents `/assign` starts to implement
+  this is a standard (spec-driven) change or a bug, and sets up a worktree with a **coordinator** (a claude session that is sent ONE command,
+  `/run-pipeline <KEY> auto` — it runs `/bootstrap`, the spec, the plan, or for a bug `/bugfix` first; plans and coordinates) whose **workers** are the kiro agents `/assign` starts to implement
   (see *Start mode*). Touches no Slack.
 - **URL** — `/developer <url>`: reads that one thread, answers, then watches it and answers follow-ups
   until the asker is done. Posts directly.
@@ -40,7 +40,7 @@ attached to it are read from disk, never created),
 and draft answers in `.shipkit/developer-<TICKET>-draft.md` (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
 in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode* and *Continue a ticket* (a ticket the user names, or one the first run of the day continues under *Start-of-day continue*; the *Daily briefing*'s own printing starts, resumes and types nothing): this session still writes no
 code and no Jira/Slack content — it creates the Orca worktree, runs the few git commands that prepare that new worktree
-(rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the fixed messages
+(rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the one fixed command (`/run-pipeline <KEY> auto`)
 into the worktree's claude terminal, and hands the work to the agents there, which own every code write.
 One more: when the user explicitly asks in the conversation ("post the comment", "ping <name> on Slack"),
 that single write is the user's own call and is allowed — only through the sanctioned paths
@@ -140,7 +140,7 @@ reproduce), the developer's stance, numbers-from-data, and how a batch of answer
 - **Day plan** — new tickets never start on their own: the first run of the day lists the user's tickets that have no local work, ordered by Jira priority, due date and rank, and the user picks which to take that day; each picked one then runs *Start mode* under `auto`.
 - **Continue a ticket** — a ticket the user names (or says yes to; `/developer <KEY | Jira URL>` is itself the go): resume it in its own worktree with its own claude; the carry-on to the end of the pipeline needs the user's explicit go for that ticket every time (*Start-of-day continue* is the one standing go).
 - **Start mode** — `/developer <ticket | jira-comment-url | description>`: standard vs bug vs resume, an Orca worktree,
-  a coordinator (claude) and its workers (kiro, via `/assign`); it ends in `/run-pipeline <KEY> auto`. Referenced below by *Delegate a bug*.
+  a coordinator (claude) and its workers (kiro, via `/assign`); it types ONE command into the coordinator, `/run-pipeline <KEY> auto`, and that session does the rest itself. Referenced below by *Delegate a bug*.
 
 ## Step 1 — Parse and adopt
 1. Parse the URL: `/archives/<CHANNEL>/p<digits>` → `ts = digits[:-6] + "." + digits[-6:]`; a
@@ -190,7 +190,7 @@ staging/prod, and what the worktree shows can still change; never answer as if s
 branch it was read from.
 
 ## Delegate a bug
-A `bug` event (Slack, from *Classify*) — only for a ticket that passed *Hard rule: who owns a ticket* — takes *Start mode* steps 2–5 with intent **bug**; there is no separate
+A `bug` event (Slack, from *Classify*) — only for a ticket that passed *Hard rule: who owns a ticket* — takes *Start mode* steps 2–4 with intent **bug**; there is no separate
 procedure. Resolve `ORCA` and load the `orca-cli` skill; `ORCA worktree list --json` fails → no delegation,
 tell the user and stop at the reply. In observer mode the delegation needs the same approval as the draft
 (it starts a writer agent); `--auto` scope covers both.
