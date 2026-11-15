@@ -308,7 +308,7 @@ Spec:    specs/NNN-<slug>/spec.md  (N requirements; M [UNVERIFIED]/[not specifie
 Open Qs: specs/NNN-<slug>/open-question.md  (K blocking)   — or "none"
 Cross-check: <n> ticket-conflict, <m> spec-vs-code, <k> unchecked  (.shipkit/evidence/<TICKET>/cross-check.md)   — or "skipped: no requirement with a claim of kind (a), (b) or (c)"
 Reporter: <displayName> (<accountId>) → spec frontmatter reporter_account_id   (or: empty — <reason>)
-Next:    /clarify <ticket>   (right after the spec, if Open Qs > 0 — those block a sound plan)
+Next:    /design-recon <mockup> --ticket <ticket>   (UI ticket with a mockup: it can answer some Open Qs), then /clarify <ticket>   (if Open Qs > 0 — those block a sound plan)
          then /plan-deep --ticket <ticket>   then   /run-pipeline <ticket>
 ```
 

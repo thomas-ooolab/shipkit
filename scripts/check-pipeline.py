@@ -22,7 +22,7 @@ CHECKS = [
     ("skills/run-pipeline/SKILL.md", r"^## Stages", r"^```", ["spec-from-ticket", "clarify", "plan-deep", "review-changes", "verify", "pr", "merge", "bump-submodule"]),
     ("skills/help/SKILL.md", r"Same flow, one step at a time", None, list(RANK)),
     ("skills/developer/work-mode.md", r"^\s*\| standard \|", None, ["spec-from-ticket", "clarify", "plan-deep", "assign"]),
-    ("skills/spec-from-ticket/SKILL.md", r"^Next:\s+/clarify", r"/run-pipeline", ["clarify", "plan-deep"]),
+    ("skills/spec-from-ticket/SKILL.md", r"^Next:\s+/design-recon", r"/run-pipeline", ["clarify", "plan-deep"]),
     ("skills/verify/SKILL.md", r"^`/design-recon` \(UI tickets", r"→ `/merge`", ["verify", "review-changes", "pr", "merge"]),
     ("README.md", r"^## The pipeline", r"^## Skills", ["spec-from-ticket", "clarify", "plan-deep", "assign", "verify", "review-changes", "pr", "merge", "bump-submodule"]),
 ]

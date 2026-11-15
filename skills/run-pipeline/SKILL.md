@@ -32,8 +32,8 @@ with no spec, redirect: "Run `/spec-from-ticket <ticket>` first, then `/run-pipe
 1. `.shipkit/pipeline-<ticket>.md` — stage state, appended after each stage.
 2. `.shipkit/pipeline-failure-<ticket>.md` — on a stage failure.
 3. Feature **branches** (parent + affected submodules) — setup only.
-Everything else happens inside a dispatched command (`spec-from-ticket`, `plan-deep`,
-`design-recon`, `review-changes`, `verify`, `pr`, `bump-submodule`), each with its
+Everything else happens inside a dispatched command (`spec-from-ticket`, `design-recon`,
+`plan-deep`, `review-changes`, `verify`, `pr`, `bump-submodule`), each with its
 own write surface.
 **Forbidden side-effects:** never edit app/test/doc code; never merge a PR itself (without `auto` it stops at the open PR; with `auto`
 `/merge` is dispatched only under `loop-rules.md` §5); never bump a submodule before its child PR is confirmed merged; no force-push.
@@ -84,9 +84,9 @@ how a PASS is pinned to the code it saw, and the `auto` advance rules; it applie
 | Stage | Passes when |
 |---|---|
 | **spec** | `SPEC=<spec dir>/NNN-…` (not `none`); `spec.md` has at least one `**REQ-` line and every such line carries `*(source:` |
+| **design-recon** *(UI)* | design gate is `off`, or `design-contract.md` exists in the spec dir and every row of its `## Fidelity and placement` table that is not `ok` has its `[design-omission]` item in `open-question.md` |
 | **clarify** *(gate)* | the spec dir has no `open-question.md`, or every unchecked `- [ ]` item in it reads `decided (dev, confirmed …)` |
 | **plan** | frontmatter `status:` is `planned` (or `in-progress` / `shipped`); `spec.md` has no `[UNVERIFIED` and no `blocked on OQ-`; the last `/plan-deep` report line `Review: N found (M blocking, K advisory)` has M = 0 (written to the stage's detail line when it returns; a resume with no such line rests on the first two checks) |
-| **design-recon** *(UI)* | design gate is `off`, or `design-contract.md` exists in the spec dir and every row of its `## Fidelity and placement` table that is not `ok` has its `[design-omission]` item in `open-question.md` |
 | **branches** | parent + every affected submodule has `branch=feat/<ticket>-…` |
 | **implement** *(gate)* | every task of `spec.md` `## Tasks` is `- [x]` (`/assign` ticks it after its git audit; by hand, tick it yourself), each affected branch has commits beyond its target, and `dirty=no` |
 | **review** | the last `/review-changes` reported `0 blocking`, and its `passed @` line is current (`loop-rules.md` §4) |
@@ -112,9 +112,9 @@ Poller: <a wait the state files below do not show, e.g. Bitbucket pipelines for 
 
 ## Stages
 - [ ] 1 spec          — /spec-from-ticket <ticket>
+- [ ] 1.1 design-recon — /design-recon (UI tickets; always on, never asked; skipped when the gate is off) — before clarify: the mockup can answer open questions first
 - [ ] 1.2 clarify     — GATE: /clarify <ticket> while open-question.md has unchecked items (needs the PO — never automated)
 - [ ] 1.4 plan        — /plan-deep --ticket <ticket>
-- [ ] 1.5 design-recon — /design-recon (UI tickets; always on, never asked; skipped when the gate is off)
 - [ ] 2 branches      — feat/<ticket>-<slug>(+ per-submodule suffix)
   - detail: root  <parent branch>  <push state>
   - detail: <suffix>  <that submodule's branch>  <push state>
@@ -137,7 +137,7 @@ present (a PR becomes a link; a press on the evidence path opens the newest `jir
 
 **Open questions and blockers.** The pane reads two of them itself and shows them: the number of open questions (the unchecked `- [ ]` items of `<Spec dir>/open-question.md`, counted as `OQ: <open> open of <all>` inside the `clarify` stage — so keep `Spec:` in the header; the same stage says `✎ draft waiting for you` and `PO silent for <n> poll windows` from `/clarify`'s own `.shipkit/clarify-<ticket>.md`, which this skill never writes) and the open PR concerns (the unchecked items under `## Concerns` of `.shipkit/pr-<ticket>.md`), drawn as `⛔ <n>` on the `prs` stage's row; a `❌` stage is its own blocker and shows as ✗. Only counts are drawn, each in the stage it belongs to. Do not copy those into the state file. For any other blocker — what `/developer` counts as one in `work-mode.md` (an `assign-failure-<ticket>.md` no later run supersedes, Jira or PR state that needs a person) — write one `Blocker: [<stage id>: ]<one line>` header line each — name the stage (`Blocker: 4: the reviewer bot is down`) or the pane puts it on the next unfinished one — and remove it when it is resolved. The pane draws `⛔ <n>` on that stage's row; a stage with no marker has no blocker in those records, which says nothing about anything they do not hold.
 
-`Design gate` is `unset` until Stage 1.5 runs; it is then `on` for a UI ticket and `off` for any other, written once and never asked, so resumes never re-decide.
+`Design gate` is `unset` until Stage 1.1 runs; it is then `on` for a UI ticket and `off` for any other, written once and never asked, so resumes never re-decide.
 
 `Rounds:`, the `  - detail: round <k>/3 · …`, `passed @ …` and `signed-off @ …` detail lines and the `Blocker:` of a loop stop are written exactly as `loop-rules.md` §3–4 say, and the `Waiting since:` / `Notified:` header lines and the wake-up after a stop as §7 says, and a question put to the root coordinator (`/developer`) instead of the user as §8 says; they are
 what a resume reads to know how many rounds are spent and which PASS is still current, so rewrite them in the same write as the stage they belong to.
@@ -149,24 +149,24 @@ re-confirm success from ground truth and append the result + timestamp to the st
 
 - **Stage 1 — spec** (if `SPEC=none`): dispatch `/spec-from-ticket <ticket>`. Success = the spec predicate holds.
   This also fixes the scope (affected submodules) used by later stages. A REQ without a source is class A (`loop-rules.md`).
-- **Stage 1.2 — clarify** *(gate)*: if the spec dir has an `open-question.md` with unchecked items, **stop**: "<n> open
-  question(s) block a sound plan — run `/clarify <ticket>`, then re-run `/run-pipeline <ticket>`." `/clarify` is a
-  long-running loop that waits for the PO and needs the user's approval before each Jira post, so the orchestrator never
-  dispatches it, `auto` included (class B: `Status: waiting-user · PO answers`). No file, every item checked, or only
-  `decided (dev, confirmed …)` items left → mark `[x]`.
-- **Stage 1.4 — plan** (spec exists, `status: draft`): dispatch `/plan-deep --ticket <ticket>` (add `--auto` only when
-  `AUTO=true`). Success = the plan predicate holds. M blocking review findings → class A (re-dispatch, `AUTO` only; otherwise stop and report them).
-  `[UNVERIFIED …]` refs or tasks `blocked on OQ-N` → class C: **stop**, they need an answer — back to Stage 1.2 on the next pass.
-- **Stage 1.5 — design fidelity** *(UI tickets only; always on, never asked)*: after the spec fixes scope, run this
+- **Stage 1.1 — design recon** *(UI tickets only; always on, never asked)*: right after the spec fixes scope and **before** the clarify gate, so the mockup answers what it can before the PO is asked and its own omissions join the same gate. Run it
   only when the scope includes frontend (`fe-only` / `fe+…`). Backend-only tickets skip it and `Design gate` stays `off`.
   If `Design gate` is already `on`/`off` in the state file, honor it. Otherwise set `Design gate: on` in the state file
   **without asking** — interactive and `auto` runs alike. If `design-contract.md` already exists in the spec dir, the
   stage is complete. If not, resolve a mockup (design URL / attachment cited in the spec; if none, ask for a path/URL —
   the only question this stage may ask; if the user can't provide one, note-and-skip and set the gate `off`). Then dispatch
-  `/design-recon --ticket <ticket>`. Success = the design-recon predicate holds (it writes each `[design-omission]` question into
-  `open-question.md` itself); a new open question sends the run back to Stage 1.2. This runs
-  **before** implement so the contract is the styling brief, not an afterthought.
+  `/design-recon --ticket <ticket>`. Success = the design-recon predicate holds. It writes each `[design-omission]` question into
+  `open-question.md` itself, and, when the spec already raised open questions, ticks the ones the mockup clearly answers (`decided (design-recon: …)`, its Step 5c) and adds a `design hint:` to the ones it only suggests an answer for;
+  the clarify gate then reads the file as it stands. A re-run later that adds an open question sends the run back to Stage 1.2. The contract is ready **before** plan and implement, so it is the styling brief, not an afterthought.
 
+- **Stage 1.2 — clarify** *(gate)*: if the spec dir has an `open-question.md` with unchecked items, **stop**: "<n> open
+  question(s) block a sound plan — run `/clarify <ticket>`, then re-run `/run-pipeline <ticket>`." `/clarify` is a
+  long-running loop that waits for the PO and needs the user's approval before each Jira post, so the orchestrator never
+  dispatches it, `auto` included (class B: `Status: waiting-user · PO answers`). No file, every item checked, or only
+  `decided (dev, confirmed …)` items left → mark `[x]`. An item `/design-recon` ticked (`[x] … decided (design-recon: …)`) is already out of the way; the stop message lists only the unchecked ones, with their `design hint:` lines.
+- **Stage 1.4 — plan** (spec exists, `status: draft`): dispatch `/plan-deep --ticket <ticket>` (add `--auto` only when
+  `AUTO=true`). Success = the plan predicate holds. M blocking review findings → class A (re-dispatch, `AUTO` only; otherwise stop and report them).
+  `[UNVERIFIED …]` refs or tasks `blocked on OQ-N` → class C: **stop**, they need an answer — back to Stage 1.2 on the next pass.
 - **Stage 2 — branches** (if any affected branch is missing, or when resuming). **First make the submodules the ticket needs available** — the affected ones, and only those: `git -C <root> <ssh rewrite> submodule update --init -- <sub>` for each that is not initialized, where `<ssh rewrite>` is `-c url."<to>".insteadOf="<from>"` when `.shipkit/config.yml` has `git_ssh_rewrite: { from, to }` (a `.gitmodules` URL that needs another SSH key), nothing otherwise, passed on every later fetch there. A resumed ticket then checks out each one's existing `origin/feat/<ticket>-*` branch (`git -C <sub> checkout -b <branch> --track origin/<branch>`). `/developer` never does this; it is the coordinator's job, here: create from each submodule's tracking
   branch, named by `probe.sh branch <ticket> <submodule>` (config `suffix`); parent branch from `main`,
   named by `probe.sh branch <ticket>`. Skip unaffected; flag `staging_only`.
@@ -224,7 +224,7 @@ Next:   <the single next action — implement / wait for merge / bump / done>
 - **Resumable.** State is re-derived from the spec file, branches, Bitbucket PRs, and Jira status
   every run — a `/compact` or new session never loses position. Re-running skips completed stages.
 - **Design gate is always on for UI tickets.** The pipeline never asks whether to run recon→verify: a UI ticket gets
-  `Design gate: on` at Stage 1.5 (written once to the state file, so resumes never re-decide), `auto`/headless runs
+  `Design gate: on` at Stage 1.1 (written once to the state file, so resumes never re-decide), `auto`/headless runs
   included. The one exception is a UI ticket with no mockup anyone can supply: it is noted and skipped, gate `off`.
   Backend tickets never see the stage. When `on`, Stage 4.5's `FAILED` halts the pipeline like a review blocker.
 - **Gates.** Stage 1.2 (open questions) needs the PO and is never automated. Without `auto`, Stage 3 (implement) needs a human or `/assign`

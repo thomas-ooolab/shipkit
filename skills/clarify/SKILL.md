@@ -53,6 +53,7 @@ One more excuse that belongs to this skill:
 If the ticket carries a design/prototype and `.shipkit/evidence/<TICKET>/current-behaviour.md` doesn't exist yet,
 run `spec-from-ticket` Step 3c first (and `design-recon` Step 5b for the contract) — don't reimplement
 them here. Then, before asking the PO business questions:
+- Items `/design-recon` Step 5c ticked (`decided (design-recon: …)`) are decided: they are not asked. An unchecked item with a `design hint:` line is put to the PO with the hint and its region ("the mockup shows …: is that right?"). A PO answer that contradicts a ticked item reopens it (`- [ ]`, the `decided (design-recon: …)` text kept after `previously:`) and is folded in as any answer; the PO's answer wins over the mockup, and the reopened item is named in the Jira comment as the line it replaced.
 - Every `[design-omission]` item in `open-question.md` goes out in the seed as a plain-language
   question: what the design shows, what the product has today, and "can you draw it on the real
   screen?". Say plainly it's a design omission, not something dev got wrong. Never choose a

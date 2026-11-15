@@ -153,7 +153,7 @@ fails → tell the user and stop. Never `ORCA open`.
 
    | Intent | Observable | Coordinator runs |
    |---|---|---|
-   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/run-pipeline <KEY> auto` — the pipeline itself runs `/bootstrap` when the worktree has no config, `/spec-from-ticket`, `/clarify` (a gate: it stops for the PO), `/design-recon` (UI tickets with a mockup), `/plan-deep`, `/assign`, then review, verify, PR and merge |
+   | standard | issue type Story / New Feature / Improvement, or it asks for a new capability, a changed behavior or a restructuring | `/run-pipeline <KEY> auto` — the pipeline itself runs `/bootstrap` when the worktree has no config, `/spec-from-ticket`, `/design-recon` (UI tickets with a mockup: it can answer some open questions first), `/clarify` (a gate: it stops for the PO), `/plan-deep`, `/assign`, then review, verify, PR and merge |
    | bug | issue type Bug; a comment or description reporting unexpected behavior; a description saying something is broken | `/run-pipeline <KEY> --bug [<commentId>] auto` — `/bugfix` first (it hands the fix to kiro through `/assign`), then verify when the spec changed, review, PR, merge |
    | resume | not a bug, and the ticket already has a spec dir and/or `origin/feat/<KEY>-*` branches in the root or a submodule | `/run-pipeline <KEY> auto` — resumes on the existing branches (rebases them, renumbers the spec if needed) and goes on from the stage the files show; never `/spec-from-ticket` again |
    | other | Task, chore, spike, sub-task, epic, unclear | never ask: infer from the ticket and the repo state — resume if the resume row holds, else standard |

@@ -30,9 +30,9 @@ improvise a workflow.
 |---|---|
 | First time in a repo | `/fix-permissions` → `/bootstrap` |
 | Ticket → merged PRs, end to end | `/run-pipeline <ticket>` — it runs the stages below and stops at the open-questions gate and wherever a stage needs a decision; without `auto` it also stops at implement and merge |
-| Same flow, one step at a time | `/spec-from-ticket` → `/cross-check` → `/clarify` (only if questions are open) → `/plan-deep` → implement (`/assign` when ≥2 submodules) → `/verify` → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
+| Same flow, one step at a time | `/spec-from-ticket` → `/cross-check` → `/design-recon` (UI ticket with a mockup: it can answer some open questions) → `/clarify` (only if questions are open) → `/plan-deep` → implement (`/assign` when ≥2 submodules) → `/verify` → `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Ticket is unclear / PO must answer | `/cross-check` → `/clarify` |
-| UI ticket with a mockup | `/design-recon` → implement → `/verify` (it also diffs the built UI against the design contract) |
+| UI ticket with a mockup | `/design-recon` right after the spec (it can answer some open questions before `/clarify` asks the PO) → implement → `/verify` (it also diffs the built UI against the design contract) |
 | QC / tester reported a bug in a Jira comment | `/run-pipeline <ticket> --bug` — runs the bug stages below (`/verify --req …` only when the fix changed the spec, for the requirements it changed), stops at the merge gate |
 | Bug fix, one step at a time | `/bugfix <ticket>` (it calls `/verify` per concern itself) → `/verify --req …` (only if the fix changed `spec.md`) + `/review-changes` → `/pr` → `/merge` → `/bump-submodule` |
 | Prove a feature or fix works | `/verify --ticket <ticket>` |

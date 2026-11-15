@@ -1,7 +1,7 @@
 # Canonical order of the standard flow — the one place to change it. One group per line;
 # skills on the same line are unordered (verify / review-changes: either order).
 # /assign is the implement step (a human may implement by hand instead). /bump-submodule is the by-hand alternative
-# to the root-PR bump /merge already does. Side flows (/cross-check, /design-recon, /bugfix) are not stages.
+# to the root-PR bump /merge already does. Side flows (/cross-check, /design-recon, /bugfix) are not stages; for a UI ticket with a mockup /design-recon runs between spec-from-ticket and clarify.
 # After editing, update every file scripts/check-pipeline.py lists, then run it.
 spec-from-ticket
 clarify

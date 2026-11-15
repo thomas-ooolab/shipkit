@@ -43,7 +43,7 @@ implementer / `/pr --implement`), open a PR, generate a *new* design, or verify 
 ## Write surface (the ONLY things written)
 1. `specs/NNN-slug/design-contract.md` and `design-contract.elements.json`, the full element dump (Step 6; overwrite vs `-v2` is user-confirmed).
 2. A **transient** local static server for HTML artifacts (`recon.sh serve`), always stopped in Step 6.
-3. `specs/NNN-slug/open-question.md` — **appended** with the Step 5b `[design-omission]` items (never edits or renumbers an existing item), and the one-line `Design contract:` pointer under `spec.md`'s `## Contracts` (Step 6).
+3. `specs/NNN-slug/open-question.md` — **appended** with the Step 5b `[design-omission]` items (an existing item is changed only by Step 5c's tick or `design hint` line, never reworded, renumbered or deleted), and the one-line `Design contract:` pointer under `spec.md`'s `## Contracts` (Step 6).
 **Forbidden side-effects:** no git/Jira/Bitbucket mutation; no component/style edits; the browser
 session only reads (navigate + `getComputedStyle` + screenshot) plus the in-page UI triggers needed to
 reveal hidden states (clicking toggles/tabs/menus within the mockup) — it never submits a form, never
@@ -222,6 +222,14 @@ dev defect; real-screen screenshot attached by `/clarify`). Never pick a placeme
 (`- [ ] **OQ-N** — {question, plain business language} — blocks: REQ-NNN [design-omission]`, the next free `OQ-N`; a row whose `→ OQ#` already names an item in the file adds none), so the
 `→ OQ#` column and the file never disagree — `/clarify` and `/run-pipeline` read the file, not the contract.
 
+## Step 5c — Resolve the open questions the design answers
+
+Runs when `open-question.md` already has unchecked `- [ ]` items (the ones `/spec-from-ticket` raised); no such item → skip. For each unchecked item that is not a `[design-omission]`, look in what Steps 3–5 captured (regions, states, labels, flows) for the answer and decide by what the mockup **shows**, never by what it would imply:
+- **Clearly shown** — a region, state, label, column or flow of the mockup answers the question without interpretation (an empty state is drawn, the order of the columns, a confirmation step) and the contract's fidelity (one value for the whole contract, set above) is `exact`: tick the item and append to its text, after the `— blocks: REQ-NNN` tail, ` — decided (design-recon: <region or screen>, <what it shows>)`: `- [x] **OQ-N** — … — blocks: REQ-NNN — decided (design-recon: …)`, and list it under a `## Resolved by the design` section of `design-contract.md` (OQ id, the question, the region, what it shows), so a person can see it and overrule it by unchecking the item.
+- **Partly shown, or the contract's fidelity is `low`** (a sketch: every item then gets a hint at most, never a tick) — leave the item `- [ ]` and add one line under it, `  - design hint: <what the mockup suggests>, <region>`; `/clarify` puts the hint to the PO.
+- **Not shown** — leave the item as it is.
+A question about a rule, a number, who may do something or any business decision is never answered by a picture: only layout, content, states and flows are. The only change to an existing item is the tick with its `decided (design-recon: …)` text or the added hint line.
+
 ## Step 6 — Write + report
 - Stop any transient server: `recon.sh stop <SERVE_PID>`.
 - Assign the spec dir (from `--ticket`, else next spec number). If `design-contract.md` exists →
@@ -237,9 +245,10 @@ Reference: design-contract.reference.png | <image path>
 Elements:  design-contract.elements.json   (<E> elements across <S> states)
 Captured:  desktop + <breakpoints> | states: <hover/focus…> | click-revealed: <N> regions (<names>)
 Placement: <P> regions — <K> ok, <B> mismatched (→ Open Questions [design-omission])
+Open Qs:   <R> resolved by the design (ticked, listed under ## Resolved by the design) · <H> hinted · <N> new [design-omission]
 States:    <S> in matrix — <C> captured, <G> not in mockup (→ Open Questions) | logic source: <spec|none>
            (screenshot tier: static only — hidden UI flagged as Open Questions)
-Next: implement, then /verify --ticket <ticket>  to diff the build against this contract.
+Next: /clarify <ticket> if Open Qs remain (the design may have answered some), then /plan-deep → implement, then /verify --ticket <ticket>  to diff the build against this contract.
 ```
 
 ## How it fits the pipeline
