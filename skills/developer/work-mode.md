@@ -88,7 +88,7 @@ ticket's own worktree, with its own claude** — no new
 worktree. A resume goes here, never into *Start mode* (whose "worktree already matches → tell the user and stop"
 would only bounce it). Run it as a background task so the observer is not blocked; resolve `ORCA`, load `orca-cli`, never
 `ORCA open`. The one message it sends is fixed text — never Jira or Slack content.
-1. **Find the coordinator.** `ORCA terminal list --worktree id:<repoId>::<path> --json` (id and path from the Orca row).
+1. **Find the coordinator.** First refresh `.shipkit/root-coordinator.md` in that worktree (*Root coordinator and its worktrees*). Then `ORCA terminal list --worktree id:<repoId>::<path> --json` (id and path from the Orca row).
    The coordinator is the worktree's **claude** terminal — tell kinds apart by the title, which the agent sets itself: a kiro
    terminal is titled `kiro-cli`, a claude one carries claude's own task title (often prefixed `✳`), never the ticket
    key — and by `worktree ps` `agents[].agentType` when the title is unclear. Exactly **one** claude terminal per
@@ -109,10 +109,26 @@ would only bounce it). Run it as a background task so the observer is not blocke
 5. **No blocker → send ONE command** (*Send* of *Start mode* step 3): `/run-pipeline <KEY> auto` — the flow comes from the pipeline file's `Flow:` header, so a bug needs no flag. That is all this skill types: the coordinator re-derives the stage from
    the files, git, the PR and Jira, dispatches `/bootstrap`, `/assign` and the rest itself, and stops by itself at a blocker or a decision. **Whose go it is:** `/developer <KEY | Jira URL>`, *Start-of-day continue* and a *Day plan* pick are the go for that ticket
    (the command pushes branches, opens PRs and posts review requests, so nothing less is enough); a ticket only named in the conversation, or a yes to a question, is confirmed once in one line first. No clear go → send nothing.
-   It runs there; confirm by what the screen does, as in *Start mode*.
+   It runs there; confirm by what the screen does, as in *Start mode*. 
 6. **Report** one line: `<KEY>: pinged <handle> (idle|new coordinator) — stage <s>, <command sent → running | blocker: … | waiting for the user's go>`;
    only when the command was sent: `ORCA worktree set --worktree <id> --comment "developer: <KEY> resumed" --json`.
 This is the one place this skill types into an existing terminal — only for a ticket the user named or the morning run selected, only the worktree's claude, only the one command of step 5 (*Start mode*'s "always new terminals" is for a fresh start, not a resume).
+
+## Root coordinator and its worktrees
+This session is the **root coordinator**: it stands in for the user toward the coordinators of the worktrees it starts, so a worktree that would ask the user can ask here instead. This section defines the channel, not the questions: **which questions go to the root is not defined yet**, so until a skill names one, none does and a worktree asks the user as before.
+- **Where a worktree finds the root.** Every worktree this skill starts or continues holds `.shipkit/root-coordinator.md` (a state file of the worktree, gitignored like the rest of `.shipkit/`):
+  ```
+  # Root coordinator — read by the ticket coordinator in this worktree
+  run: <run_id>
+  root_terminal: <the root's terminal handle>
+  root_worktree: <the root's worktree id>
+  written: <ISO-8601>
+  ```
+  `root_terminal` is `$ORCA_TERMINAL_HANDLE` and `root_worktree` is `$ORCA_WORKTREE_ID` of this session. `run` is the Orca Run this session coordinates: `ORCA orchestration run-current --json`, and when it shows none, `ORCA orchestration run-create --objective "shipkit root coordinator" --json` once (the Run lives with this session; the file is rewritten whenever it changes). `.shipkit/` is created in the worktree when it is missing. When `$ORCA_TERMINAL_HANDLE` or `$ORCA_WORKTREE_ID` is unset (this session is not in an Orca terminal) neither the Run nor the file is created, and the worktrees ask the user.
+  It is written right after a worktree is created (*Start mode* step 2, before its terminal is opened) and refreshed at the first step of *Continue a ticket*, as soon as the worktree is identified, whether or not a command is sent afterwards, so a restarted root never leaves a worktree with an old address.
+- **How a worktree asks.** The coordinator of the worktree reads that file and runs `ORCA orchestration ask --to run:<run> --from "$ORCA_TERMINAL_HANDLE" --question "<the question>" [--options a,b]`, then ends its turn: Orca wakes it with the answer as mail (`run-pipeline/loop-rules.md` §8). A question carries the ticket key and the worktree.
+- **How the root answers.** Orca wakes this session with the question. It answers with `ORCA orchestration reply --id <message_id> --body "<answer>"` when the answer follows from the user's own instructions or from a standing rule of this skill (for example the table in *Start-of-day continue*). A user instruction counts for the session it was given in (it is not carried to another session). Anything else it relays to the user in one line — the ticket, the worktree, the question — and replies after the user has answered. When it answers alone it says so to the user afterwards, in one line: the ticket, the question, the answer. What the user must approve (a Jira or Slack post, a deletion, a merge outside `loop-rules.md` §5) is never answered here on the user's behalf.
+- **When the root is not there.** No file, an `ask` that errors or is never answered because the root session is gone → the worktree asks the user, as it would without a root. The pipeline never waits on a root that cannot answer.
 
 ## Start mode (ticket, bug, or description)
 `/developer <input>` — the input is whatever the user hands over: a Jira key or URL (`…/browse/<KEY>`), a Jira
@@ -181,10 +197,11 @@ fails → tell the user and stop. Never `ORCA open`.
    whether or not that worktree has an active terminal; always new terminals for a fresh start, never type into an existing one
    (a resume of a ticket the user named is the exception — *Continue a ticket*).
    **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet; `/run-pipeline` dispatches `/assign` once the plan is ready, and `/assign` opens one kiro terminal per submodule and hands each its tasks.
+   **Root address:** right after the worktree exists, write `.shipkit/root-coordinator.md` in it (*Root coordinator and its worktrees*).
 3. **One command, sent by this skill — the user types nothing.** The coordinator needs no chain: it gets the single message of the table and does the rest itself (`/bootstrap` when the worktree has no config, then the stages). The Ready check, the send and the stop are **one**
    `Bash(run_in_background: true)` — a script written to a scratch file, or `bash -c`, whose body runs `terminal wait`, `wait-for-agent.sh` and `terminal send` itself. **This session runs none of them in the foreground:** a `terminal wait --timeout-ms 600000` there blocks it for ~10 minutes —
    no Slack events, no answer to the user. The task ends when the command is submitted, when the agent did not start, or when the coordinator is blocked on something on screen (a question, a prompt) — then it exits printing the screen, this session applies *Question on screen* below and relaunches it.
-   **No `orchestration` for the claude coordinator** — it is only for `/assign`'s kiro workers. The message is the one line of the table; a **bug whose report is not a Jira comment** adds to that same line `--source <permalink>` (a Slack thread) or
+   **No `orchestration worker-start` for the claude coordinator** — workers are only for `/assign`'s kiro agents; the only `orchestration` commands the coordinator uses are `ask` toward the root, and the root's `reply` (*Root coordinator and its worktrees*). The message is the one line of the table; a **bug whose report is not a Jira comment** adds to that same line `--source <permalink>` (a Slack thread) or
    `--note "<the user's text, verbatim>"`, appended at the end of the line. Nothing else is ever sent — never Jira or Slack content.
    - **Ready:** `terminal wait --for tui-idle --timeout-ms 60000`; `wait.satisfied` false → once more with
      `--timeout-ms 120000`. Then read the screen with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/wait-for-agent.sh" <handle> --once` (a hint plus the last lines; again every 3 s while the
