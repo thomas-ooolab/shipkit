@@ -38,7 +38,7 @@ an environment. The only writes it may make are the thread reply (*post directly
 attached to it are read from disk, never created),
 `.shipkit/developer-<channel_id>-<thread_ts>.md`, `.shipkit/developer-daily.md` (the *Daily briefing* marker), `.shipkit/root-coordinator.md` in each worktree it starts or continues (*Root coordinator and its worktrees*),
 and draft answers in `.shipkit/developer-<TICKET>-draft.md` (*Answering a batch*). A fix, ticket, or data change is the user's call — say so
-in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode*, *Continue a ticket* and the root-coordinator channel (`ORCA orchestration run-create` once, then `reply` to a worktree's `send`; `run-current` only reads) (a ticket the user names, or one the first run of the day continues under *Start-of-day continue*; the *Daily briefing*'s own printing starts, resumes and types nothing): this session still writes no
+in the terminal note instead of doing it. The exceptions are *Delegate a bug*, *Start mode*, *Continue a ticket* and the root-coordinator channel (`ORCA orchestration run-create` once, then `reply` to a worktree's `send`; `run-current` only reads) (a ticket the user names, or one the first run of the day continues under *Start-of-day continue*; the *Daily briefing*'s own printing starts, resumes and types nothing; its one message is the report request `ORCA orchestration send --to <worktree claude terminal>` to a worktree with a live session): this session still writes no
 code and no Jira/Slack content — it creates the Orca worktree, runs the few git commands that prepare that new worktree
 (rename its branch, set its upstream, init the submodules the ticket needs, check out their branches), types the one fixed command (`/run-pipeline <KEY> auto`)
 into the worktree's claude terminal, and hands the work to the agents there, which own every code write.
@@ -143,7 +143,7 @@ reproduce), the developer's stance, numbers-from-data, and how a batch of answer
 ## Daily briefing, Continue, Start mode
 **REQUIRED for these three:** Read `${CLAUDE_PLUGIN_ROOT}/skills/developer/work-mode.md` and follow the part that applies.
 - **Daily briefing** — the **first** `/developer` run of the day, every mode: what the user did yesterday and which tickets look
-  unfinished. The printing is read-only: it types into no terminal and starts nothing. Marker: `.shipkit/developer-daily.md`.
+  unfinished. The printing is read-only: it types into no terminal and starts nothing; the only message it sends is the report request to a worktree whose claude session is open (*Worktrees report themselves* in `work-mode.md`). Marker: `.shipkit/developer-daily.md`.
 - **Start-of-day continue** — right after the briefing, on the first run of the day: each unfinished ticket that is the user's by ID, has its own worktree and pipeline file, has no blocker and is inside the push window
   is continued with `/run-pipeline <KEY> auto`, without asking. `--no-continue`, or a run that names its own target, skips it. What runs alone and what waits for the user's approval is its table in `work-mode.md`.
 - **Day plan** — new tickets never start on their own: the first run of the day lists the user's tickets that have no local work, ordered by Jira priority, due date and rank, and the user picks which to take that day; each picked one then runs *Start mode* under `auto`.
