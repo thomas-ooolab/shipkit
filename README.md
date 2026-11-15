@@ -95,6 +95,8 @@ contracts · edge cases). Then you implement, review, and open PRs.
 
 ## The pipeline
 
+Diagrams of the whole workflow, including what runs on its own and what waits for your approval: [Shipkit Workflow](https://claude.ai/artifact/DWBe71pCJ2xx92sy8KgdZC) (in Vietnamese).
+
 ```
 /run-pipeline AR-123       (re-derives state from git / Bitbucket / Jira, runs what is pending, stops at each gate)
       │
