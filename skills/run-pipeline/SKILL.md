@@ -191,7 +191,7 @@ re-confirm success from ground truth and append the result + timestamp to the st
   requirement is not a pass (class C); unblock it or have the user waive it explicitly, then re-run. In `AUTO=true`
   never waive.
 
-- **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): dispatch
+- **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): when no PR of the ticket exists yet, first get a PR slot from the root (`loop-rules.md` §9: PRs and reviewer requests of different worktrees are an hour apart); then dispatch
   `/pr <ticket> --target <pr_target>`. It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket
   PR per affected submodule + parent PR), then Phase 2 pings the reviewer and triages their concerns
   until sign-off. The review loop runs on `/pr`'s own background pollers (`.shipkit/pr-<ticket>.md` tracks it) and carries
