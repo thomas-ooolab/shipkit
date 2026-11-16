@@ -293,8 +293,7 @@ time:
    can return over 80k characters: it is saved to a file — read the newest comments there with `jq`, don't load it all.)
    **Then the ownership check** (*Hard rule: who owns a ticket*): not provably the user's → `skip`, **one** terminal line: for a ticket that is certainly someone else's, exactly the one
    sentence of that rule (`Skipped: <KEY> … is <name>'s ticket.`, nothing about the QC post, the IDs or the check); when the ownership is unproven, that sentence plus the reason. No draft, no delegation, no worktree. Only then *Classify*: new or still-failing bugs → `bug` (draft "noted, checking", then *Delegate a bug* with
-   that comment as the report source); all passed, or nothing for the developer → `skip`, one terminal
-   line naming the ticket. Never answer a `post` from the post text alone.
+   that comment as the report source); all passed → `skip`, **one** short sentence in the user's language, `Ticket <KEY> (and <KEY2>, … when several) of yours has passed.`, and nothing else: no comment ids, no accounts, no Jira status, no "drafted no reply" or "delegated nothing"; nothing else for the developer (QC asked nothing, a note only) → `skip`, one short line naming the ticket and, in a few words, what QC wrote, with the same omissions. Never answer a `post` from the post text alone.
 0b. **`channel` event — never dropped silently.** Read the post (`conversations.history` with `latest=<ts>`,
    `inclusive=true`, `limit=1`) and the channel's name (`conversations.info`). If it is an ask or a bug for the
    developer, take the normal *Classify* path (steps 1–3). Anything else (a greeting, a status check, chatter) → write
