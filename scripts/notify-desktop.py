@@ -4,6 +4,8 @@
   python3 -I scripts/notify-desktop.py --title T --message M
   python3 -I scripts/notify-desktop.py --after 14400 --window 08:00-18:00 \
       --unless-changed .shipkit/pipeline-AR-1.md "Waiting since:" "2026-11-16T09:00:00Z" --title T --message M
+  python3 -I scripts/notify-desktop.py --wait-only --after 7200 \
+      --unless-changed .shipkit/pipeline-AR-1.md "Waiting since:" "2026-11-16T09:00:00Z"
   python3 -I scripts/notify-desktop.py --print ...     # show what would be sent, send nothing
   python3 -I scripts/notify-desktop.py --self-test
 
@@ -13,9 +15,12 @@
                       with P no longer reads "P V" (the cause was resolved, the file or the line is gone) exit 0 at once without notifying, so the
                       process ends within about a minute of the change. Used by /run-pipeline: a notice for "Waiting since: <ISO>" is dropped
                       as soon as the stage moved on.
+--wait-only           no notice: just wait --after S (with --unless-changed, as above) and end. A timer that wakes a session without a person:
+                      a blind `sleep` outlives its cause, this one ends within about a minute of it. Takes no --window, --title or --message.
 Title and message are passed to the OS as separate arguments, never put into a shell string, so Jira text in them cannot run anything.
 macOS: osascript. Linux: notify-send. Otherwise exit 3.
-Exit: 0 shown, or dropped by --unless-changed · 2 usage · 3 no notifier on this system · 4 the notifier failed.
+Exit: 0 shown, or dropped by --unless-changed; with --wait-only: the time ran out · 2 usage · 3 no notifier on this system · 4 the notifier failed ·
+      5 --wait-only only: the --unless-changed line changed first (the cause is gone: nothing is left to do on the wake).
 """
 import datetime, os, subprocess, sys, tempfile, threading, time
 from pathlib import Path
@@ -91,11 +96,13 @@ def notifier(title, message):
 
 def main(argv):
     a = list(argv)
-    after, window, unless, title, message, dry = 0, None, None, None, None, False
+    after, window, unless, title, message, dry, wait_only = 0, None, None, None, None, False, False
     try:
         while a:
             x = a.pop(0)
-            if x == "--after":
+            if x == "--wait-only":
+                wait_only = True
+            elif x == "--after":
                 after = int(a.pop(0))
             elif x == "--window":
                 window = parse_window(a.pop(0))
@@ -113,6 +120,12 @@ def main(argv):
                 raise ValueError(x)
     except (ValueError, IndexError) as e:
         print(f"usage error: {e} (try --help)", file=sys.stderr); return 2
+    if wait_only:
+        if after <= 0 or window or title or message is not None:
+            print("--wait-only takes --after (and --unless-changed) only (try --help)", file=sys.stderr); return 2
+        if dry:
+            print(f"would wait {after} s"); return 0
+        return 0 if wait(after, unless) else 5
     if not title or message is None:
         print("--title and --message are required (try --help)", file=sys.stderr); return 2
     if after > 0 and not dry and not wait(after, unless):
@@ -166,6 +179,18 @@ def self_test():
         t0 = time.monotonic()                                                     # the same while waiting for the window (never inside 00:00-00:00)
         assert main(["--window", "00:00-00:00", "--unless-changed", *unless, "--title", "t", "--message", "m"]) == 0
         assert time.monotonic() - t0 < 10, "slept through a changed line in the window wait"
+        # --wait-only: the timers of loop-rules §8, §9 and the push window. 0 when the time ran out, 5 when the line changed first
+        t0 = time.monotonic()
+        assert main(["--wait-only", "--after", "3600", "--unless-changed", *unless]) == 5 and time.monotonic() - t0 < 10   # line already gone
+        f.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\nStatus: waiting-user · x\n")
+        t0 = time.monotonic()
+        assert main(["--wait-only", "--after", "2", "--unless-changed", *unless]) == 0 and 1.5 < time.monotonic() - t0 < 6
+        threading.Timer(1.5, lambda: f.write_text("# x\nStatus: running\n")).start()      # the answer arrives while it waits
+        t0 = time.monotonic()
+        assert main(["--wait-only", "--after", "3600", "--unless-changed", *unless]) == 5 and time.monotonic() - t0 < 10
+        assert main(["--wait-only", "--after", "5", "--print"]) == 0                      # shows, waits for nothing
+        assert main(["--wait-only"]) == 2 and main(["--wait-only", "--after", "5", "--window", "08:00-18:00"]) == 2
+        assert main(["--wait-only", "--after", "5", "--title", "t", "--message", "m"]) == 2
     assert main([]) == 2 and main(["--after"]) == 2 and main(["--bogus"]) == 2 and main(["--title", "t"]) == 2
     cmd = notifier("a", "b'c")
     assert cmd is None or "b'c" in cmd       # passed as its own argv item
