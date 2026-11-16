@@ -22,7 +22,7 @@ macOS: osascript. Linux: notify-send. Otherwise exit 3.
 Exit: 0 shown, or dropped by --unless-changed; with --wait-only: the time ran out · 2 usage · 3 no notifier on this system · 4 the notifier failed ·
       5 --wait-only only: the --unless-changed line changed first (the cause is gone: nothing is left to do on the wake).
 """
-import datetime, os, subprocess, sys, tempfile, threading, time
+import datetime, os, re, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
 try:
@@ -191,6 +191,32 @@ def self_test():
         assert main(["--wait-only", "--after", "5", "--print"]) == 0                      # shows, waits for nothing
         assert main(["--wait-only"]) == 2 and main(["--wait-only", "--after", "5", "--window", "08:00-18:00"]) == 2
         assert main(["--wait-only", "--after", "5", "--title", "t", "--message", "m"]) == 2
+        # the push-window loop of loop-rules §7, taken from the text and run for real: it ends with the script's own exit code, so 5 means
+        # "the line changed" and nothing else does (a loop that said `|| exit 5` turned a usage error into a silent no-op)
+        root = Path(__file__).resolve().parent.parent
+        doc = next(l for l in (root / "skills/run-pipeline/loop-rules.md").read_text().splitlines() if "closed push window wakes itself" in l)
+        loop = re.search(r"bash -c '(until .*? done)'", doc).group(1)
+        fake = Path(d) / "plugin"
+        (fake / "hooks").mkdir(parents=True)
+        (fake / "scripts").mkdir()
+        (fake / "scripts" / "notify-desktop.py").symlink_to(Path(__file__).resolve())
+        # the push guard's stand-in: window closed (0 minutes left) the first time it is asked, open (30) after that
+        (fake / "hooks" / "after-hours-push-guard.py").write_text(
+            "import pathlib\np = pathlib.Path(__file__).with_name('n')\nn = int(p.read_text()) if p.exists() else 0\np.write_text(str(n + 1))\nprint(0 if n == 0 else 30)\n")
+        (Path(d) / ".shipkit").mkdir()
+        state = Path(d) / ".shipkit" / "pipeline-T-1.md"
+
+        def run_loop(after, line_present):
+            state.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\n" if line_present else "# x\nStatus: running\n")
+            (fake / "hooks" / "n").unlink(missing_ok=True)
+            cmd = loop.replace("<ticket>", "T-1").replace("<the ISO written>", "2026-11-16T09:00:00Z").replace("--after 300", f"--after {after}")
+            r = subprocess.run(["bash", "-c", cmd], cwd=d, capture_output=True, text=True, timeout=60,
+                               env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(fake)})
+            return r.returncode, r.stderr
+        assert run_loop(1, True)[0] == 0           # the time ran out, the window is open: the loop ends 0 (wake and carry on)
+        assert run_loop(1, False)[0] == 5          # the line is gone: the script's own 5
+        rc, err = run_loop(0, True)                # --after 0 is a usage error of the script: its 2 comes out, not 5
+        assert rc == 2 and "--wait-only takes" in err, (rc, err)
     assert main([]) == 2 and main(["--after"]) == 2 and main(["--bogus"]) == 2 and main(["--title", "t"]) == 2
     cmd = notifier("a", "b'c")
     assert cmd is None or "b'c" in cmd       # passed as its own argv item
