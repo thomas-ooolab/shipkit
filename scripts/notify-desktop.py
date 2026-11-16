@@ -9,13 +9,15 @@
 
 --after S             sleep S seconds first (run it with Bash run_in_background: the task ending is the signal).
 --window HH:MM-HH:MM  the notice is only shown inside this window (local time, or SHIPKIT_TZ=<IANA zone>); fired outside it, wait for the next start.
---unless-changed F P V  after the sleep read file F: when its line starting with P no longer reads "P V" (the cause was resolved, the file or the line is gone) exit 0
-                      without notifying. Used by /run-pipeline: a notice for "Waiting since: <ISO>" is dropped once the stage moved on.
+--unless-changed F P V  read file F every minute while sleeping (--after and the --window wait) and once more before notifying: when its line starting
+                      with P no longer reads "P V" (the cause was resolved, the file or the line is gone) exit 0 at once without notifying, so the
+                      process ends within about a minute of the change. Used by /run-pipeline: a notice for "Waiting since: <ISO>" is dropped
+                      as soon as the stage moved on.
 Title and message are passed to the OS as separate arguments, never put into a shell string, so Jira text in them cannot run anything.
 macOS: osascript. Linux: notify-send. Otherwise exit 3.
 Exit: 0 shown, or dropped by --unless-changed · 2 usage · 3 no notifier on this system · 4 the notifier failed.
 """
-import datetime, os, subprocess, sys, tempfile, time
+import datetime, os, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
 try:
@@ -60,6 +62,25 @@ def line_unchanged(path, prefix, value):
     return False
 
 
+STEP, RECHECK = 60, 2   # seconds: how often a wait looks at the --unless-changed line; the pause before a change is confirmed
+
+
+def wait(seconds, unless):
+    """Sleep `seconds` in steps of at most STEP. False as soon as the --unless-changed line has changed (looked at before every step),
+    so a notice whose cause is resolved ends within a minute, not after the whole delay. A change is confirmed RECHECK seconds later,
+    because a state file being rewritten can read as a missing line for an instant."""
+    end = time.monotonic() + seconds
+    while True:
+        if unless and not line_unchanged(*unless):
+            time.sleep(RECHECK)
+            if not line_unchanged(*unless):
+                return False
+        left = end - time.monotonic()
+        if left <= 0:
+            return True
+        time.sleep(min(STEP, left))
+
+
 def notifier(title, message):
     if sys.platform == "darwin":
         return ["osascript", "-e", "on run argv", "-e", "display notification (item 2 of argv) with title (item 1 of argv)", "-e", "end run", title, message]
@@ -94,14 +115,15 @@ def main(argv):
         print(f"usage error: {e} (try --help)", file=sys.stderr); return 2
     if not title or message is None:
         print("--title and --message are required (try --help)", file=sys.stderr); return 2
-    if after > 0 and not dry:
-        time.sleep(after)
+    if after > 0 and not dry and not wait(after, unless):
+        return 0
     if window and not dry:
         while True:
-            wait = seconds_to_window(now(), *window)
-            if wait == 0:
+            to_start = seconds_to_window(now(), *window)
+            if to_start == 0:
                 break
-            time.sleep(min(wait, 3600))
+            if not wait(min(to_start, 3600), unless):
+                return 0
     if unless and not line_unchanged(*unless):
         return 0
     cmd = notifier(title, message)
@@ -130,6 +152,20 @@ def self_test():
         assert main(["--unless-changed", str(f), "Waiting since:", "other", "--title", "t", "--message", "m"]) == 0
         # --print never notifies; a message with quotes and $() is just data
         assert main(["--print", "--title", "t", "--message", "it's $(rm -rf /) \"x\""]) == 0
+        # a wait ends within seconds of the change, however long it was asked to sleep (the bug: it slept the whole --after)
+        global STEP, RECHECK
+        STEP, RECHECK = 1, 0.2
+        f.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\nStatus: waiting-user · x\n")
+        unless = (str(f), "Waiting since:", "2026-11-16T09:00:00Z")
+        t0 = time.monotonic()
+        assert wait(2, unless) is True and 1.5 < time.monotonic() - t0 < 6      # unchanged line: sleeps its time, then goes on to notify
+        threading.Timer(1.5, lambda: f.write_text("# x\nStatus: done\n")).start()   # the stage moved on: the line is gone
+        t0 = time.monotonic()
+        assert main(["--after", "3600", "--unless-changed", *unless, "--title", "t", "--message", "m"]) == 0
+        assert time.monotonic() - t0 < 10, "slept through a changed line"
+        t0 = time.monotonic()                                                     # the same while waiting for the window (never inside 00:00-00:00)
+        assert main(["--window", "00:00-00:00", "--unless-changed", *unless, "--title", "t", "--message", "m"]) == 0
+        assert time.monotonic() - t0 < 10, "slept through a changed line in the window wait"
     assert main([]) == 2 and main(["--after"]) == 2 and main(["--bogus"]) == 2 and main(["--title", "t"]) == 2
     cmd = notifier("a", "b'c")
     assert cmd is None or "b'c" in cmd       # passed as its own argv item
