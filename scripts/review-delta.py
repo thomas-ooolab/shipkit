@@ -112,7 +112,11 @@ def self_test():
     import tempfile
     repo = os.path.join(tempfile.mkdtemp(prefix="review-delta-"), "r")
     os.makedirs(repo)
-    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    # a pre-commit hook sets GIT_DIR / GIT_INDEX_FILE (absolute in a linked worktree): inherited, the scratch repo's commits land in the real one
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    env.update(GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    for k in [k for k in os.environ if k.startswith("GIT_")]:
+        del os.environ[k]  # git() above runs with the process environment
 
     def git_run(*args):
         subprocess.run(["git", "-C", repo, *args], check=True, capture_output=True, env=env)
