@@ -341,3 +341,4 @@ monitor); state files stay.
 - **Re-running is safe.** Step 1.5 adopts an existing answer; never re-post one.
 - **A top-level channel post is not a reply.** Always pass `thread_ts` (only a top-level DM goes
   without).
+- **A new worktree's base is a commit, not a name.** `--base-branch origin/<name>` for a branch that is missing on this repo's `origin` is not an error when another remote has that name: Orca silently takes it and the worktree holds the wrong repo (a submodule's HEAD, no `.gitmodules`). Resolve the sha in the primary checkout and check the worktree before typing anything (*Start mode* step 2).

@@ -161,7 +161,7 @@ fails → tell the user and stop. Never `ORCA open`.
    Resume check (for a bug the same, with `fix/` as well as `feat/`): `git fetch origin`, then `git branch -r --list 'origin/feat/<KEY>-*' 'origin/fix/<KEY>-*'` in
    the root, `git ls-remote --heads <url> 'feat/<KEY>-*' 'fix/<KEY>-*'` per submodule in `.gitmodules` (with the `<ssh rewrite>` from step
    2), and `probe.sh state <KEY>` for the spec dir (not on the primary checkout → `git ls-tree` the root's origin branch).
-   Any hit → resume (a bug with a hit keeps its bug intent, but adopts that branch below: `--base-branch origin/<that branch>`, the local branch given that exact name, upstream set — never a new name while one exists on origin).
+   Any hit → resume (a bug with a hit keeps its bug intent, but adopts that branch below: `--base-branch` its resolved sha (*Resume* below), the local branch given that exact name, upstream set — never a new name while one exists on origin).
 
    No ticket key (description-only input) → ask which ticket, in the user's language, before anything else. A worktree
    already matches the key → *Existing worktree* below decides: reuse it or replace it.
@@ -190,16 +190,25 @@ fails → tell the user and stop. Never `ORCA open`.
    (`ls <path>` fails, re-check every 2 s up to 10 times; the new worktree reuses the name `<key>`) and carry on as *no worktree matches* in step 2 — a new worktree for the new request.
    Say in one line which of the two happened and why (`AR-450: branches merged, tree clean → replaced` / `…: tree dirty → reusing`).
 2. **Worktree + coordinator.** First `kiro-cli whoami` (kiro workers implement later): "Not logged in" → stop, create nothing,
-   tell the user (in their language) that kiro is not logged in and that `! kiro-cli login` fixes it, then they call you again. No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
-   `--prompt`, the coordinator takes several commands; after a **replace** add
-   `--base-branch origin/<target>` — `pr_target` of the primary checkout's `.shipkit/config.yml`, else `origin/HEAD`), then rename the branch Orca
+   tell the user (in their language) that kiro is not logged in and that `! kiro-cli login` fixes it, then they call you again. No match → resolve `<base>` (below), then `ORCA worktree create --name <key> --no-parent --base-branch <base> --agent claude --json` (no
+   `--prompt`, the coordinator takes several commands), then **check the worktree** (below) before anything else, then rename the branch Orca
    gave it (`<user>/<key>`, which `probe.sh state` can't see) to the convention:
    `git -C <worktree path> branch -m <name>` — `<name>` is `fix/<KEY>-<slug>` for a bug, `feat/<KEY>-<slug>` otherwise (the line
    `probe.sh branch <KEY> [--fix]` prints when the spec exists; else the Jira summary in kebab-case, ≤5 words, as `<slug>`).
 
-   **Resume** (a feature or a bug alike; `<branch>` is the root's existing origin branch, `feat/<KEY>-<slug>` or `fix/<KEY>-<slug>`) — no match → `ORCA worktree create --name <key> --no-parent --base-branch origin/<branch> --agent claude --json`,
-   then `git -C <path> branch -m <branch>` and
+   **Resume** (a feature or a bug alike; `<branch>` is the root's existing origin branch, `feat/<KEY>-<slug>` or `fix/<KEY>-<slug>`) — no match → `ORCA worktree create --name <key> --no-parent --base-branch <base> --agent claude --json` (`<base>` for a resume: below),
+   then **check the worktree**, then `git -C <path> branch -m <branch>` and
    `git -C <path> branch --set-upstream-to=origin/<branch>`. This skill does **not** init submodules: the coordinator does it, for the ones the ticket needs (`run-pipeline/SKILL.md`, Stage 2).
+
+   **`<base>` is a commit of this repo's own `origin`, resolved before the create — never a branch name.** In the primary checkout: `<target>` = `pr_target` of its `.shipkit/config.yml`, else the branch
+   `git symbolic-ref --short refs/remotes/origin/HEAD` names (without `origin/`). `<base>` = `git rev-parse --verify --quiet refs/remotes/origin/<target>`; it prints nothing → the same with the `origin/HEAD` branch; still nothing →
+   stop, create nothing, tell the user which ref is missing. A **resume** takes `git rev-parse --verify --quiet refs/remotes/origin/<branch>` (the branch the resume check found); nothing printed → stop. Pass the sha to `--base-branch`;
+   Orca rejects a sha → `refs/remotes/origin/<target>` (or `<branch>`), and the check below holds either way. Never `origin/<name>`, a bare name or any ref another remote could also answer: when that ref does not exist,
+   Orca takes a same-named branch of another remote (a submodule's, say) without an error, and the worktree holds the wrong repo.
+
+   **Check the worktree before any terminal is opened or anything is sent** (`--agent claude` already opened one: it gets no command until this passes). All three must hold:
+   `git -C <path> rev-parse HEAD` equals `<base>`; when the primary checkout has `.gitmodules`, `<path>/.gitmodules` exists; `git -C <path> remote get-url origin` equals the primary checkout's.
+   Any one fails → stop, send nothing, tell the user which check failed with both values, and offer to remove the worktree under the clearance rule (`worktree-clearance.py grant`, then `worktree rm`, never `--force`; the user decides).
 
    **One claude terminal per worktree, never two.** `worktree create --agent claude` already opens that terminal (`startupTerminal`); it is the coordinator, and no `terminal create` follows for it.
    Take its handle from the create result's `startupTerminal.handle`. That field empty or missing → do not conclude there is no terminal: `ORCA terminal list --worktree id:<repoId>::<path> --json`
