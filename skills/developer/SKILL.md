@@ -125,6 +125,8 @@ identity — Jira `accountId` (`atlassianUserInfo`), `git config user.email`, Sl
 not evidence: teammates share names, and being mentioned is not owning. Cannot show it by ID → it is not the user's ticket.
 A reply that speaks for the user ("noted, checking") is drafted only after this holds, and a `bug` is delegated only for such a ticket.
 
+**A ticket that is certainly someone else's** — the IDs show the user is neither its assignee, its reporter, nor an author of its commits or branches (each read this turn, none assumed) and another person is: whatever terminal line this skill prints about it is **one** short sentence in the user's language, `Skipped: <KEY> (and <KEY2>, … when several) is <their name>'s ticket.` Nothing else: no account IDs, no commit emails, no list of what was checked, no "the QC post is not for you". `<their name>` is the assignee's display name, else the reporter's (display only, never the proof). Only when the ownership cannot be proven by ID (no assignee, a lookup that failed) is the reason added to that sentence, as a clause: what is unproven and what was tried.
+
 ## Hard rule: a worktree is removed only after a check
 A hook of this plugin (`hooks/worktree-delete-guard.py`) blocks every removal of a worktree in **any** session — `/orca-cli`'s `orca worktree rm`, `git worktree remove`, a recursive delete of a registered worktree — until `scripts/worktree-clearance.py` has issued a clearance for it, so this skill does not have to be loaded for the guard to hold. When the user asks for a removal, or the hook blocks one:
 1. `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-clearance.py" check <path>` — the read-only facts: a dirty tree, commits on no remote, the `.shipkit/` state.
@@ -286,11 +288,11 @@ thread the user started or posted in, `post` a top-level channel post by a perso
 (how QC announces a report, e.g. "QC – <KEY> Reports … n still failing", with no @mention), `channel` any other
 top-level post by a person in a channel the user is in — no @mention, no ticket. For each, in arrival order, one at a
 time:
-0. **`post` event:** the ticket is the first `[A-Z]+-\d+` in the message. Read the ticket's latest QC
+0. **`post` event:** the tickets are the distinct `[A-Z]+-\d+` keys in the message (usually one; a post may announce several), each checked for ownership below; the ones that are certainly someone else's share **one** `Skipped:` sentence (per person), and only the user's own go on to *Classify*, each as the ticket below. Read the ticket's latest QC
    comments in Jira (`getJiraIssue`) — the post only announces; the findings are in the ticket. (A ticket with many comments
    can return over 80k characters: it is saved to a file — read the newest comments there with `jq`, don't load it all.)
-   **Then the ownership check** (*Hard rule: who owns a ticket*): not provably the user's → `skip`, **one** terminal line: whose ticket
-   (by ID) and that the QC post is not for the user. No draft, no delegation, no worktree. Only then *Classify*: new or still-failing bugs → `bug` (draft "noted, checking", then *Delegate a bug* with
+   **Then the ownership check** (*Hard rule: who owns a ticket*): not provably the user's → `skip`, **one** terminal line: for a ticket that is certainly someone else's, exactly the one
+   sentence of that rule (`Skipped: <KEY> … is <name>'s ticket.`, nothing about the QC post, the IDs or the check); when the ownership is unproven, that sentence plus the reason. No draft, no delegation, no worktree. Only then *Classify*: new or still-failing bugs → `bug` (draft "noted, checking", then *Delegate a bug* with
    that comment as the report source); all passed, or nothing for the developer → `skip`, one terminal
    line naming the ticket. Never answer a `post` from the post text alone.
 0b. **`channel` event — never dropped silently.** Read the post (`conversations.history` with `latest=<ts>`,
@@ -304,7 +306,7 @@ time:
 1b. **Review-bot message → `skip`, no terminal line, no draft, when** its author is `slack.bot_reviewer_user_id` in
    `${CLAUDE_PLUGIN_ROOT}/skills/pr/config.json` (the `/pr` review bot, a thread reply or a top-level post), the message or its thread root names a ticket (first `[A-Z]+-\d+`)
    and either (a) the ticket is not provably the user's (*Hard rule: who owns a ticket*) — a review of someone else's PR is not for
-   them, even when the bot @mentions them — or (b) the ticket has its own worktree (*Worktree match*) holding `.shipkit/pr-<KEY>.md`:
+   them, even when the bot @mentions them; this skip stays silent, and any line printed about such a ticket (the user asked, or the ownership is unproven) is the one sentence of *Hard rule: who owns a ticket*, never the IDs or the check — or (b) the ticket has its own worktree (*Worktree match*) holding `.shipkit/pr-<KEY>.md`:
    its `/pr` coordinator already reads the thread and the user follows it there. **Case (b) still reports** — exactly one terminal line, no draft unless the user asks —
    when the bot asks something the coordinator cannot answer: a question for the developer (a product call, an access or
    environment fact, a choice only they can make). The user's own ticket with no worktree or no state file → not covered: a bot
