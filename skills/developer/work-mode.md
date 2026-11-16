@@ -191,7 +191,7 @@ fails → tell the user and stop. Never `ORCA open`.
    Say in one line which of the two happened and why (`AR-450: branches merged, tree clean → replaced` / `…: tree dirty → reusing`).
 2. **Worktree + coordinator.** First `kiro-cli whoami` (kiro workers implement later): "Not logged in" → stop, create nothing,
    tell the user (in their language) that kiro is not logged in and that `! kiro-cli login` fixes it, then they call you again. No match → `ORCA worktree create --name <key> --no-parent --agent claude --json` (no
-   `--prompt`, the coordinator takes several commands; keep `startupTerminal.handle`; after a **replace** add
+   `--prompt`, the coordinator takes several commands; after a **replace** add
    `--base-branch origin/<target>` — `pr_target` of the primary checkout's `.shipkit/config.yml`, else `origin/HEAD`), then rename the branch Orca
    gave it (`<user>/<key>`, which `probe.sh state` can't see) to the convention:
    `git -C <worktree path> branch -m <name>` — `<name>` is `fix/<KEY>-<slug>` for a bug, `feat/<KEY>-<slug>` otherwise (the line
@@ -201,9 +201,15 @@ fails → tell the user and stop. Never `ORCA open`.
    then `git -C <path> branch -m <branch>` and
    `git -C <path> branch --set-upstream-to=origin/<branch>`. This skill does **not** init submodules: the coordinator does it, for the ones the ticket needs (`run-pipeline/SKILL.md`, Stage 2).
 
-   Reused worktree →
-   `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json` — works
-   whether or not that worktree has an active terminal; always new terminals for a fresh start, never type into an existing one
+   **One claude terminal per worktree, never two.** `worktree create --agent claude` already opens that terminal (`startupTerminal`); it is the coordinator, and no `terminal create` follows for it.
+   Take its handle from the create result's `startupTerminal.handle`. That field empty or missing → do not conclude there is no terminal: `ORCA terminal list --worktree id:<repoId>::<path> --json`
+   and take the one claude terminal (the title rule of *Continue a ticket* step 1: `kiro-cli` is kiro, never the ticket key). Use that handle for the *Ready* check and the *Send* of step 3.
+   After creating, if `terminal list` shows more than one claude terminal, use the idle one (several idle: the most recent) and open nothing; the extra one is told to the user, not closed by this skill.
+   `terminal create … --command claude` only when `terminal list` right before confirms the worktree has no claude terminal at all.
+
+   Reused worktree (the terminal was closed, or none was ever opened) →
+   `ORCA terminal list --worktree id:<repoId>::<path> --json` first; a live claude terminal → *Continue a ticket* as in step 1, nothing created; none →
+   `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json`. Never type into an existing terminal
    (a resume of a ticket the user named is the exception — *Continue a ticket*).
    **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet; `/run-pipeline` dispatches `/assign` once the plan is ready, and `/assign` opens one kiro terminal per submodule and hands each its tasks.
    **Root address:** right after the worktree exists, write `.shipkit/root-coordinator.md` in it (*Root coordinator and its worktrees*).
