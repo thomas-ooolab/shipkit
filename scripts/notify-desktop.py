@@ -17,9 +17,11 @@
                       as soon as the stage moved on.
 --wait-only           no notice: just wait --after S (with --unless-changed, as above) and end. A timer that wakes a session without a person:
                       a blind `sleep` outlives its cause, this one ends within about a minute of it. Takes no --window, --title or --message.
+                      The --unless-changed line must be there when it starts (the timer is armed right after the line is written): a missing file,
+                      a wrong working directory for a relative path or a wrong prefix exits 2 at once instead of passing for "the cause is gone".
 Title and message are passed to the OS as separate arguments, never put into a shell string, so Jira text in them cannot run anything.
 macOS: osascript. Linux: notify-send. Otherwise exit 3.
-Exit: 0 shown, or dropped by --unless-changed; with --wait-only: the time ran out · 2 usage · 3 no notifier on this system · 4 the notifier failed ·
+Exit: 0 shown, or dropped by --unless-changed; with --wait-only: the time ran out · 2 usage (--wait-only: also a line that is not there at the start) · 3 no notifier on this system · 4 the notifier failed ·
       5 --wait-only only: the --unless-changed line changed first (the cause is gone: nothing is left to do on the wake).
 """
 import datetime, os, re, subprocess, sys, tempfile, threading, time
@@ -125,6 +127,9 @@ def main(argv):
             print("--wait-only takes --after (and --unless-changed) only (try --help)", file=sys.stderr); return 2
         if dry:
             print(f"would wait {after} s"); return 0
+        if unless and not line_unchanged(*unless):   # a timer is armed right after the line is written: not there now means a wrong path, cwd or prefix
+            print(f"line not found at start: {unless[0]} {unless[1]!r} {unless[2]!r} (a relative file path needs the worktree root as the working directory)", file=sys.stderr)
+            return 2
         return 0 if wait(after, unless) else 5
     if not title or message is None:
         print("--title and --message are required (try --help)", file=sys.stderr); return 2
@@ -181,7 +186,12 @@ def self_test():
         assert time.monotonic() - t0 < 10, "slept through a changed line in the window wait"
         # --wait-only: the timers of loop-rules §8, §9 and the push window. 0 when the time ran out, 5 when the line changed first
         t0 = time.monotonic()
-        assert main(["--wait-only", "--after", "3600", "--unless-changed", *unless]) == 5 and time.monotonic() - t0 < 10   # line already gone
+        # a line that is not there at the start is a wrong path, cwd or prefix, not "the cause is gone": exit 2 at once, never a silent 5
+        assert main(["--wait-only", "--after", "3600", "--unless-changed", *unless]) == 2 and time.monotonic() - t0 < 10   # the file has no such line now
+        assert main(["--wait-only", "--after", "3600", "--unless-changed", str(Path(d) / "no-such-dir" / "p.md"), "Waiting since:", "x"]) == 2
+        f.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\n")
+        assert main(["--wait-only", "--after", "3600", "--unless-changed", str(f), "Waiting sine:", "2026-11-16T09:00:00Z"]) == 2    # a typo in the prefix
+        assert time.monotonic() - t0 < 10
         f.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\nStatus: waiting-user · x\n")
         t0 = time.monotonic()
         assert main(["--wait-only", "--after", "2", "--unless-changed", *unless]) == 0 and 1.5 < time.monotonic() - t0 < 6
@@ -206,15 +216,19 @@ def self_test():
         (Path(d) / ".shipkit").mkdir()
         state = Path(d) / ".shipkit" / "pipeline-T-1.md"
 
-        def run_loop(after, line_present):
+        def run_loop(after, line_present=True, drop_after=None):
             state.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\n" if line_present else "# x\nStatus: running\n")
+            if drop_after:                                                      # the answer arrives while the loop waits
+                threading.Timer(drop_after, lambda: state.write_text("# x\nStatus: running\n")).start()
             (fake / "hooks" / "n").unlink(missing_ok=True)
             cmd = loop.replace("<ticket>", "T-1").replace("<the ISO written>", "2026-11-16T09:00:00Z").replace("--after 300", f"--after {after}")
             r = subprocess.run(["bash", "-c", cmd], cwd=d, capture_output=True, text=True, timeout=60,
                                env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(fake)})
             return r.returncode, r.stderr
         assert run_loop(1, True)[0] == 0           # the time ran out, the window is open: the loop ends 0 (wake and carry on)
-        assert run_loop(1, False)[0] == 5          # the line is gone: the script's own 5
+        assert run_loop(3, drop_after=0.5)[0] == 5  # the line goes while it waits: the script's own 5
+        rc, err = run_loop(1, line_present=False)   # the line was never there (wrong path or prefix): a failure of the timer, not a 5
+        assert rc == 2 and "line not found at start" in err, (rc, err)
         rc, err = run_loop(0, True)                # --after 0 is a usage error of the script: its 2 comes out, not 5
         assert rc == 2 and "--wait-only takes" in err, (rc, err)
     assert main([]) == 2 and main(["--after"]) == 2 and main(["--bogus"]) == 2 and main(["--title", "t"]) == 2
