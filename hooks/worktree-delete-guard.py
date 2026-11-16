@@ -7,7 +7,7 @@ Blocked until `scripts/worktree-clearance.py grant <path>` has issued a fresh cl
   - `rm -r…` of a folder that is a registered worktree of the repository the command runs in
 The clearance is issued automatically only when git holds nothing to lose; a dirty tree or a commit on no remote needs the user's explicit "delete"
 (`grant <path> --user-approved`). Whether the ticket is still in progress is read by the Haiku agent `shipkit:worktree-checker`; the block message says how.
-Why: a worktree's `.shipkit/` (ticket state, evidence, drafts) is gitignored and goes with it, Orca drops the local branch, and an unpushed commit survives
+Why: a worktree's `.shipkit/` (ticket state, evidence, drafts) is gitignored and goes with it, the local branch goes too when `--delete-branch` is passed (or from Orca's UI), and an unpushed commit survives
 only in the reflog.
 
 SHIPKIT_ALLOW_WORKTREE_RM=1, set before Claude Code starts, lifts the block for that session. Not covered: a removal typed in the user's own terminal.
@@ -98,7 +98,7 @@ def targets(command, cwd):
 def message(path, what):
     where = path or "(which one could not be told — pass it as id:<repoId>::<path>)"
     return (f"shipkit worktree guard: blocked — {what} would remove the worktree {where}. A worktree holds state that lives nowhere else: .shipkit/ is gitignored "
-            "(the ticket's stage, evidence, Jira drafts go with it), Orca drops the local branch, and a commit not on origin survives only in the reflog. Nothing was removed.\n"
+            "(the ticket's stage, evidence, Jira drafts go with it), the local branch goes too when `--delete-branch` is passed (or from Orca's UI), and a commit not on origin survives only in the reflog. Nothing was removed.\n"
             f"1. Read the facts: python3 -I {SCRIPT} check <path>\n"
             "2. Dispatch the Haiku agent shipkit:worktree-checker with the path and those facts; it reads <path>/.shipkit and says in_progress or not.\n"
             f"3. Not in progress AND git_changes false → decide alone, no question to the user: python3 -I {SCRIPT} grant <path>, then run the same command again.\n"
