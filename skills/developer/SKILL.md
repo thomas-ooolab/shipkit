@@ -276,10 +276,23 @@ before every arm and re-arm — never assume it.
 - **Expiry notice, still before <end>** → re-arm the same command (recompute `<T>`), continuously, with
   no gap. Never run two at once: before any arm, confirm none is running (TaskStop a stray one first).
 - **At or after <end>** (expiry notice, an event, or a fresh invocation) → don't arm. If a monitor is
-  still running, `TaskStop` it. Tell the user once that observing is paused until <start>, then stop.
-  State files stay.
-- **Before <start>** → don't arm; tell the user it starts at <start>. The skill can't wake itself: the next
-  day's run starts when the user invokes `/developer` again (or a scheduled run does) at or after <start>.
+  still running, `TaskStop` it. **Schedule the next run** (below), tell the user once that observing is paused
+  until <start> and when the next run is scheduled, then stop. State files stay.
+- **Before <start>** → don't arm; **schedule the next run** (below), and tell the user it starts at <start>.
+- **Schedule the next run.** The skill cannot wake itself, but this Claude session can: `CronCreate` (load it
+  via ToolSearch if deferred) enqueues a prompt at a given time as if the user had typed it. The job lives only
+  in this session and fires only while it is idle, so a closed session loses it.
+  1. `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/next-workday.py" --window <observer_hours> [--tz <timezone>]`
+     prints `<cron fields> <ISO time>`: <start> plus 3 minutes on the next Monday-to-Friday (today when it is a
+     weekday and still ahead). **Never a Saturday or a Sunday**: a Friday evening gives Monday.
+  2. `CronList`. A pending job whose prompt is `/shipkit:developer` at that same time → keep it; one at another time
+     → `CronDelete` it. Otherwise `CronCreate(cron: <the five fields>, recurring: false, prompt: "/shipkit:developer")`:
+     the command the user types at the start of the day, no flags, so the scheduled run is the first run of the day
+     (briefing, *Start-of-day continue*, *Day plan*, observer), and its own end schedules the next weekday. A run
+     the user typed before the job fires is harmless: the job's run is then not the first of the day.
+  3. Say it in the pause line: `Observing paused until <start>; next run scheduled <weekday dd/mm HH:MM>.`
+     `CronCreate` missing or failing → say so in that line; the user starts the day's run. Never a second job,
+     never one for a weekend day.
 - Events still arriving at the <end> boundary: finish the draft in hand, then stop as above.
 
 Each stdout line is one notification, ids only: `EVENT <dm|mention|thread|post|channel> channel=<C…> ts=<ts>

@@ -22,6 +22,7 @@ run "jira-comment.py"                   python3 -I scripts/jira-comment.py --sel
 run "review-delta.py"                   python3 -I scripts/review-delta.py --self-test
 run "set-output-style.py"               python3 -I scripts/set-output-style.py --self-test
 run "notify-desktop.py"                 python3 -I scripts/notify-desktop.py --self-test
+run "next-workday.py"                   python3 -I scripts/next-workday.py --self-test
 run "worktree-clearance.py"              python3 -I scripts/worktree-clearance.py --self-test
 run "merge-pr.py"                       python3 -I skills/merge/merge-pr.py --self-test
 run "pipelines-status.py"               python3 -I skills/merge/pipelines-status.py --self-test

@@ -25,6 +25,7 @@ The checks stay in the plugin and the token stays off the command line (stdin to
 | Look at an Orca terminal: idle, working, stopped on a prompt | `bash scripts/wait-for-agent.sh <handle> --once` |
 | Read what removing a worktree would lose, and grant the clearance the worktree-delete hook asks for | `python3 -I scripts/worktree-clearance.py check\|grant` |
 | Show a desktop notification, optionally after a delay and only while a state-file line is unchanged; or (`--wait-only`) just wait, ending early with exit 5 when that line changes — every timer that wakes a session (`sleep` is never used for one) | `python3 -I scripts/notify-desktop.py` |
+| Work out when /developer's next run is due: the next Monday-to-Friday start of the observer window, as the `cron` of a one-shot `CronCreate` plus the time to show | `python3 -I scripts/next-workday.py --window <observer_hours>` |
 | Kill what a browser-driving agent left behind | `bash scripts/cleanup-browsers.sh <scratch-dir>` |
 | Screenshot a native popup the browser draws outside the page | `node scripts/capture-native-popup.js` |
 | Measure a page against a design contract | `scripts/recon-extract.js`, `scripts/recon.sh` |
