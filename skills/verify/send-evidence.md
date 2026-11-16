@@ -7,13 +7,13 @@ Reads the saved draft; drives no app and re-checks nothing. The draft is the new
 whose first header cell is `/verify` (a feature) **or `Concern` (a bug fix's table)** — the newest file decides which. Both are sent the
 same way, as the ticket's one evidence comment, once the status and assignee have changed; the differences are the marker in 1 and the
 completeness check in 2. **No `jira-comment-*.md` at all** → send nothing: `no evidence draft — run /verify --ticket <TICKET> first`.
-A bug fix's evidence comment holds the table and nothing else, with no @-mention: `/bugfix`'s own tick comment (the prose to the
-tester, with the rows pasted into it) is a separate comment and is neither replaced nor edited here. A person running it by hand outside
+A bug fix's evidence comment holds the table and nothing else, with no @-mention: a comment `/bugfix` posted to the tester or the PO (a
+question, an explanation) is a separate comment and is neither replaced nor edited here. A person running it by hand outside
 `/merge` is the only other case; never send at any other point of a verify run.
 1. **Find the existing evidence comment first — there is only ever one.** Look up its id:
    (a) `.shipkit/evidence/<TICKET>/jira-comment-id`, if present; else (b) scan the ticket's comments
    (`getJiraIssue` with comments) for one whose whole body is a table with the draft's first header cell (`/verify` or `Concern`); a
-   `/bugfix` tick comment is prose around a table, so it never matches. Found
+   a `/bugfix` comment to the tester or the PO is prose, so it never matches. Found
    (a) or (b) → this run is an **edit**. Several found → edit the newest and tell the user about the extras.
    None found, and no id file → this is the **first post**. An id file exists but its comment is gone (deleted)
    → create it anew and say so in the report (the one-comment rule holds: the old one is gone). Nobody is asked.

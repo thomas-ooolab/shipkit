@@ -53,7 +53,7 @@ Verifies a built change against the spec/contract/concerns and reports a gated r
    nothing. It goes to Jira **only in send mode** (`--send-evidence`, Step 7), which `/merge` calls right after
    it has changed the ticket's status and assignee, once the draft passes Step 7's completeness check (no approval wait). It is created once; every later send
    **edits that same comment in place and never posts a second one**. A `--concern` run (how `/bugfix` calls it) writes the bug fix's
-   evidence *table* into the same `jira-comment-<date-time>.md` (Step 6) for `/bugfix` to paste into its tick comment, and `/merge`
+   evidence *table* into the same `jira-comment-<date-time>.md` (Step 6), and `/merge`
    sends that table the same way as a feature's, as its own comment. `--no-jira` never drafts or sends a Jira comment. (Optional: with `--ticket` and
    interactive, append the gate result to the spec's `Open questions` — user-confirmed.)
 3. **Environment:** only **local / dev / staging**, never production. The app may be *driven* (navigate, fill,
@@ -252,7 +252,7 @@ and again when the user asks for the Jira comment ("soạn jira") with the evide
 `.shipkit/evidence/<TICKET>/jira-comment-<YYYYMMDD-HHMM>.md`, the table for a feature and the table for a bug fix (FE proof is the
 embedded screenshot or the quoted text proof, never a file name), and what happens to the older files. `FAILED` / `INCOMPLETE` write no file and delete
 them. **Verify never posts or edits a Jira comment in a normal run:** a feature's evidence reaches the ticket only when `/merge`
-has changed its status and assignee (Step 7), a bug fix's table included; `/bugfix` also pastes the rows into its own tick comment.
+has changed its status and assignee (Step 7), a bug fix's table included.
 The report of a normal run says the draft is ready and where it is, nothing about sending: no "will be sent", no "sent", no mention of `--send-evidence`.
 
 ## Step 7 — Send the evidence (send mode: `--send-evidence`, called by `/merge` after it has changed the status and assignee)
@@ -261,7 +261,7 @@ draft, drives no app and re-checks nothing; it ends with the `Jira <TICKET>: evi
 
 ## How it fits the pipeline
 `/design-recon` (UI tickets, opt-in) → implement (`/assign`, by hand, `/pr --implement`) → **`/verify`** (fix → re-run
-until PASS; drafts the evidence locally) and `/review-changes` (either order) → `/pr` → `/merge` (moves the status and assignee, then sends the evidence). `/bugfix` calls it with `--concern` for each fixed defect; `/run-pipeline --bug` runs it again with `--req … --no-jira` for the requirements the fix changed (the Jira comment is `/bugfix`'s own), only when the fix changed `spec.md`. In
+until PASS; drafts the evidence locally) and `/review-changes` (either order) → `/pr` → `/merge` (moves the status and assignee, then sends the evidence). `/bugfix` calls it with `--concern` for each fixed defect; `/run-pipeline --bug` runs it again with `--req … --no-jira` for the requirements the fix changed (the Jira comment is the evidence table of `/bugfix`'s own `--concern` run, sent by `/merge`), only when the fix changed `spec.md`. In
 `/run-pipeline` it is a stage after implement: Part B runs for every ticket, Part A only when the design gate is on.
 `FAILED` or `INCOMPLETE` halts before PRs the same way a review blocker does.
 

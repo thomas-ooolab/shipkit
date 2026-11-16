@@ -54,12 +54,10 @@ not `PASS`. The Jira comment never lists the per-check rows that the summary row
 | UI | Matches design-contract.md | FE | desktop / tablet / mobile | ✅ PASS | ![1280](/abs/path/ui-1280.png) ![768](/abs/path/ui-768.png) |
 ```
 
-## Bugfix — the table `/bugfix` pastes into its own comment
+## Bugfix — the table `/merge` sends for a fix
 
-One row per concern and per named variant, in the tester's numbering. The file holds this table and nothing else: the prose
-around it (the @-mentions, a decision still open) is `/bugfix`'s own comment, and it pastes these rows as they are, never
-retyped or reworded. The same file is also sent by `/merge`, once the status and assignee have changed, as the ticket's own
-evidence comment (the table alone, no mention), so a tester finds the final proof on the ticket even when `/bugfix`'s tick comment came earlier.
+One row per concern and per named variant, in the tester's numbering. The file holds this table and nothing else, and `/merge` sends it as it is, once the status and assignee have changed, as the ticket's own
+evidence comment (the table alone, no mention). `/bugfix` writes no comment around it and pastes it nowhere; a person who wants prose asks for it.
 
 ```
 | Concern | FE/BE | Check | Result | Evidence |

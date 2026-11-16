@@ -52,7 +52,7 @@ find it. `pending_comment` in the state file holds that relative path (or `null`
 path>`. Images in the draft keep absolute paths into `.shipkit/evidence/<TICKET>/`. `/verify`'s evidence table
 (`.shipkit/evidence/<TICKET>/jira-comment-*.md`) is a different file and stays where it is.
 
-**No exceptions:** not for "just an acknowledgment" or "just a fixed-and-pushed note"; not because the wording is obviously
+**No exceptions:** not for "just an acknowledgment" or "just a status note"; not because the wording is obviously
 right; not because posting now and mentioning it in the summary afterward is faster. A drafted-but-unapproved comment is not
 sent — and its item is not "resolved this tick" until it actually posts.
 

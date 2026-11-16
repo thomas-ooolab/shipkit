@@ -54,9 +54,7 @@ and ask is a **blocker** — a step that cannot be decided or that errors, each 
    checks the draft is complete against the agreed format and, when it is, posts or edits the one comment).
    - Sent (`evidence comment posted|edited`) → record the permalink for Step 11.
    - The newest draft is a bug fix's table (first header cell `Concern`) → it is sent the same way, as the ticket's evidence comment
-     (`/verify` Step 7 handles it), straight after the status and the assignee, no approval wait. Sent → the permalink, as above. If
-     `.shipkit/bugfix-<TICKET>.md` still lists `/bugfix`'s own tick comment as a `pending_comment` (unposted), add it to `JIRA_NOTE` with the
-     draft path: that comment still needs the user's approval and is not sent from here.
+     (`/verify` Step 7 handles it), straight after the status and the assignee, no approval wait. Sent → the permalink, as above.
    - No `.shipkit/evidence/<TICKET>/jira-comment-*.md` draft at all (`--no-jira`, verify not PASS) → `JIRA_NOTE` = "no
      evidence draft"; not a blocker.
    - The draft is **incomplete** (verify reports `evidence NOT sent — incomplete: …`) → **blocker**: the status and assignee are
