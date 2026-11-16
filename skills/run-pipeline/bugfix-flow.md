@@ -86,3 +86,4 @@ Fix:    <branch> · evidence <path(s)>
 PRs:    <child PR urls + parent PR url, or "—">
 Next:   <the single next action>
 ```
+`Status: done` → after this report, tell the root as `loop-rules.md` §11 says (the run's last action).
