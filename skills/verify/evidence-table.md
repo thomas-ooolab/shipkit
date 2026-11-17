@@ -57,7 +57,7 @@ not `PASS`. The Jira comment never lists the per-check rows that the summary row
 ## Bugfix — the table `/merge` sends for a fix
 
 One row per concern and per named variant, in the tester's numbering. The file holds this table and nothing else, and `/merge` sends it as it is, once the status and assignee have changed, as the ticket's own
-evidence comment (the table alone, no mention). `/bugfix` writes no comment around it and pastes it nowhere; a person who wants prose asks for it.
+evidence comment (the table alone, no mention). `/bugfix` writes no comment around it and pastes it nowhere; a person who wants prose asks for it. The one exception is `/bugfix`'s evidence report for a concern already fixed on the latest code (its Step 2b: no merge will follow, so nothing else would carry the proof): it copies the passing rows into its own comment, with a short note to the reporter, and posts that itself.
 
 ```
 | Concern | FE/BE | Check | Result | Evidence |

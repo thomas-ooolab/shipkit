@@ -27,7 +27,8 @@ Good: "Two things I need from you — how long should Enterprise workspaces keep
 ## Rule 3 — confirm with the user before every Jira post
 Never call the posting script until the user has explicitly approved the exact text. This covers the first comment and every
 per-tick comment — status notes and acknowledgments included. (Fixing a real defect needs no approval — that is code, not a
-public comment; only the comment describing it does.)
+public comment; only the comment describing it does. One exception: `/bugfix`'s evidence report for a concern already fixed on the
+latest code, its Step 2b, is proof and posts without approval; every other comment keeps this rule.)
 
 1. Draft the comment.
 2. Show the exact text, verbatim — not a summary of what you plan to say.
