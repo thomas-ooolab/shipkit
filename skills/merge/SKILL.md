@@ -71,7 +71,8 @@ found → stop: "No open PRs for `<TICKET>` — run `/pr <TICKET>` first."
 ## Step 3 — Verify sign-off (never-guess gate)
 - `.shipkit/pr-<TICKET>.md` exists → every `## Concerns` item must be `[x]`, and `pending_action`
   must be empty. Any `[ ]` or a set `pending_action` → **stop**, name the blocking concern(s).
-- Absent → check `.shipkit/pipeline-<TICKET>.md`: stage `5 prs` must be marked `[x]` (that only
+- Absent → check `.shipkit/pipeline-<TICKET>.md`: the stage **named `prs`** must be marked `[x]` — find its line by the name (`- [x] <n> prs — …`);
+  its number is 5 in the standard flow and 4 in the bug flow, where 5 is `merged` (that only
   happens once `/pr`'s review loop reached unconditional sign-off and deleted its own state file —
   `/pr` Step 4). Confirmed → treat as signed off.
 - Neither signal present → **stop**: "Can't confirm reviewer sign-off for `<TICKET>` — run `/pr
@@ -220,7 +221,7 @@ Next: <fix the failing pipeline, then re-run /merge | nothing — all merged and
   Force-push is `--force-with-lease=<branch>:<old-sha>` on the ticket's own feature branch only, with the sha read
   from `git rev-parse origin/<branch>`, never retyped.
 - **Sign-off is a two-source check, never an assumption.** `.shipkit/pr-<ticket>.md`'s concern list,
-  or `.shipkit/pipeline-<ticket>.md`'s stage 5 — absence of both means "unconfirmed," not "probably
+  or `.shipkit/pipeline-<ticket>.md`'s stage named `prs` — absence of both means "unconfirmed," not "probably
   fine."
 - **Part order is a merge floor.** One unqualified PR blocks every later PR in its chain, not just
   itself.

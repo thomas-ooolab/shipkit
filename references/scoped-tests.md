@@ -7,7 +7,11 @@ suite plus a build at once, and a diff of a few files does not need it.
    or the stack's generator writes) and docs. Run:
    - **Go:** the packages that hold a changed `.go` file (`go test ./<dir>/`), plus their direct dependents (packages whose
      `go list -f '{{ .ImportPath }}: {{ join .Imports " " }}' ./...` line, other than the package's own, names a changed package) when that is 10 packages or fewer;
-     more → the changed packages only, and the report says so.
+     more → the changed packages only, and the report says so. **Also** every package that holds a `*_test.go` naming a changed file by its
+     repo-relative path (`grep -rl "<repo-relative path>" --include='*_test.go' .`, once per changed file; its directory is the package):
+     a test that pins `handlers/x/service.go:452` or reads the file as text depends on it without importing it, so the import graph above
+     does not find it. Those packages are always run — they name the file on purpose and there are few — whatever the 10-package ceiling
+     decided for the dependents; the report lists them as `pins <file>`.
    - **Node / Next.js:** `<package manager> exec vitest related --run <changed source files>` (jest: `jest --findRelatedTests <files>`);
      a changed test file is passed as it is. Not the project's `test` script when that script runs everything.
    - **Python:** `pytest` on the changed test files and the tests that import a changed module.
