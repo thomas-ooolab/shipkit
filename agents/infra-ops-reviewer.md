@@ -18,6 +18,10 @@ Check for:
 - **Observability** — a new failure path with no log/metric; a removed log that aided debugging.
 - **Performance** — N+1 queries, unbounded loops/allocations on a request hot path, a sync call in
   a latency-sensitive path (e.g. a realtime or request-time call).
+- **Hard limits** — a value that grows with data or users handed to something with a fixed ceiling: SQL
+  bind parameters in an `IN (...)` list (65535 on Postgres), a request or payload size, a timeout, a
+  batch size. `blocking` when the ceiling is reachable with growth; name the limit and the size that
+  reaches it in `finding`.
 
 Return ONLY a JSON array (or `[]`):
 

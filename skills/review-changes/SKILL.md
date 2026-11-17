@@ -108,6 +108,7 @@ Combine drift + pass 1/2/3 + fidelity/responsive (Step 3.5) findings. Dedup:
 - `line > 0` → dedup by `(submodule, file, line)`, keep higher severity.
 - `line == 0` → dedup by `(submodule, file, finding)` so two distinct whole-file findings both survive.
 Sort blocking first, then advisory. Group output by submodule.
+A finding that names a hard numeric limit (pass 3, *Hard limits*) is `blocking` whatever severity it came back with, and is never downgraded or dropped on reading alone. It leaves that state in one way: `/verify --concern "<the scenario above the limit>"` runs it at a size past the limit and passes (the finding is then dropped, citing that evidence) — or the diff is changed and the same run passes; a run that fails keeps it blocking. This skill reads only; the run belongs to `/verify`.
 
 ## Step 4.5 — Posting gate (PR mode, interactive only)
 Skip the gate when local mode, `AUTO=true`, or non-interactive. Otherwise render all findings under

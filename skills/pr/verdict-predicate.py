@@ -50,7 +50,10 @@ from decimal import Decimal
 # added whitespace. If stripping these leaves nothing, the agent has not written anything yet.
 PLACEHOLDER_RE = re.compile(r"[:\w_]*thinking[:\w_]*|…|\.\.\.", re.I)
 # After `full review <link>` the bot posts a status line before the findings. It is progress, not an outcome.
-STATUS_RE = re.compile(r"^\W*running a full review\b", re.I)
+# Slack's `text` writes an emoji as `:shortcode:` and a mention as `<@U…>`, so the phrase is not always at the start: look for it anywhere in a SHORT
+# message (a long verdict that merely quotes the phrase is a verdict).
+STATUS_RE = re.compile(r"\brunning a full review\b", re.I)
+STATUS_MAX_LEN = 500
 
 
 def classify(payload: dict, bot_id: str, parent_ts: str | None = None, after_ts: str | None = None) -> str | None:
@@ -101,7 +104,7 @@ def classify(payload: dict, bot_id: str, parent_ts: str | None = None, after_ts:
     if not PLACEHOLDER_RE.sub("", latest).strip():
         return "waiting|thinking"  # placeholder only
 
-    if STATUS_RE.match(latest):
+    if len(latest) < STATUS_MAX_LEN and STATUS_RE.search(latest):
         return "waiting|running"  # review started, findings not posted yet
 
     return "changed|%s" % latest[:400].replace("\n", " ")

@@ -26,6 +26,9 @@ CASES = [
     ("placeholder, odd spacing",          msgs("  :thinking_face:  thinking …  "), "waiting"),
     ("full-review status line",          msgs("Running a full review of 3 PRs. This takes several minutes."), "waiting"),
     ("status line then findings",        msgs("Running a full review of 3 PRs. This takes several minutes.", "LGTM ✅"), "changed"),
+    ("status line, emoji shortcode prefix", msgs(":hourglass_flowing_sand: Running a full review of 2 PRs. This takes several minutes."), "waiting"),
+    ("status line, mention prefix",      msgs("<@UBOT00001> Running a full review of <https://x/1>. This takes several minutes."), "waiting"),
+    ("long verdict quoting the phrase",  msgs("Blocking: " + "x" * 600 + " running a full review"), "changed"),
     ("no bot message yet",                {"ok": True, "messages": []}, "waiting"),
     ("only the human request present",    {"ok": True, "messages": [{"user": "UHUMAN001", "text": "review please"}]}, "waiting"),
 

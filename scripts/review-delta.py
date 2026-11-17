@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measure the delta of each review target since its last reviewed sha, for /pr's full-review gate (review-loop Step 6).
 
-usage: python3 -I scripts/review-delta.py [--config skills/pr/config.json] PATH:REVIEWED:HEAD [...]
+usage: python3 -I scripts/review-delta.py [--config <config.json>] PATH:REVIEWED:HEAD [...]   (default: skills/pr/config.json beside this script)
        REVIEWED is `-` when the bot never named a sha (→ full review).
        python3 -I scripts/review-delta.py --self-test
 
@@ -22,7 +22,8 @@ DOCS_RE = re.compile(r"(^|/)docs/|\.md$")
 GEN_RE = re.compile(r"\.gen\.go$|_gen\.go$|\.pb\.go$|\.generated\.")
 CONTRACT_RE = re.compile(r"\.proto$|(^|/)api\.ya?ml$|openapi[^/]*$|swagger[^/]*$")
 COMMENT_PREFIXES = ("//", "#", "/*", "*", "--", "<!--")
-DEFAULT_CONFIG = "skills/pr/config.json"
+# Next to the script, not relative to the cwd: the script runs from the target project's worktree, which has no skills/pr/.
+DEFAULT_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "pr", "config.json")
 
 
 def glob_to_regex(pat):
@@ -165,6 +166,13 @@ def self_test():
     # no reviewed sha → full review
     none = measure(repo, "-", head, sensitive, limits)
     assert none["full_review_reasons"] == ["no reviewed sha"], none
+    with tempfile.TemporaryDirectory() as elsewhere:   # the default config is found from any working directory
+        here = os.getcwd()
+        os.chdir(elsewhere)
+        try:
+            assert load_limits(DEFAULT_CONFIG)[0]["max_unreviewed_code_lines"] > 0
+        finally:
+            os.chdir(here)
     print("ok    review-delta self-test")
     return 0
 

@@ -29,12 +29,14 @@ say *do not ask again*; Review focus says *look here*:
 - <file:line | area> — <what to check, or what looks wrong but is intended> — <REQ-NNN | KD-n | spec Edge case | Contracts>
 <!-- shipkit:focus:end -->
 ```
-At most 7 lines per PR, each from one of these sources, in this order, and a line with no source is not written; a point that is already a line of this PR's Decisions block is not repeated here:
+At most 7 lines per PR from sources 1–6 (source 7 adds its own hunks and is outside that cap), each from one of these sources, in this order, and a line with no source is not written; a point that is already a line of this PR's Decisions block is not repeated here:
 1. a path of this PR's diff that matches `review.sensitive_paths` (`skills/pr/config.json`) — say what changed there;
 2. a `## Contracts` entry of `spec.md` that this PR sends or reads — name the other side's PR (check both agree);
 3. a row of the spec's `## Edge cases` this PR implements — the behaviour is intended, point at its test;
 4. a `## Requirements` REQ this PR covers where the code differs from the obvious reading — say how and cite the REQ;
-5. what the spec keeps out of scope, or a still-open `## Open questions` item the diff touches — say the line is deliberate.
+5. what the spec keeps out of scope, or a still-open `## Open questions` item the diff touches — say the line is deliberate;
+6. **in the bug flow** (`--bug`, which reads no feature spec) in place of 2–5: per concern this PR fixes, `<file:line from this PR's diff>` — the symptom in the tester's words — the regression test that fails without the fix — `bugfix <concern>`, with the concern's `-before` / after evidence file (`.shipkit/evidence/<TICKET>/`, named in `bugfix-<ticket>.md`) as the proof;
+7. a changed file larger than `review.bot_max_file_kb` (`skills/pr/config.json`; `git -C <path> cat-file -s HEAD:<file>` gives the size in bytes): the reviewer bot cannot open it and would report it "not checked", so quote what it needs — `<file>:<start>-<end>` and the changed lines verbatim, at most 30 lines per file.
 The spec is the source (`specs/NNN-slug/spec.md`, found through `probe.sh state <TICKET>`) and it can drift: before a line cites a REQ,
 Contract or Edge case, `getJiraIssue` the ticket (description, comments, linked tickets) and drop a line the ticket now contradicts,
 telling the user once which line and why. The `<file:line>` comes from this PR's own diff (`git -C <path> diff <default>...HEAD`), never from

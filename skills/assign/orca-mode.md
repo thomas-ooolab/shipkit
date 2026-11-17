@@ -126,13 +126,16 @@ Tell the user in one line which folder was trusted for kiro. *Verified 2026-11-0
 persisted for the folder. *Not verified:* the same Enter in a terminal made with `terminal create --command`, or in the residual terminal of a failed start — if the screen does not move, that is the user's.
 claude workers showed no trust prompt (they run in bypass-permissions mode): nothing to add for them.
 
-**Wait, process everything, settle before the ack.** A turn never ends after starting workers with no `check --wait`
+**Wait, process everything, settle every worker.** A turn never ends after starting workers with no `check --wait`
 pending. Wait with `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms
 600000 --json` via Bash `run_in_background: true` (the output file is written and a notification arrives when it ends),
 so every worker, kiro or claude, is waited on the same way. The output can hold more than one JSON
-document: parse every one (a `raw_decode` loop) and use the one that carries `result.deliveryId` / `messages`. A consuming
-`check` **replays** its delivery until `check --ack <delivery_id>`. Process every message, then ack — and settle each
-worker *before* acking:
+document: parse every one (a `raw_decode` loop) and use the one that carries `messages`. A consuming `check` marks the
+whole FIFO batch it returns as handled (whatever `--types` says; `orca orchestration check --help`): on this Orca the reply has no
+`deliveryId` and nothing to ack — `--ack <delivery_id>` is only for an older Orca whose reply carries one, and a no-op otherwise.
+The batch is therefore consumed when it returns (a plain `check` right after it finds 0 messages): process every message of
+it, settling each worker; if the output was lost before you read it, `check --retry-request <id>` (the id is printed with the
+request) or `ORCA orchestration inbox --terminal run:<RUN> --full` brings it back:
 - **`question`** → answer per the rule above with `ORCA orchestration reply --id <msg_id> --body "…"`; it unblocks the
   worker.
 - **`worker_done`** (`from_handle` = the terminal; payload `outcome`; `subject` / `body` = the worker's summary) →
@@ -147,8 +150,8 @@ worker *before* acking:
 - **`escalation`** → Orca's own note that something went wrong (for instance that a worker ended its turn on an error without `worker_done`). It is
   evidence, not a verdict: read the worker as in *Reading a worker*, answer nothing on the user's behalf, and tell the user what you found and
   decided — or the choice, if it is theirs. (This message type was not reproduced.)
-- Then `ORCA orchestration check --run <RUN> --ack <delivery_id> --wait --types worker_done,escalation,question
-  --timeout-ms 600000 --json` acks and waits for the next one in one call.
+- Then `ORCA orchestration check --run <RUN> --wait --types worker_done,escalation,question --timeout-ms 600000 --json`
+  waits for the next batch (add `--ack <delivery_id>` only when the previous reply carried a `deliveryId`).
 Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
 accepted (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
 --terminal-state reclaimable --json` must be empty, except the `✅` terminals whose idle close is pending.

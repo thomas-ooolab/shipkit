@@ -104,7 +104,7 @@ If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first." Paths that `probe.
   came from — the REQ and its Contracts entry, or the `--concern` plus (`--concern` runs, when `--ticket` is
   given) the Jira comment that concern restates, found via `getJiraIssue` with comments (the PO's / tester's
   comment, not just the one-line concern) — and list every **variant dimension it names**: roles (who sees/can do
-  what), data states (empty, many, boundary), failure/undo paths ("on save error, revert"), permissions
+  what), data states (empty, many, boundary), plans or capabilities (a feature only some workspaces have), failure/undo paths ("on save error, revert"), permissions
   ("only X can"), value boundaries, and **the inputs it tries or suggests** ("also try X", "e.g. Y", a value in a
   repro step): each such input is a variant even when no row on hand carries it. Only dimensions the text names;
   don't invent. Each variant is its own check
@@ -198,6 +198,8 @@ changed" is not a result.
 | **Data state** (empty, one, many, deleted) | Create the data through the API or local DB, then check each state. |
 | **Boundary** | Try the value just inside and just outside the limit. |
 | **Content-dependent** (a search, filter, match, sort or threshold on a value that no row on hand has) | Create one record that has the value (API or UI; a local-DB write on a local target), run the exact input the text names in the UI, check the hit **and** a near miss that must not hit, then put the data back. |
+| **Plan / capability / feature flag** (Starter vs Pro, a gated feature) | Seed a workspace on that plan (local DB or the app's own admin API) and log in as its user: the gated UI is hidden and the gated API answers 403. Only when the plan cannot be seeded, stub the one response that carries it in the page (`page.route('**/api/<features endpoint>', r => r.fulfill({json: {<flag>: false}}))`), mark the check `simulated` (*Reaching a state*, `fidelity.md`), and add a BE check of the 403 — a stubbed page skips the BE's own gate. |
+| **Scope unchanged** (the diff touches a scope helper, a route's authorization or a visibility filter, and the claim is that who sees what did not change) | Run the same request on the same seeded data against the **base** and against this branch: the base is a throwaway worktree of `origin/<tracking branch>` made as `references/scoped-tests.md` rule 5 says, its BE started through the runbook (Step 1's write surface, with the user's yes). Save `<id>-<slug>-base.txt` and `<id>-<slug>-after.txt` and diff them: equal → PASS; different → FAIL, unless the REQ names that change. Reading the code is not this check. |
 
 *Typical case:* "a failed save reverts" was left as "only covered by an automated test" and "the learner
 role" as "not checked" — both are checkable: the route-stub row above, and a seeded learner who gets no menu

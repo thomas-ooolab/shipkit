@@ -11,6 +11,8 @@ notified), and sits behind the draft, humanize and approval steps of the skill t
 One exception, Jira only: `jira-comment.py` exits 3 (`JIRA_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN` unset) → `addCommentToJiraIssue` is the
 fallback, and the user is told the mentions will not notify anyone. Slack has no fallback.
 
+A second exception, Jira only: a **status change** (`transitionJiraIssue`) and an **assignee change** (`editJiraIssue` with `fields.assignee` and nothing else). No script does either and no mention is involved, so the Atlassian MCP is used in the two places a skill names — `/merge`'s `skills/merge/jira-handoff.md` and `/bugfix`'s hand-back (its Step 2b) — and when the user asks for that one change in the conversation. Any other field, any `createJiraIssue` and every comment still go through the scripts.
+
 Taking a message back: `node scripts/post-slack.js delete <channel_id> <ts>` (Slack), `jira-comment.py delete <TICKET> <comment-id>`
 (Jira). Never a hand-made `chat.delete` or REST call with the token.
 

@@ -27,6 +27,8 @@
     "_note": "Over this many changed files in one PR, or a verdict that ran out of tool budget, the review goes one PR at a time (skills/pr/per-pr-review.md).",
     "max_unreviewed_code_lines": 30,
     "max_unreviewed_delta_lines": 200,
+    "bot_max_file_kb": 200,
+    "_note_bot_max_file_kb": "The review bot cannot open a file larger than this (reported by a run that left 'not checked' findings on an 858 KB api.yml and a 629 KB generated Go file); decisions-block.md puts the changed hunks of such a file into Review focus.",
     "sensitive_paths": ["**/migrations/**", "**/*.proto", "**/openapi*", "**/swagger*", "**/auth/**", "**/*permission*", "**/*policy*"],
     "_note_full_review_gate": "Full-review gate (review-loop.md Step 3.6): a re-run is worth its 7-15 minutes and ~3 USD only if the diff since the PR's last reviewed head sha has more than max_unreviewed_code_lines non-test, non-comment source lines, touches a sensitive_paths glob, or is longer than max_unreviewed_delta_lines in total. Raise the first to let small code fixes skip a re-run."
   },

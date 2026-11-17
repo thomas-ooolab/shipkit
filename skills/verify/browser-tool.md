@@ -43,7 +43,9 @@
   local DB, no question asked; a new user, not a changed password on an existing account. Insert the user + membership rows with `psql -tAq` (with `RETURNING`, take
   the first line: it also prints `INSERT 0 1`); password random from Python `secrets`, hash
   `htpasswd -bnBC 10 x <pw> | cut -d: -f2` with the `$2y$` prefix changed to `$2a$` (the BE's bcrypt accepts it);
-  keep the password in a `0600` file in the scratchpad and never print it in chat.
+  keep the password in a `0600` file in the scratchpad and never print it in chat. The Playwright MCP tools cannot read that file, and typing
+  the password through `browser_type` / `browser_fill_form` puts it in the transcript: log in with a Playwright script of your own (next
+  bullet) that reads the file with `fs.readFileSync` — never one that takes the password as an argument or prints it.
 - **A Playwright script of your own** (Node, instead of the MCP tools) follows the *Browser rules* of
   `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`: foreground, with a timeout, one at a time, no loop or chain script, `browser.close()` in a
   `finally`, a labelled scratch directory, and `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <that directory>` before you finish.
