@@ -1,7 +1,7 @@
 ---
 name: pr
-description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--per-pr] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
-argument-hint: "<jira-ticket> [--implement] [--full] [--per-pr] [--target staging|main] [--bug]"
+description: "Use when a planned ticket's feature branches are ready to ship as PRs, or when its already-open PRs need the automated reviewer's sign-off. Never merges. Trigger: /pr <ticket-id> [--implement] [--full] [--per-pr] [--auto] [--target staging|main]. Examples: \"/pr AR-450\", \"/pr AR-458 --implement\", \"open the PRs for AR-450 and keep triaging until they're clean\""
+argument-hint: "<jira-ticket> [--implement] [--full] [--per-pr] [--auto] [--target staging|main] [--bug]"
 ---
 
 # shipkit · pr
@@ -61,7 +61,7 @@ allowlist; no force-push to a branch it didn't create.
 ## Step 1 — Parse & preconditions
 Parse `$ARGUMENTS`: the ticket (positional, or `--ticket <key>`) → `TICKET`; `--implement` →
 `IMPLEMENT=true`; `--full` → `FULL=true` (Step 4 runs each submodule's whole test suite); `--per-pr` → `PER_PR=true` (Phase 2 sends one `full review` per PR instead of one for all links — `per-pr-review.md`, which also switches on by itself for a big diff); `--target staging|main` → `PR_TARGET` (default from config `branching.pr_target`,
-else `staging`); `--bug` → `BUG=true` (the bug flow: `run-pipeline` passes it; see Step 1 and Step 2). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
+else `staging`); `--bug` → `BUG=true` (the bug flow: `run-pipeline` passes it; see Step 1 and Step 2); `--auto` → `AUTO=true` (only `run-pipeline` passes it, when its own run is `auto`: Phase 2's severity stop, `review-loop.md` 4b, then hands control back to the caller instead of waiting for the user; off by default). If `SHIPKIT_CONFIG_EXISTS=0`, stop: "Run `/bootstrap` first."
 
 **Missing ticket** → recommend candidates instead of asking blank: check `.shipkit/pr-*.md` for existing
 state files (an in-progress `/pr` run from an earlier session — list any found, most recently modified

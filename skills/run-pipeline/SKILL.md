@@ -192,7 +192,7 @@ re-confirm success from ground truth and append the result + timestamp to the st
   never waive.
 
 - **Stage 5 — prs** (review done, PRs missing or not yet reviewer-signed-off): when no PR of the ticket exists yet, first get a PR slot from the root (`loop-rules.md` §9: PRs and reviewer requests of different worktrees are an hour apart); then dispatch
-  `/pr <ticket> --target <pr_target>`. It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket
+  `/pr <ticket> --target <pr_target>` (add `--auto` when `AUTO=true`: `/pr`'s severity stop then hands control back instead of waiting for the user, `skills/pr/review-loop.md` 4b). It runs in sequence: Phase 1 opens the missing PRs (a Bitbucket
   PR per affected submodule + parent PR), then Phase 2 pings the reviewer and triages their concerns
   until sign-off. The review loop runs on `/pr`'s own background pollers (`.shipkit/pr-<ticket>.md` tracks it) and carries
   its own round cap. Without `auto`, **stop** once the PRs are open: report the PR URLs and "review loop running". With `AUTO=true`, stay on this stage
