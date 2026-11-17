@@ -13,11 +13,12 @@ and `unpushed` (commits on no remote), `git_changes` (any repo dirty or ahead), 
 other state files present) — what `.shipkit/` holds is gitignored and goes with the worktree. Whether the ticket is *in progress* is NOT decided here: the
 caller has the Haiku agent `worktree-checker` read those files.
 `grant` refuses (exit 3) while `git_changes` is true unless `--user-approved` is given; the clearance lasts 30 minutes and names the path. `grant` removes nothing.
-`prepare` (needs a fresh clearance) is for a linked worktree whose submodules are initialized: Git refuses to remove it without --force because each submodule's
+`prepare` (needs a fresh clearance) is for a linked worktree that has a submodule repository — populated (a gitlink whose directory holds a `.git`, registered or
+not: `git submodule status` prints '-' for one never registered) or left in `modules/` by an earlier deinit: Git refuses to remove it without --force because each submodule's
 repository sits in the worktree's own git directory (`<primary>/.git/worktrees/<name>/modules/`) and would go with it. Only when every submodule holds nothing
 (no uncommitted or untracked change, no stash, no local branch or detached HEAD with commits on no remote) it runs `git submodule deinit --all` (never -f) and deletes
 that `modules` directory; then `git worktree remove` / `orca worktree rm` works without --force. Anything held → exit 3, each line on stderr, nothing deleted (it has no
-override: the user commits, pushes or discards it). A worktree with no initialized submodule → exit 0, nothing to do. A primary checkout → exit 2, untouched.
+override: the user commits, pushes or discards it). A worktree with no submodule repository → exit 0, nothing to do. `check` lists the same repositories. A primary checkout → exit 2, untouched.
 Clearances live in `$SHIPKIT_CLEARANCE_DIR`, default `~/.claude/shipkit/worktree-clearance/`.
 Exit: 0 ok · 2 usage, no such worktree or (prepare) not a linked worktree · 3 refused (git changes, no --user-approved; prepare: a submodule holds something) · 4 no fresh clearance (valid, prepare).
 """
@@ -50,14 +51,15 @@ def repo_facts(path):
 
 
 def submodule_paths(wt):
-    """The initialized submodules of a worktree ('-' in `submodule status` = not initialized, nothing there to lose)."""
-    _, sub = git(["submodule", "status"], wt)
+    """Every submodule that has a repository in the worktree: a gitlink of the index whose directory holds a `.git`. Not `git submodule status`:
+    it prints '-' for a submodule that is populated but not registered in the config (no `submodule.<name>.url` / `.active`), and Git refuses
+    to remove such a worktree all the same."""
     out = []
-    for line in sub.splitlines():
-        if line and line[0] != "-":
-            parts = line[1:].split()
-            if len(parts) >= 2 and (wt / parts[1] / ".git").exists():
-                out.append(wt / parts[1])
+    for line in git(["ls-files", "--stage"], wt)[1].splitlines():
+        if line.startswith("160000 ") and "\t" in line:
+            p = line.split("\t", 1)[1]
+            if (wt / p / ".git").exists():
+                out.append(wt / p)
     return out
 
 
@@ -100,21 +102,22 @@ def grant(worktree, user_approved):
     return 0
 
 
-def submodule_losses(path):
+def submodule_losses(path, gitdir=None):
     """What deleting a submodule's repository would lose: an uncommitted or untracked change, a stash, a local branch or a detached HEAD with
-    commits that sit on no remote. [] = nothing."""
+    commits that sit on no remote. [] = nothing. `gitdir` = a repository with no work directory (one left in `modules/`): no tree to look at."""
+    g = (lambda a: git(["--git-dir", str(gitdir)] + a, ".")) if gitdir else (lambda a: git(a, path))
     why = []
-    if git(["status", "--porcelain"], path)[1]:
+    if not gitdir and g(["status", "--porcelain"])[1]:
         why.append("uncommitted or untracked changes")
-    stash = git(["stash", "list"], path)[1]
+    stash = g(["stash", "list"])[1]
     if stash:
         why.append(f"{len(stash.splitlines())} stash entr{'y' if len(stash.splitlines()) == 1 else 'ies'}")
-    for b in git(["for-each-ref", "--format=%(refname:short)", "refs/heads"], path)[1].splitlines():
-        n = int(git(["rev-list", "--count", b, "--not", "--remotes"], path)[1] or 0)
+    for b in g(["for-each-ref", "--format=%(refname:short)", "refs/heads"])[1].splitlines():
+        n = int(g(["rev-list", "--count", b, "--not", "--remotes"])[1] or 0)
         if n:
             why.append(f"branch {b}: {n} commit(s) on no remote")
-    if git(["symbolic-ref", "-q", "HEAD"], path)[0] != 0:  # detached
-        n = int(git(["rev-list", "--count", "HEAD", "--not", "--remotes"], path)[1] or 0)
+    if g(["symbolic-ref", "-q", "HEAD"])[0] != 0:  # detached
+        n = int(g(["rev-list", "--count", "HEAD", "--not", "--remotes"])[1] or 0)
         if n:
             why.append(f"detached HEAD: {n} commit(s) on no remote")
     return why
@@ -135,20 +138,32 @@ def prepare(worktree):
         print(f"not a linked worktree: {wt} (its git directory is not <primary>/.git/worktrees/<name>); nothing touched", file=sys.stderr)
         return 2
     subs = submodule_paths(wt)
-    if not subs:
-        print("no initialized submodules: nothing to prepare")
+    mods = Path(gd).resolve() / "modules"
+    own = {Path(git(["rev-parse", "--absolute-git-dir"], p)[1]).resolve() for p in subs}
+    # a repository in modules/ that no work directory points at (a submodule deinitialized earlier): Git refuses to remove the worktree for it too
+    orphans = sorted(d for d in mods.iterdir() if d.is_dir() and d.resolve() not in own) if mods.is_dir() else []
+    if not subs and not orphans:
+        print("no submodule repository: nothing to prepare")
         return 0
-    lost = [(p, w) for p in subs for w in submodule_losses(p)]
+    lost = [(str(p.relative_to(wt)), w) for p in subs for w in submodule_losses(p)]
+    lost += [(f"modules/{d.name} (no work directory)", w) for d in orphans for w in submodule_losses(None, d)]
     if lost:
-        for p, w in lost:
-            print(f"submodule {p.relative_to(wt)}: {w}", file=sys.stderr)
+        for label, w in lost:
+            print(f"submodule {label}: {w}", file=sys.stderr)
         print("kept: removing the worktree would lose the above; nothing deleted", file=sys.stderr)
         return 3
+    # `git submodule status` shows '-' for a populated submodule that was never registered, and deinit only clears registered ones: register first
+    rel = [str(p.relative_to(wt)) for p in subs]
+    if rel:
+        subprocess.run(["git", "submodule", "init", "--", *rel], cwd=wt, capture_output=True, text=True)
     r = subprocess.run(["git", "submodule", "deinit", "--all"], cwd=wt, capture_output=True, text=True)
     if r.returncode != 0:
         print(f"git submodule deinit refused (not forced): {r.stderr.strip() or r.stdout.strip()}", file=sys.stderr)
         return 3
-    mods = Path(gd).resolve() / "modules"
+    left = [p for p in subs if (p / ".git").exists()]
+    if left:
+        print(f"git submodule deinit left {', '.join(str(p.relative_to(wt)) for p in left)} populated; nothing deleted", file=sys.stderr)
+        return 3
     if mods.is_dir():
         shutil.rmtree(mods)
     print(f"prepared {wt}: {len(subs)} submodule(s) deinitialized and their repositories ({mods}) removed; `git worktree remove` needs no --force now")
@@ -245,6 +260,31 @@ def self_test():
             assert main(["grant", str(w), "--user-approved"]) == 0
             assert main(["prepare", str(w)]) == 3 and mods(w).is_dir() and (sub / ".git").exists(), name   # held: nothing deleted
             assert what in "; ".join(submodule_losses(sub)), (name, submodule_losses(sub))
+        def unregister(prim):   # what real worktrees looked like: populated, no submodule.<name>.url / .active anywhere, `submodule status` prints '-'
+            for k in ("url", "active"):
+                subprocess.run(["git", "config", "--unset", f"submodule.sub.{k}"], cwd=prim, env=env)
+        prim, w, sub = mk("unreg")
+        unregister(prim)
+        assert git(["submodule", "status"], w)[1].startswith("-") and (sub / ".git").exists()
+        assert len(facts(w)["repos"]) == 2                                                        # check() sees it although status says '-'
+        assert main(["grant", str(w), "--user-approved"]) == 0 and main(["prepare", str(w)]) == 0
+        run("worktree", "remove", str(w), cwd=prim)
+        assert not w.exists()
+        prim, w, sub = mk("unreg-dirty")
+        unregister(prim)
+        (sub / "u.txt").write_text("x")
+        assert facts(w)["repos"][1]["dirty"] and main(["grant", str(w), "--user-approved"]) == 0
+        assert main(["prepare", str(w)]) == 3 and mods(w).is_dir() and (sub / ".git").exists()
+        prim, w, sub = mk("orphan")                                                               # deinitialized earlier: the repository stays in modules/
+        run("submodule", "deinit", "--all", cwd=w)
+        assert not (sub / ".git").exists() and mods(w).is_dir()
+        assert main(["grant", str(w), "--user-approved"]) == 0 and main(["prepare", str(w)]) == 0
+        run("worktree", "remove", str(w), cwd=prim)
+        assert not w.exists()
+        prim, w, sub = mk("orphan-held")
+        run("checkout", "-q", "-b", "old", cwd=sub); run("commit", "-q", "--allow-empty", "-m", "c", cwd=sub); run("checkout", "-q", "--detach", "origin/main", cwd=sub)
+        run("submodule", "deinit", "--all", cwd=w)
+        assert main(["grant", str(w), "--user-approved"]) == 0 and main(["prepare", str(w)]) == 3 and mods(w).is_dir()
         assert main(["grant", str(wt), "--user-approved"]) == 0 and main(["prepare", str(wt)]) == 0 and wt.exists()   # no submodule: nothing to do
         assert main(["grant", str(main_repo), "--user-approved"]) == 0 and main(["prepare", str(main_repo)]) == 2     # a primary checkout is never touched
         # usage
