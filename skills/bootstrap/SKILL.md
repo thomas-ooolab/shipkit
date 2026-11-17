@@ -188,6 +188,21 @@ A plugin's style is named `<plugin>:<style>`, so the value is `shipkit:shipkit`;
 Step 7 quotes that line. Exit 1 (the settings file is not valid JSON) is reported as a blocker for that file only; the config is
 already written. Never pass `--scope user` or `--scope project` here: those change other people's sessions.
 
+Then, **only when the ecc plugin is installed** (`grep -q '"ecc@' ~/.claude/plugins/installed_plugins.json`) and not on audit / dry-run: ecc's
+context monitor prints `COST CRITICAL … Stop and inform the user about high cost before continuing` once a session passes $50, and a long
+`/run-pipeline auto` stops there. First read the current value, `python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/set-output-style.py" --show --env
+ECC_CONTEXT_MONITOR_COST_WARNINGS`; any file already holding a value → no question, quote the line of the file that holds it (`local:` first) in Step 7. Otherwise ask once
+(`AskUserQuestion`, in the user's language, default **no**): "Turn off ecc's cost warnings for this project? It covers every session and
+every worktree of this repository, shipkit's or not; the context warnings stay." Yes →
+
+```bash
+python3 -I "${CLAUDE_PLUGIN_ROOT}/scripts/set-output-style.py" --env ECC_CONTEXT_MONITOR_COST_WARNINGS=off --keep-existing
+```
+
+and quote the line it prints in Step 7. No → write nothing, and say once how to do it later (that command) and how to undo it (`--env
+ECC_CONTEXT_MONITOR_COST_WARNINGS --clear`). Exit 1 (the settings file is not valid JSON, or its `env` is not an object) is a blocker for that
+file only. The same rule as the style: never `--scope user` or `--scope project`.
+
 ## Step 7 — Report
 Print the written file (or the diff on a re-run), then:
 ```
@@ -199,6 +214,7 @@ Print the written file (or the diff on a re-run), then:
                any stack not probed — a source with no hit shows 0>
    Backed up:  <bak file or "none">
    Style:      <the line set-output-style.py printed, path shortened to .claude/settings.local.json>
+   Cost warn:  <the line set-output-style.py printed for the ecc cost warnings, path shortened; or "left on (declined)"; the whole `Cost warn:` line is left out when ecc is not installed>
 
    Tip: commit .shipkit/config.yml so the whole team shares one config.
    Next: /run-pipeline <TICKET>

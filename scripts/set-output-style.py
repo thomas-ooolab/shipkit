@@ -5,6 +5,9 @@
   python3 -I scripts/set-output-style.py <style> --keep-existing              # only if no style is chosen yet (unset or "default"); /bootstrap uses this
   python3 -I scripts/set-output-style.py --clear   [--scope ...] [--dir D]    # removes the key (not the same as "default")
   python3 -I scripts/set-output-style.py --show    [--dir D]                  # the value in each of the three files
+  python3 -I scripts/set-output-style.py --env NAME=VALUE [--keep-existing] [--scope ...] [--dir D]   # the same file's `env` block: NAME=VALUE,
+  python3 -I scripts/set-output-style.py --env NAME --clear|--show [--scope ...] [--dir D]            # other `env` entries and keys stay; /bootstrap uses it,
+                                                                                                       # after asking, for ECC_CONTEXT_MONITOR_COST_WARNINGS=off
 
   --scope local    (default) <root>/.claude/settings.local.json — yours only; stays out of git
   --scope project  <dir>/.claude/settings.json                  — commit it and the team gets it
@@ -19,7 +22,7 @@ The style name is case-sensitive and must match exactly; a wrong name silently g
 picks the edit up from the next message. Unparseable JSON is never overwritten: exit 1, file untouched.
 Exit: 0 done (or already so), 1 settings file unreadable, 2 usage.   python3 -I scripts/set-output-style.py --self-test
 """
-import json, os, subprocess, sys, tempfile
+import json, os, re, subprocess, sys, tempfile
 from pathlib import Path
 
 KEY = "outputStyle"
@@ -79,8 +82,36 @@ def apply(scope, directory, style, keep_existing=False):
     return path, f"{path}: {KEY} {'cleared' if style is None else 'set to ' + repr(style)}"
 
 
+def apply_env(scope, directory, name, value, keep_existing=False):
+    """The `env` block of the same settings file. value None = remove the entry (an emptied block goes too). Returns (path, message)."""
+    path = settings_path(scope, directory)
+    data = load(path)
+    env = data.get("env", {})
+    if not isinstance(env, dict):
+        sys.exit(f"{path}: env is not an object; left untouched")
+    if value is None:
+        if name not in env:
+            return path, f"{path}: env {name} already unset"
+        del env[name]
+        if env:
+            data["env"] = env
+        else:
+            data.pop("env", None)
+        msg = f"{path}: env {name} cleared"
+    elif env.get(name) == value:
+        return path, f"{path}: env {name} already {value!r}"
+    elif keep_existing and name in env:
+        return path, f"{path}: env {name} kept as {env[name]!r}"
+    else:
+        env[name] = value
+        data["env"] = env
+        msg = f"{path}: env {name} set to {value!r}"
+    write(path, data)
+    return path, msg
+
+
 def main(argv):
-    scope, directory, style, mode, keep = "local", os.getcwd(), None, "set", False
+    scope, directory, style, mode, keep, envspec = "local", os.getcwd(), None, "set", False, None
     args = list(argv)
     while args:
         a = args.pop(0)
@@ -88,6 +119,8 @@ def main(argv):
             scope = args.pop(0)
         elif a == "--keep-existing":
             keep = True
+        elif a == "--env" and args and envspec is None:
+            envspec = args.pop(0)
         elif a == "--dir" and args:
             directory = args.pop(0)
         elif a in ("--clear", "--show"):
@@ -98,6 +131,19 @@ def main(argv):
             style = a
         else:
             print(f"unknown argument: {a} (try --help)", file=sys.stderr); return 2
+    if envspec is not None:
+        name, eq, value = envspec.partition("=")
+        if style or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name) or (mode == "set") != bool(eq) or (mode == "set" and not value):
+            print("--env takes NAME=VALUE, or NAME with --clear; not with a style name (try --help)", file=sys.stderr); return 2
+        if mode == "show":
+            for sc in ("local", "project", "user"):
+                p = settings_path(sc, directory)
+                e = load(p).get("env", {})
+                print(f"{sc}: {e.get(name, 'unset') if isinstance(e, dict) else 'unset'}  ({p})")
+            return 0
+        path, msg = apply_env(scope, directory, name, None if mode == "clear" else value, keep)
+        print(msg)
+        return 0
     if mode == "set" and not style:
         print("give a style name, --clear or --show (try --help)", file=sys.stderr); return 2
     if mode == "show":
@@ -151,6 +197,30 @@ def self_test():
         assert loc.read_text() == "{ nope"
         # usage errors
         assert main([]) == 2 and main(["--scope", "bogus", "x"]) == 2 and main(["a", "b"]) == 2
+        # --env: the `env` block, other keys and other env entries stay; same rules as the style
+        loc.write_text(json.dumps({"permissions": {"allow": ["Bash(ls)"]}, KEY: "shipkit", "env": {"A": "1"}}))
+        COST = "ECC_CONTEXT_MONITOR_COST_WARNINGS"
+        assert main(["--env", COST + "=off", "--dir", str(proj)]) == 0
+        assert json.loads(loc.read_text()) == {"permissions": {"allow": ["Bash(ls)"]}, KEY: "shipkit", "env": {"A": "1", COST: "off"}}
+        before = loc.stat().st_mtime_ns
+        assert apply_env("local", proj, COST, "off")[1].endswith("already 'off'") and loc.stat().st_mtime_ns == before
+        assert apply_env("local", proj, COST, "on", True)[1].endswith("kept as 'off'") and json.loads(loc.read_text())["env"][COST] == "off"
+        assert apply_env("local", proj, COST, "on")[1].endswith("set to 'on'") and json.loads(loc.read_text())["env"][COST] == "on"
+        assert main(["--env", COST, "--clear", "--dir", str(proj)]) == 0 and json.loads(loc.read_text())["env"] == {"A": "1"}
+        assert apply_env("local", proj, COST, None)[1].endswith("already unset")
+        assert main(["--env", "A", "--clear", "--dir", str(proj)]) == 0 and "env" not in json.loads(loc.read_text())   # an emptied block goes
+        loc.write_text("{}")
+        assert main(["--env", COST + "=off", "--keep-existing", "--dir", str(proj)]) == 0 and json.loads(loc.read_text()) == {"env": {COST: "off"}}
+        loc.write_text(json.dumps({"env": "nope"}))                                     # env that is not an object is never overwritten
+        try:
+            main(["--env", COST + "=off", "--dir", str(proj)]); assert False, "should exit"
+        except SystemExit as e:
+            assert e.code != 0 and "env is not an object" in str(e.code)
+        assert json.loads(loc.read_text()) == {"env": "nope"}
+        for bad in (["--env", COST], ["--env", COST + "=", "--dir", str(proj)], ["--env", COST + "=off", "--clear"], ["--env", "1X=a"], ["--env", "A=b", "shipkit"], ["--env", "A=b", "--show"]):   # NAME=VALUE with --show is a mistake
+            assert main(bad) == 2, bad
+        loc.write_text(json.dumps({"env": {COST: "off"}}))                              # --show --env: one line per file
+        assert main(["--show", "--env", COST, "--dir", str(proj)]) == 0 and main(["--show", "--env", "NOPE", "--dir", str(proj)]) == 0
         # a worktree writes the main checkout's local file
         if shutil.which("git"):
             repo = base / "repo"; repo.mkdir()
@@ -160,6 +230,7 @@ def self_test():
             assert main(["shipkit", "--dir", str(base / "wt")]) == 0
             assert (repo / ".claude" / "settings.local.json").exists() and not (base / "wt" / ".claude").exists()
             assert settings_path("local", base / "wt").resolve() == (repo / ".claude" / "settings.local.json").resolve()
+            assert main(["--env", COST + "=off", "--dir", str(base / "wt")]) == 0 and json.loads((repo / ".claude" / "settings.local.json").read_text())["env"][COST] == "off"
         print("set-output-style self-test: ok")
         return 0
     finally:
