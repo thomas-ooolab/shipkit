@@ -42,11 +42,11 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
 ## Evals (`claude plugin eval`)
 
 `evals/` is the plugin's eval suite (Claude Code docs: *Test plugins with evals*). Each case is a plain request a user would type and a
-grader on the steps Claude took. Today: `routes-*` cases check that Claude picks the right skill on natural phrasing
+grader on the steps Claude took. Today: one `routes-*` case for each of the 17 skills checks that Claude picks it on natural phrasing
 (`tool_used: Skill`, free, no judge call) and `ignores-unrelated-request` checks no shipkit skill fires on a small coding task.
 
-- Run from the plugin root: `claude plugin eval . --trust-plugin --ablation none -j 4 --no-publish` (7 cases × 3 runs ≈ $2); add
-  `--runs 1` while iterating (≈ $0.7). Without `--ablation none` every case also runs with no plugin: `Δ` on a `tool_used: Skill` case is
+- Run from the plugin root: `claude plugin eval . --trust-plugin --ablation none -j 4 --no-publish` (18 cases × 3 runs ≈ $6); add
+  `--runs 1` while iterating (≈ $2). Without `--ablation none` every case also runs with no plugin: `Δ` on a `tool_used: Skill` case is
   trivially +1 (the skill cannot be called without the plugin), so read the `WITH` column.
 - Every run and judge grader is a model call: it is **not** in `scripts/self-test.sh` or the pre-commit hook. Run it after changing a
   skill's `description` (the thing routing depends on) or adding a skill, and add a `routes-<name>` case for a new skill.
