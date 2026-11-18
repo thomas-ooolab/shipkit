@@ -11,10 +11,10 @@ templates (`/verify`'s evidence table, `/plan-deep`'s one-line note), code, or t
    user wrote there, not from what the other person wrote. Too little to tell (exit 9, or `from_me=0`), the person not found or ambiguous (exit 6, 7), or a scope missing (exit 8:
    `users:read`, `im:read`, `im:history`; `mpim:history` for a group DM), the token unset or Slack refusing (exit 3, 4) → say so in one terminal line and ask the user
    how to address the person (the pronoun pair or the first name) before drafting; never guess, and never draft with the pronouns left out to avoid the question. Channel and thread posts do not need this step.
-1. **Draft** the text under the skill's own rules (language, business wording, tags), in the voice step 0 found.
+1. **Draft** the text under the skill's own rules (language, business wording, tags), in the voice step 0 found. In a Slack post every person named is a `<@U…>` mention with its id resolved first — `${CLAUDE_PLUGIN_ROOT}/references/slack-mentions.md`; an id that cannot be resolved is reported to the user in one line before the draft is shown.
 2. **Load `humanizer:humanizer`** (Skill tool) and apply it to the draft yourself: it is a pattern guide, so it returns no
    rewritten text. Edit the draft by its patterns; its pattern list and notes stay in the terminal.
-3. **Check the rewrite before using it.** It must keep, character for character: `@[Name](accountId)` and `<@U…>` mentions, URLs,
+3. **Check the rewrite before using it.** It must keep, character for character: `@[Name](accountId)` and `<@U…>` mentions (a person named in a Slack post never comes back as plain text: `chi.ttk`, `@name`), URLs,
    ticket keys, `OQ-N` / `REQ-NNN` codes, each `N. ` list line with its number, `(n/n)` part markers, and attachment references
    ("see the image below"). It must keep the draft's language, add or drop no fact, number or name, and still obey the skill's
    own rules (no field or endpoint names in a Jira comment, no bolded outline). Any miss → fix that spot by hand, or keep the

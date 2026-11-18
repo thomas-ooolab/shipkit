@@ -14,10 +14,13 @@
 //   exit 3  $SLACK_REVIEW_TOKEN unset (user token; files need the files:write scope).
 //   exit 4  Slack rejected a call — prints `SLACK_ERROR: <error>` (msg_too_long, missing_scope, …).
 //   exit 5  a file is unusable (missing, not a regular file, empty, or looks like a secret) — nothing posted.
+//   exit 6  the text names a person as plain text (`@name`, `chi.ttk`) — `MENTION_ERROR: "<word>" …`, nothing posted.
 //
 // The text is checked before anything is sent: a legacy `<@U…|name>` mention goes out as `<@U…>` (stderr
 // MENTION_FIXED — the `|name` form, which `slack_read_thread` prints, posts as plain text and tags nobody), a `<@…>`
-// that is not a member id is refused (exit 2, `TEXT_ERROR`), and a bare `@name` only warns (`MENTION_WARNING`).
+// that is not a member id is refused (exit 2, `TEXT_ERROR`), and so is a bare `@name` or a word shaped like a Jira/Slack handle (`chi.ttk`)
+// outside `<@U…>`, a URL, a link and backticks (exit 6, `MENTION_ERROR` naming the word): plain text tags nobody. Resolve the person with
+// `slack-dm-history.js --resolve`, write `<@U…>`, or put a literal in backticks.
 //
 // `edit` replaces the text of a message the token's owner posted (chat.update, scope chat:write — nothing new):
 // prints `OK ts=<ts>`; someone else's message -> `SLACK_ERROR: cant_update_message`; a closed edit window or a
@@ -82,13 +85,23 @@ function checkFile(f) {
 // the label (the id is unambiguous), refuse a `<@…>` that is not an id (`<@Thang>`), and warn on a bare `@name`.
 // ponytail: user mentions only — `<#C…|name>` and `<url|text>` are valid as written; a bare `@` only warns because an
 // @ in prose or a handle is legitimate. Add `<!subteam^…>` checks if group mentions ever matter.
+// Words that name a person as plain text: a bare `@name`, or lowercase `first.xx` (a Jira / Slack handle such as chi.ttk). Not inside `<…>` (mentions, links), a URL,
+// backticks, an email, a path, or a file name / domain (FILE_EXT). ponytail: a heuristic, a rare false positive is fixed with backticks.
+const FILE_EXT = new Set('md js ts py sh yml yaml json txt png jpg jpeg gif sql go java html css com org net dev vn io ai co me app edu gov xyz log csv pdf env lock toml xml mjs cjs tsx jsx rb rs kt cpp svg zip tar gz ini cfg conf'.split(' '));
+function bareNames(text) {
+  const t = text.replace(/```[\s\S]*?```|`[^`]*`|<[^>]*>|(?:https?:\/\/|www\.)\S+/g, ' ');
+  const out = [...t.matchAll(/(?<![\w@./:-])@[A-Za-z][\w.-]*/g)].map((m) => m[0]);
+  for (const m of t.matchAll(/(?<![\w@./:\\-])([a-z][a-z0-9]*\.([a-z][a-z0-9]{1,3}))(?![\w@/-]|\.\w)/g)) if (!FILE_EXT.has(m[2])) out.push(m[1]);
+  return out;
+}
+
 function checkText(text) {
   const out = text.replace(/<@([UW][A-Z0-9]+)\|[^>]*>/g, (_, id) => `<@${id}>`);
   if (out !== text) console.error('MENTION_FIXED: <@ID|name> posts as plain text; sent as <@ID>');
   const bad = out.match(/<@(?![UW][A-Z0-9]+>)[^>]*>/);
   if (bad) throw new Fail(2, `TEXT_ERROR: ${bad[0]} is not a member id — a mention must be <@U…> (look the id up; never type a name)`);
-  const bare = out.replace(/`[^`]*`|<[^>]*>/g, '').match(/(^|\s)@[A-Za-z][\w.-]*/);
-  if (bare) console.error(`MENTION_WARNING: "${bare[0].trim()}" is plain text and tags nobody — use <@U…>`);
+  const bad2 = bareNames(out);
+  if (bad2.length) throw new Fail(6, `MENTION_ERROR: ${bad2.map((w) => `"${w}"`).join(', ')} is plain text and tags nobody (a Slack or Jira handle, or a bare @name) — nothing posted. Resolve the person with slack-dm-history.js --resolve and write <@U…>; a literal goes in backticks`);
   return out;
 }
 
@@ -211,6 +224,16 @@ async function selfTest() {
   assert.strictEqual(calls.length, 1, 'a refused text posts nothing');
   await post({ ...base, text: 'link <https://x.test|AR-1> and `@code` and a@b.test' });
   assert.strictEqual(JSON.parse(calls[1].b).text, 'link <https://x.test|AR-1> and `@code` and a@b.test', 'links, code and emails untouched');
+  // a person named as plain text tags nobody: refused (exit 6) with the word named, nothing posted — a real mention, code, URL, path, file name and email pass
+  const n0 = calls.length;
+  await assert.rejects(post({ ...base, text: 'báo chi.ttk retest #10' }), (e) => e.code === 6 && /"chi\.ttk"/.test(e.message), 'a Jira handle in plain text refused');
+  await assert.rejects(post({ ...base, text: 'cc @minh nhé' }), (e) => e.code === 6 && /"@minh"/.test(e.message), 'a bare @name refused');
+  await assert.rejects(post({ ...base, text: 'a chi.ttk and thang.nv' }), (e) => e.code === 6 && /"chi\.ttk", "thang\.nv"/.test(e.message), 'every word is named');
+  await assert.rejects(edit({ ...base, ts: '9.000009', text: 'sửa: chi.ttk' }), (e) => e.code === 6, 'edit is checked too');
+  assert.strictEqual(calls.length, n0, 'a refused text posts nothing');
+  const okText = 'báo <@U0510JSBPV5> retest `chi.ttk` https://jira.x/browse/AR-1?u=chi.ttk <https://x.test/chi.ttk|link> skills/pr/review-loop.md index.js config.yml v1.2 e.g. spec.md a.b@ooolab.edu.vn slack.com claude.ai chi.ttk@ooolab.edu.vn';
+  await post({ ...base, text: okText });
+  assert.strictEqual(JSON.parse(calls[calls.length - 1].b).text, okText, 'mentions, code, urls, paths, file names, domains, emails pass untouched');
 
   calls.length = 0;
   assert.strictEqual(await post({ ...base, files: [png] }), '2.000002', 'with file -> external upload, ts from shares');

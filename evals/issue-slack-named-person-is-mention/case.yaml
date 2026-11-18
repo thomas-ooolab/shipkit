@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-slack-named-person-is-mention
+context:
+  scaffold_script: scaffold.sh

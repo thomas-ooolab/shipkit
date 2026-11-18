@@ -52,7 +52,7 @@ goes to one person and cannot be edited or deleted afterwards when the token lac
 once the user approves (`--auto` or a scope the user stated covers it, as for any draft). (Observer
 mode drafts first — see *Observer mode*; everything else here applies to both.) The post goes out as
 the user, so write the way they type: first person, plain sentences, no bolded outline, no stock
-phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents. A DM is written in the voice of
+phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents. **Every person a Slack draft names — the asker, a QC engineer, a teammate, a Jira handle like `chi.ttk` — is written as a real mention `<@U…>`, its id resolved before the draft is shown and an unresolved or ambiguous name reported in one line first (`${CLAUDE_PLUGIN_ROOT}/references/slack-mentions.md`); the send script refuses a plain-text handle or `@name`.** A DM is written in the voice of
 that DM's own history (language, how the user addresses the person, formality — `humanize-text.md` step 0), read before drafting.
 **A DM draft is never shown — to the user or anywhere — unless `node "${CLAUDE_PLUGIN_ROOT}/scripts/slack-dm-history.js" "<name | U… id | email>" 20` (or an equivalent read of that DM) printed `HISTORY` in this same turn.** The script finds the person and the DM from a name, an id or an email, so a declined or blocked lookup tool (`slack_search_users`, a channel read) does not release the rule: run the script instead. Exit **6** not found · **7** ambiguous (re-run with the id of a `CANDIDATE`, or ask the user which) · **8** scope missing · **9** no DM yet or it is empty · **3**/**4** token unset / Slack rejected → one terminal line saying which, then ask the user how to address the person (the pronoun pair or the first name); never draft a guess, and never a draft with the pronouns left out. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` and run every
 Slack and Jira draft through it before it is shown or posted.
@@ -218,7 +218,7 @@ tell the user and stop at the reply. In observer mode the delegation needs the s
 1. Work out what is being asked of the user (class per *Classify*; `skip` and `change` end here).
    A teammate already answered it fully and correctly → say nothing, note it in the terminal.
 2. Verify per the rule above, then draft one reply covering everything open this round, tagging the
-   person you're answering by real member id (`<@U…>`). Several people asked → one reply, tag each.
+   person you're answering by real member id (`<@U…>`) and every other person the reply names the same way (`${CLAUDE_PLUGIN_ROOT}/references/slack-mentions.md`). Several people asked → one reply, tag each.
    The id is the `user` field of that person's message in `conversations.replies` (the thread starter:
    the root's `user`) — never typed from a name. A message with no `user` (a bot/app, only `bot_id`)
    has no one to tag: reply without a mention.

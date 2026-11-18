@@ -2,12 +2,14 @@
 // slack-dm-history.js — read the recent history of the user's DM with one person, so a DM draft takes its voice from it.
 //
 //   usage: node slack-dm-history.js <name | U… id | email> [n=20]
+//          node slack-dm-history.js --resolve <name | Jira handle (chi.ttk) | email | U… id>   → `USER <U…> <name>` (the id to write as <@U…> in a Slack post)
 //          node slack-dm-history.js --self-test
 //
 // Resolves the person (a U…/W… id as is; an email by users.lookupByEmail; a name by users.list, accents and word order ignored),
 // finds the DM (conversations.list types=im, else conversations.open) and prints the last n messages, oldest first:
 //   HISTORY channel=D… person=<name> (<U…>) messages=<k> from_me=<k>
 //   <YYYY-MM-DD HH:MM> me|<name>: <text>
+// `--resolve` only looks the person up (same exit codes 3, 4, 6, 7, 8). A person NAMED in a Slack post is written as <@U…> with the id it prints — the Slack id, never a Jira accountId.
 // Uses $SLACK_REVIEW_TOKEN (the user token, never printed). A DM draft is shown to the user only after this printed HISTORY
 // in the same turn (references/humanize-text.md step 0). Take the form of address from the `me` lines.
 //   exit 0  HISTORY printed
@@ -38,7 +40,7 @@ const call = async (api, token, method, params = {}) => {
 };
 
 const norm = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9@. ]+/g, ' ').trim();
-const names = (u) => [u.real_name, u.profile && u.profile.real_name, u.profile && u.profile.display_name, u.name].filter(Boolean);
+const names = (u) => [u.real_name, u.profile && u.profile.real_name, u.profile && u.profile.display_name, u.name, u.profile && u.profile.email, u.profile && u.profile.email && u.profile.email.split('@')[0]].filter(Boolean);
 const label = (u) => (u.profile && u.profile.real_name) || u.real_name || u.name;
 
 async function resolve(api, token, who) {
@@ -99,6 +101,14 @@ async function run(who, n, token, api = API) {
 }
 
 async function main() {
+  if (process.argv[2] === '--resolve') {
+    const who = process.argv[3];
+    if (!who) { console.error('usage: slack-dm-history.js --resolve <name | Jira handle | email | U… id>'); process.exit(2); }
+    const token = process.env.SLACK_REVIEW_TOKEN;
+    if (!token) { console.error('SLACK_REVIEW_TOKEN is not set — export the user token (xoxp-…, scopes users:read, users:read.email).'); process.exit(3); }
+    try { const p = await resolve(API, token, who); console.log(`USER ${p.id} ${p.name}`); } catch (e) { if (!(e instanceof Fail)) throw e; console.error(e.message); process.exit(e.code); }
+    return;
+  }
   const [who, nArg] = process.argv.slice(2);
   const n = Number(nArg || 20);
   if (!who || !Number.isInteger(n) || n < 1 || n > 200) { console.error('usage: slack-dm-history.js <name | U… id | email> [n=20, 1..200]'); process.exit(2); }
@@ -118,6 +128,7 @@ async function selfTest() {
     { id: 'U0000005', name: 'nodm', real_name: 'Chưa Nhắn' },
     { id: 'U0000006', name: 'empty', real_name: 'Rỗng' },
     { id: 'U0000007', name: 'old', real_name: 'Cũ Nghỉ', deleted: true },
+    { id: 'U0000008', name: 'kim.chi', real_name: 'Kim Chi', profile: { email: 'chi.ttk@ooolab.edu.vn' } },
   ];
   let mode = 'ok';
   const calls = [];
@@ -130,7 +141,7 @@ async function selfTest() {
       if (mode === 'noscope' && m === 'users.list') return out({ ok: false, error: 'missing_scope', needed: 'users:read' });
       if (m === 'users.list') return out(q.cursor ? { ok: true, members: users.slice(4), response_metadata: {} } : { ok: true, members: users.slice(0, 4), response_metadata: { next_cursor: 'c2' } });
       if (m === 'users.info') return out({ ok: true, user: users.find((u) => u.id === q.user) });
-      if (m === 'users.lookupByEmail') return q.email === 'thang@x.vn' ? out({ ok: true, user: users[0] }) : out({ ok: false, error: 'users_not_found' });
+      if (m === 'users.lookupByEmail') { const u = q.email === 'thang@x.vn' ? users[0] : users.find((x) => x.profile && x.profile.email === q.email); return out(u ? { ok: true, user: u } : { ok: false, error: 'users_not_found' }); }
       if (m === 'auth.test') return out({ ok: true, user_id: 'UME' });
       if (m === 'conversations.list') {
         if (mode === 'noim') return out({ ok: false, error: 'missing_scope', needed: 'im:read' });
@@ -159,6 +170,8 @@ async function selfTest() {
   await fails(run('Cũ Nghỉ', 5, 'tok', api), 6, /NOT_FOUND/);               // a deactivated account is not a DM partner
   await fails(run('Chưa Nhắn', 5, 'tok', api), 9, /NO_HISTORY: there is no DM/);
   await fails(run('Rỗng', 5, 'tok', api), 9, /NO_HISTORY: the DM D6 holds no message/);
+  // --resolve: a Jira handle, an email local part, a name → the Slack member id
+  for (const who of ['chi.ttk', 'chi.ttk@ooolab.edu.vn', 'Kim Chi', 'kim.chi']) assert.strictEqual((await resolve(api, 'tok', who)).id, 'U0000008', who);
   mode = 'noim'; assert((await run('Thang', 5, 'tok', api)).includes('channel=D1'));   // no im:read → conversations.open
   mode = 'noscope'; await fails(run('Thang', 5, 'tok', api), 8, /SCOPE_MISSING: users:read/);
   srv.close();

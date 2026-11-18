@@ -7,6 +7,7 @@ a Trigger line only when the skill takes arguments; a skill whose Trigger shows 
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
 A DM draft is never shown before the DM history was read: the gate files (developer SKILL.md, humanize-text.md) name scripts/slack-dm-history.js before the draft/post step, and any file with a DM-drafting step points at it or at humanize-text.md.
+A Slack draft names people as <@U…> mentions: the files that draft or post (developer SKILL.md, pr/review-loop.md, humanize-text.md, write-through-scripts.md) point at references/slack-mentions.md.
 No skill or reference names `--wait-submit` or `--for tui-idle` (the Ready+send loop is scripts/send-when-ready.sh, never hand-written).
 bootstrap, run-pipeline and assign never ask (AskUserQuestion) about settings or ecc cost warnings and point at references/cost-notice.md.
 A skill that has an agent drive a browser must point at references/browser-agents.md and scripts/cleanup-browsers.sh.
@@ -126,6 +127,17 @@ def dm_history_lint(rel, text):
         out.append("has a DM-drafting step but no history-read step (scripts/slack-dm-history.js, references/humanize-text.md step 0) before it")
     return out
 
+MENTION_GATE = ("skills/developer/SKILL.md", "skills/pr/review-loop.md", "references/humanize-text.md", "references/write-through-scripts.md")
+
+def mention_lint(rel, text):
+    """A person named in a Slack post is a real <@U…> mention (2026-11-18: "báo chi.ttk retest" went out as plain text, nobody tagged): the files that draft or post to Slack
+    in the user's name must point at references/slack-mentions.md, which must keep the resolve command and the post-slack.js backstop."""
+    if rel in MENTION_GATE:
+        return [] if "slack-mentions.md" in text else ["a Slack draft names people: must point at references/slack-mentions.md (every named person is <@U…>, resolved before the draft is shown)"]
+    if rel == "references/slack-mentions.md":
+        return [f"must keep '{w}'" for w in ("slack-dm-history.js", "--resolve", "MENTION_ERROR", "before the draft is") if w not in text]
+    return []
+
 BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
 
 def transport_lint(text):
@@ -218,6 +230,9 @@ def self_test():
     assert dm_history_lint("references/humanize-text.md", "1. **Draft** x\n0. slack-dm-history.js never shown") != []              # read after the draft step
     assert dm_history_lint("skills/x/SKILL.md", "Draft the DM and show it") != [] and dm_history_lint("skills/x/SKILL.md", "Draft the DM; see humanize-text.md") == []
     assert dm_history_lint("skills/x/SKILL.md", "Post a thread reply, never a DM history") == []
+    assert mention_lint("skills/developer/SKILL.md", "see references/slack-mentions.md") == [] and mention_lint("skills/pr/review-loop.md", "tag the reviewer") != []
+    assert mention_lint("references/slack-mentions.md", "slack-dm-history.js --resolve MENTION_ERROR before the draft is shown") == [] and len(mention_lint("references/slack-mentions.md", "--resolve")) == 3
+    assert mention_lint("skills/x/SKILL.md", "anything") == []
     print("check-skills: self-test ok")
 
 def main():
@@ -234,7 +249,7 @@ def main():
             if f.parent.name in NO_SETTINGS_QUESTION:
                 out += settings_question_lint(f.parent.name, dir_texts)
         rel = f.relative_to(ROOT)
-        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text) + dm_history_lint(str(rel), text)
+        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text) + dm_history_lint(str(rel), text) + mention_lint(str(rel), text)
         if out:
             bad += 1
             print(f"FAIL {rel}")
