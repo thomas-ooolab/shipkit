@@ -56,6 +56,10 @@ cases need: `--scaffold` (each builds a small fixture repo with a `.shipkit/conf
 gates on that file) and one Bash grant for `probe.sh`. Every run and every judge vote is a model call, so it is **not** in
 `scripts/self-test.sh` or the pre-commit hook: all 61 cases at the default 3 runs cost tens of dollars; `--runs 1` on one tag costs ≈ $10.
 
+- **A change that alters what an agent decides comes with its eval case in the same commit** — skill or reference text, a rule, a hook, a
+  script a skill relies on: add a case (or update the one that pins the old rule), run it with `bash scripts/run-evals.sh --case <name>`
+  (≈ $1), and put the result in the commit message next to the self-test. A bug an eval or a user report turns up gets its `issue-*`
+  case first, shown failing on the old text, then passing. Not needed for a typo, a version bump or text that changes no behavior.
 - Run it after changing a skill's `description` (routing depends on it) or a rule a case pins, and when you add a skill (add a
   `routes-<name>` case). When a memory entry or a bug report names a rule the agent got wrong, add an `issue-*` case with the facts
   in the prompt and a rubric of concrete PASS and FAIL conditions.
