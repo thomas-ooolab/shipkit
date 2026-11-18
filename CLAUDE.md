@@ -38,3 +38,17 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
   in that turn; a fact a read-only check can settle is checked before the answer, "not verified" only for what cannot be checked, with
   what blocks it, who opens it and what was tried) instead of restating it, and never words an answer "not checked" for something it could have read.
 - Secrets never go on a command line: pass them to curl on stdin (`curl -K -`), as `merge-pr.sh` and `bitbucket-api.sh` do.
+
+## Evals (`claude plugin eval`)
+
+`evals/` is the plugin's eval suite (Claude Code docs: *Test plugins with evals*). Each case is a plain request a user would type and a
+grader on the steps Claude took. Today: `routes-*` cases check that Claude picks the right skill on natural phrasing
+(`tool_used: Skill`, free, no judge call) and `ignores-unrelated-request` checks no shipkit skill fires on a small coding task.
+
+- Run from the plugin root: `claude plugin eval . --trust-plugin --ablation none -j 4 --no-publish` (7 cases × 3 runs ≈ $2); add
+  `--runs 1` while iterating (≈ $0.7). Without `--ablation none` every case also runs with no plugin: `Δ` on a `tool_used: Skill` case is
+  trivially +1 (the skill cannot be called without the plugin), so read the `WITH` column.
+- Every run and judge grader is a model call: it is **not** in `scripts/self-test.sh` or the pre-commit hook. Run it after changing a
+  skill's `description` (the thing routing depends on) or adding a skill, and add a `routes-<name>` case for a new skill.
+- A case that fails on `tool_used: Skill` means the skill's `description` does not trigger on that phrasing: fix the description, not
+  the case. Results go to `evals/results/` (gitignored).
