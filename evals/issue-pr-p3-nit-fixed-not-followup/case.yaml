@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pr-p3-nit-fixed-not-followup
+context:
+  scaffold_script: scaffold.sh
