@@ -31,6 +31,7 @@ run "merge-pr.py"                       python3 -I skills/merge/merge-pr.py --se
 run "pipelines-status.py"               python3 -I skills/merge/pipelines-status.py --self-test
 run "verdict-predicate tests"           python3 -I skills/pr/test-verdict-predicate.py
 run "send-when-ready.sh"                 bash scripts/send-when-ready.sh --self-test
+run "agent-usage.sh"                     bash scripts/agent-usage.sh --self-test
 run "wait-for-slack-reply.sh (dm mode)" bash scripts/wait-for-slack-reply.sh --self-test
 if command -v node >/dev/null 2>&1; then
   run "post-slack.js"                   node scripts/post-slack.js --self-test

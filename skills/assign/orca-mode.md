@@ -62,7 +62,7 @@ a normal `worker-start --agent <AGENT>` below, on a new terminal. What the new w
 settled worker and the work continues in a new worker, then start that worker as above — never call `--terminal` to show it. Edits an old worker
 left uncommitted stay in the working tree, so the new brief says to run `git status` first and keep them.
 
-**Start the whole wave before waiting.** For every submodule in the wave:
+**Start the whole wave before waiting.** First measure each agent kind of the wave (`${CLAUDE_PLUGIN_ROOT}/references/agent-usage.md`; once per kind, just before the first start). For every submodule in the wave:
 1. **claude:** `ORCA orchestration worker-start --spec "$(cat <brief file>)" --agent claude --worktree current --run <RUN> --model sonnet --effort medium --json`
    (implementing a brief is routine coding). **kiro:** open a warm terminal first (*Starting kiro*), then `ORCA orchestration worker-start --spec "$(cat <brief file>)"
    --terminal <handle> --worktree current --run <RUN> --json` — no `--agent`, `--model` or `--effort` (refused together with `--terminal`; kiro runs with the model of its own

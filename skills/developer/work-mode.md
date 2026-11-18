@@ -107,7 +107,7 @@ would only bounce it). Run it as a background task so the observer is not blocke
    Dead — no agent running: the terminal sits at a shell prompt, is gone, or shows the agent exited — and only on that evidence → close it
    (`terminal close`) and treat the worktree as having none. A banner or notice beside a live input box does not make it dead; still unclear → read
    again, and ask the user rather than close it.
-3. **None → create one, only one.** Re-run `terminal list` right before; still no live claude →
+3. **None → create one, only one.** Re-run `terminal list` right before; still no live claude → measure claude's usage now (`${CLAUDE_PLUGIN_ROOT}/references/agent-usage.md`; spent or not measurable → create nothing, tell the user) →
    `ORCA terminal create --worktree id:<repoId>::<path> --title <KEY>-coordinator --command claude --json`, then step 5's
    `send-when-ready.sh` (*Start mode* step 3), which waits for the new claude's input box. A fresh claude needs no briefing: the one command of step 5 is the whole instruction.
 4. **Judge from the files, before typing anything — no question to the coordinator.** Blocker if: `open-question.md` has an unchecked item other than one reading `decided (dev, confirmed …)`; an `assign-failure-<KEY>.md` or `❌` line that **no later state update
@@ -195,7 +195,7 @@ fails → tell the user and stop. Never `ORCA open`.
    `--delete-branch` drops the local branch, even one renamed to `fix/…`, when Orca can prove it merged; without the flag the CLI keeps every branch). `ok: false` (a dirty tree it refused) → it is a *leftover* after all: reuse, say so. `ok: true` is only `removing` — wait until the path is gone
    (`ls <path>` fails, re-check every 2 s up to 10 times; the new worktree reuses the name `<key>`) and carry on as *no worktree matches* in step 2 — a new worktree for the new request.
    Say in one line which of the two happened and why (`AR-450: branches merged, tree clean → replaced` / `…: tree dirty → reusing`).
-2. **Worktree + coordinator.** First `kiro-cli whoami` (kiro workers implement later): "Not logged in" → stop, create nothing,
+2. **Worktree + coordinator.** First measure the usage of both agents now (`${CLAUDE_PLUGIN_ROOT}/references/agent-usage.md`: the claude coordinator starts here, kiro workers implement later; a spent claude → create nothing and tell the user), then `kiro-cli whoami`: "Not logged in" → stop, create nothing,
    tell the user (in their language) that kiro is not logged in and that `! kiro-cli login` fixes it, then they call you again. No match → resolve `<base>` (below), then `ORCA worktree create --name <key> --no-parent --base-branch <base> --agent claude --json` (no
    `--prompt`, the coordinator takes several commands), then **check the worktree** (below) before anything else, then rename the branch Orca
    gave it (`<user>/<key>`, which `probe.sh state` can't see) to the convention:
@@ -224,7 +224,7 @@ fails → tell the user and stop. Never `ORCA open`.
 
    Reused worktree (the terminal was closed, or none was ever opened) →
    `ORCA terminal list --worktree id:<repoId>::<path> --json` first; a live claude terminal → *Continue a ticket* as in step 1, nothing created; none →
-   `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json`. Never type into an existing terminal
+   (measure claude's usage first, `${CLAUDE_PLUGIN_ROOT}/references/agent-usage.md`) `ORCA terminal create --worktree id:<repoId>::<path> --title <key>-fix --command claude --json`. Never type into an existing terminal
    (a resume of a ticket the user named is the exception — *Continue a ticket*).
    **Claude coordinates, kiro workers only implement:** no kiro terminal exists yet; `/run-pipeline` dispatches `/assign` once the plan is ready, and `/assign` opens one kiro terminal per submodule and hands each its tasks.
    **Root address:** right after the worktree exists, write `.shipkit/root-coordinator.md` in it (*Root coordinator and its worktrees*).

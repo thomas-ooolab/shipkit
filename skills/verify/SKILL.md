@@ -139,7 +139,7 @@ FE checks and Part A need Playwright MCP browser tools (as in `/design-recon` St
 AskUserQuestion to add it + retry; non-interactive → those checks are `UNVERIFIED` and the gate line says
 `verify: INCOMPLETE — Playwright MCP required`. BE checks need only `curl`/the service's own client.
 
-**Browser agents.** REQUIRED before driving a browser from a script of your own or delegating browser work to an agent: Read
+**Browser agents.** REQUIRED before driving a browser from a script of your own or delegating browser work to an agent (measure that agent's usage first, `${CLAUDE_PLUGIN_ROOT}/references/agent-usage.md`, never memory): Read
 `${CLAUDE_PLUGIN_ROOT}/references/browser-agents.md`. Its *Browser rules* block goes into every such brief. A brief that hands a check to an agent also carries Step 3's proof rule — a screenshot where the claim is visible, a text proof otherwise — never "a screenshot for every FE check". Stopping an agent (`TaskStop`) does
 not stop the processes it started: when an agent that drove a browser ends, fails or is stopped, run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/cleanup-browsers.sh" <its scratch directory>` and report what it killed. With more than one browser
