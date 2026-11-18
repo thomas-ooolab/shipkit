@@ -115,7 +115,7 @@ topology_mode: meta-with-submodules
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 # optional knobs — uncomment to set; every skill that reads one has a default
-# language: <e.g. vi>                         # questions and drafts to the user (default: the language they write in)
+# language: <e.g. vi>                         # questions and drafts to the user (default: what earlier sessions' memory says, else the language they write in)
 # timezone: <IANA zone, e.g. Asia/Ho_Chi_Minh> # /developer's daily briefing and observer hours (default: the machine's)
 # observer_hours: "08:00-18:00"                # when /developer's Slack observer runs (default shown)
 # git_ssh_rewrite: { from: "git@bitbucket.org:", to: "git@<host-alias>:" }  # .gitmodules URLs that need another SSH key
@@ -144,7 +144,7 @@ topology_mode: single-repo
 project: <repo-name>
 remote: { host: <REMOTE_HOST>, workspace: <REMOTE_WORKSPACE> }
 # optional knobs — uncomment to set; every skill that reads one has a default
-# language: <e.g. vi>                         # questions and drafts to the user (default: the language they write in)
+# language: <e.g. vi>                         # questions and drafts to the user (default: what earlier sessions' memory says, else the language they write in)
 # timezone: <IANA zone, e.g. Asia/Ho_Chi_Minh> # /developer's daily briefing and observer hours (default: the machine's)
 # observer_hours: "08:00-18:00"                # when /developer's Slack observer runs (default shown)
 # git_ssh_rewrite: { from: "git@bitbucket.org:", to: "git@<host-alias>:" }  # .gitmodules URLs that need another SSH key

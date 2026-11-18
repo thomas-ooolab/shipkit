@@ -96,6 +96,10 @@ user's own earlier messages — are in another language. Product names, code ide
 strings stay as written. Root has no text (file/image only) → use the starter's first text message;
 still none → ask the user once.
 
+Everything the skill says **to the user** (terminal lines, questions, the briefing, drafts for approval) is in the language
+`${CLAUDE_PLUGIN_ROOT}/references/user-language.md` resolves — config, else the user's memory of earlier sessions — whatever language the
+thread or the last message is in.
+
 ## Hard rule: answer only what is verified
 A support answer is a claim about the product. Before replying, find the answer in the **real source**
 (grep/read the relevant submodule as set by *Ground the code* — not `specs/` or `docs/`) and, when a ticket key appears in the

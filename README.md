@@ -286,7 +286,7 @@ shipkit does not install these; a skill that needs one says so and stops when it
 | `JIRA_*`, `SLACK_*`, `BITBUCKET_*` environment variables | see the sections on this page |
 
 Optional per-project settings in `.shipkit/config.yml` (`language`, `timezone`, `observer_hours`, `git_ssh_rewrite`) are
-listed in the template `/bootstrap` writes.
+listed in the template `/bootstrap` writes. Without `language`, the language spoken to you is read from your auto-memory of earlier sessions (`scripts/user-language.py`, announced by a SessionStart hook; `references/user-language.md`).
 
 ## Posting Jira comments
 
