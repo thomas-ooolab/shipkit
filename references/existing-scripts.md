@@ -17,6 +17,7 @@ The checks stay in the plugin and the token stays off the command line (stdin to
 | Wait for the answer to a **DM** you sent (top-level message of the `D…`/`G…` channel) | `bash scripts/wait-for-slack-reply.sh --until dm` |
 | Wait for the review bot's verdict in `/pr`'s thread | `bash scripts/wait-for-slack-reply.sh --until verdict` |
 | Same as the thread wait, pushed by Socket Mode (`SLACK_APP_TOKEN`) | `node scripts/wait-for-slack-event.js` |
+| Read the recent history of the user's DM with a person (by name, `U…` id or email) before drafting a DM to them; exit 6 not found · 7 ambiguous · 8 scope missing · 9 no DM / empty | `node scripts/slack-dm-history.js <who> [n]` |
 | Watch every Slack notification (Observer, `/developer` without a URL) | `node skills/developer/observe-slack.js` |
 | Post, edit or delete a Jira comment | `python3 scripts/jira-comment.py` |
 | Wait for a new Jira comment | `bash scripts/wait-for-jira-comment.sh` |

@@ -35,6 +35,7 @@ run "agent-usage.sh"                     bash scripts/agent-usage.sh --self-test
 run "wait-for-slack-reply.sh (dm mode)" bash scripts/wait-for-slack-reply.sh --self-test
 if command -v node >/dev/null 2>&1; then
   run "post-slack.js"                   node scripts/post-slack.js --self-test
+  run "slack-dm-history.js"             node scripts/slack-dm-history.js --self-test
   run "wait-for-slack-event.js"         node scripts/wait-for-slack-event.js --self-test
   run "observe-slack.js"                node skills/developer/observe-slack.js --self-test
 else

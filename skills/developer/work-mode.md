@@ -76,7 +76,7 @@ What this procedure does not do: ask. The user's standing instruction for the mo
 | Runs on its own | Waits for the user, every time |
 |---|---|
 | the stages inside the repo (spec, plan, branches, design-recon, `/assign`, review, verify) and their bounded fix rounds (`run-pipeline/loop-rules.md`) | every other Jira comment: `/clarify`, `/bugfix`, `/pr` draft it, show it, and post only on approval; an evidence comment whose table is incomplete |
-| `/pr`: open the PRs, post in the review Slack thread to call the bot, fix the defects it names | every DM this skill drafts |
+| `/pr`: open the PRs, post in the review Slack thread to call the bot, fix the defects it names | every DM this skill drafts (read its history first, `slack-dm-history.js`) |
 | `/merge`, only when `loop-rules.md` §5 holds; then the Jira status, the assignee and a complete evidence comment, never asked | a held concern, a question for the PO, `verify` `INCOMPLETE`, a conflict with the target, 3 rounds of a stage or 6 of a ticket used |
 
 The standing go covers nothing outside the left column.

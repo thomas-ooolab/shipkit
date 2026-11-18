@@ -53,7 +53,8 @@ once the user approves (`--auto` or a scope the user stated covers it, as for an
 mode drafts first — see *Observer mode*; everything else here applies to both.) The post goes out as
 the user, so write the way they type: first person, plain sentences, no bolded outline, no stock
 phrases ("hope this helps", "please let me know"), never sign as an AI or mention Claude/agents. A DM is written in the voice of
-that DM's own history (language, how the user addresses the person, formality — `humanize-text.md` step 0), read before drafting. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` and run every
+that DM's own history (language, how the user addresses the person, formality — `humanize-text.md` step 0), read before drafting.
+**A DM draft is never shown — to the user or anywhere — unless `node "${CLAUDE_PLUGIN_ROOT}/scripts/slack-dm-history.js" "<name | U… id | email>" 20` (or an equivalent read of that DM) printed `HISTORY` in this same turn.** The script finds the person and the DM from a name, an id or an email, so a declined or blocked lookup tool (`slack_search_users`, a channel read) does not release the rule: run the script instead. Exit **6** not found · **7** ambiguous (re-run with the id of a `CANDIDATE`, or ask the user which) · **8** scope missing · **9** no DM yet or it is empty · **3**/**4** token unset / Slack rejected → one terminal line saying which, then ask the user how to address the person (the pronoun pair or the first name); never draft a guess, and never a draft with the pronouns left out. **REQUIRED:** Read `${CLAUDE_PLUGIN_ROOT}/references/humanize-text.md` and run every
 Slack and Jira draft through it before it is shown or posted.
 
 **Post only through the user token** (never the Slack MCP `slack_send_message` — it posts as the

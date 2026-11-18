@@ -3,13 +3,14 @@
 Applies to prose posted in the user's name: a Jira comment, a Slack thread reply, a DM, a seed ping. It does not apply to fixed
 templates (`/verify`'s evidence table, `/plan-deep`'s one-line note), code, or tables.
 
-0. **A Slack DM (or group DM) first reads its history.** Before drafting, read the recent messages of that DM
-   (`conversations.history` on its `D…`/`G…` channel — a user id does not work for reading; open it with
-   `conversations.open` when only the id is known) and take from them the language, how the two address each other (the
+0. **A Slack DM (or group DM) first reads its history — a DM draft is never shown unless that read returned history in this same turn.** Run
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/slack-dm-history.js" "<name | U… id | email>" 20` (it resolves the person, opens the DM, prints the last messages as `me` / the person; for a group DM or
+   when you already hold the `D…`/`G…` id, `conversations.history` on that channel is the equivalent — a user id does not work for reading).
+   A declined or blocked lookup tool never releases this step: the script is the way. Take from the messages the language, how the two address each other (the
    pronoun pair or first names), formality, length and emoji habit. Write in that voice. Take the form of address from what the
-   user wrote there, not from what the other person wrote. Too little to tell (no messages, or none from the user) or the scope
-   is missing (`im:history` / `mpim:history`, `missing_scope`) → say so in one terminal line and ask the user how to address the
-   person before sending; never guess. Channel and thread posts do not need this step.
+   user wrote there, not from what the other person wrote. Too little to tell (exit 9, or `from_me=0`), the person not found or ambiguous (exit 6, 7), or a scope missing (exit 8:
+   `users:read`, `im:read`, `im:history`; `mpim:history` for a group DM), the token unset or Slack refusing (exit 3, 4) → say so in one terminal line and ask the user
+   how to address the person (the pronoun pair or the first name) before drafting; never guess, and never draft with the pronouns left out to avoid the question. Channel and thread posts do not need this step.
 1. **Draft** the text under the skill's own rules (language, business wording, tags), in the voice step 0 found.
 2. **Load `humanizer:humanizer`** (Skill tool) and apply it to the draft yourself: it is a pattern guide, so it returns no
    rewritten text. Edit the draft by its patterns; its pattern list and notes stay in the terminal.

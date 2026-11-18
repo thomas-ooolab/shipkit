@@ -6,6 +6,7 @@ Checks: `name` equals the directory; `description` is present, starts with "Use 
 a Trigger line only when the skill takes arguments; a skill whose Trigger shows arguments has an `argument-hint`.
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
+A DM draft is never shown before the DM history was read: the gate files (developer SKILL.md, humanize-text.md) name scripts/slack-dm-history.js before the draft/post step, and any file with a DM-drafting step points at it or at humanize-text.md.
 No skill or reference names `--wait-submit` or `--for tui-idle` (the Ready+send loop is scripts/send-when-ready.sh, never hand-written).
 bootstrap, run-pipeline and assign never ask (AskUserQuestion) about settings or ecc cost warnings and point at references/cost-notice.md.
 A skill that has an agent drive a browser must point at references/browser-agents.md and scripts/cleanup-browsers.sh.
@@ -104,6 +105,27 @@ def settings_question_lint(name, texts):
         out.append("does not point at references/cost-notice.md")
     return out
 
+DM_GATE = ("skills/developer/SKILL.md", "references/humanize-text.md")
+DM_DRAFT = re.compile(r"(?:draft|compose|write|send|ping)\w*[^.\n|]{0,40}\bDMs?\b|\bDMs?\b[^.\n|]{0,40}\bdrafts?\b", re.I)
+
+def dm_history_lint(rel, text):
+    """A DM draft is never shown before the DM's history was read (AR session 2026-11-18: the lookup tool was declined, the DM was drafted with the pronouns left out, the history never read).
+    The gate files must name scripts/slack-dm-history.js and say a draft is "never shown" without it, with the history read BEFORE the draft step; any other skill or reference that
+    has a DM-drafting step must point at the script (or at humanize-text.md, which carries step 0)."""
+    out = []
+    if rel in DM_GATE:
+        if "slack-dm-history.js" not in text or "never shown" not in text:
+            out.append("must say a DM draft is never shown unless scripts/slack-dm-history.js (or an equivalent read) returned history in the same turn")
+        elif rel == "references/humanize-text.md" and text.index("slack-dm-history.js") > text.index("1. **Draft**"):
+            out.append("the DM history read (step 0, slack-dm-history.js) must come before the Draft step")
+        elif rel == "skills/developer/SKILL.md":
+            hard = text[text.index("## Hard rule: post directly"):]
+            if "slack-dm-history.js" not in hard or ("post-slack.js" in hard and hard.index("slack-dm-history.js") > hard.index("post-slack.js")):
+                out.append("*Hard rule: post directly* must name slack-dm-history.js before it names post-slack.js")
+    elif DM_DRAFT.search(text) and "slack-dm-history.js" not in text and "humanize-text.md" not in text:
+        out.append("has a DM-drafting step but no history-read step (scripts/slack-dm-history.js, references/humanize-text.md step 0) before it")
+    return out
+
 BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
 
 def transport_lint(text):
@@ -187,6 +209,15 @@ def self_test():
     assert output_style_lint(st.replace("keep-coding-instructions: true", "keep-coding-instructions: false")) != []
     assert any("force-for-plugin" in f for f in output_style_lint(st.replace("---\nbody", "force-for-plugin: true\n---\nbody")))
     assert any("'description:'" in f for f in output_style_lint(st.replace("description: d\n", "")))
+    good = "## Hard rule: post directly\nA DM draft is never shown unless slack-dm-history.js printed HISTORY.\nnode post-slack.js"
+    assert dm_history_lint("skills/developer/SKILL.md", good) == []
+    assert dm_history_lint("skills/developer/SKILL.md", good.replace("slack-dm-history.js", "x")) != []                       # the gate lost its script
+    assert dm_history_lint("skills/developer/SKILL.md", "## Hard rule: post directly\npost-slack.js then slack-dm-history.js never shown") != []   # history read after the post
+    hz = "0. history: slack-dm-history.js; a DM draft is never shown without it\n1. **Draft** the text"
+    assert dm_history_lint("references/humanize-text.md", hz) == [] and dm_history_lint("references/humanize-text.md", hz.replace("never shown", "ok")) != []
+    assert dm_history_lint("references/humanize-text.md", "1. **Draft** x\n0. slack-dm-history.js never shown") != []              # read after the draft step
+    assert dm_history_lint("skills/x/SKILL.md", "Draft the DM and show it") != [] and dm_history_lint("skills/x/SKILL.md", "Draft the DM; see humanize-text.md") == []
+    assert dm_history_lint("skills/x/SKILL.md", "Post a thread reply, never a DM history") == []
     print("check-skills: self-test ok")
 
 def main():
@@ -202,8 +233,8 @@ def main():
             out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts) + report_style_lint(text)
             if f.parent.name in NO_SETTINGS_QUESTION:
                 out += settings_question_lint(f.parent.name, dir_texts)
-        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text)
         rel = f.relative_to(ROOT)
+        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text) + dm_history_lint(str(rel), text)
         if out:
             bad += 1
             print(f"FAIL {rel}")
