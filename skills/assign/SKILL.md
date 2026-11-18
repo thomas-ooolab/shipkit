@@ -21,6 +21,8 @@ per submodule; adds nothing to the plan itself.
 >
 > **Forbidden language.** No "I think this pair is independent." Say "no Part order note pins these
 > two — treating as parallel" / "confirmed dirty via probe.sh — skipping."
+>
+> **Cost notice.** ecc's `COST CRITICAL` line is information, never a stop or a question: `REQUIRED: Read ${CLAUDE_PLUGIN_ROOT}/references/cost-notice.md`.
 
 ## Bounded scope
 Implements code only (ticket mode reads the plan; free-form mode takes the task as given). Does **not** open PRs (`/pr`), review (`/review-changes`), bump submodule refs

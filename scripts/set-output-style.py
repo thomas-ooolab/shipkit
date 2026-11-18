@@ -6,8 +6,8 @@
   python3 -I scripts/set-output-style.py --clear   [--scope ...] [--dir D]    # removes the key (not the same as "default")
   python3 -I scripts/set-output-style.py --show    [--dir D]                  # the value in each of the three files
   python3 -I scripts/set-output-style.py --env NAME=VALUE [--keep-existing] [--scope ...] [--dir D]   # the same file's `env` block: NAME=VALUE,
-  python3 -I scripts/set-output-style.py --env NAME --clear|--show [--scope ...] [--dir D]            # other `env` entries and keys stay; /bootstrap uses it,
-                                                                                                       # after asking, for ECC_CONTEXT_MONITOR_COST_WARNINGS=off
+  python3 -I scripts/set-output-style.py --env NAME --clear|--show [--scope ...] [--dir D]            # other `env` entries and keys stay; /bootstrap only reads (--show)
+                                                                                                       # ECC_CONTEXT_MONITOR_COST_WARNINGS; the user writes it (never asked, never written by a skill)
 
   --scope local    (default) <root>/.claude/settings.local.json — yours only; stays out of git
   --scope project  <dir>/.claude/settings.json                  — commit it and the team gets it

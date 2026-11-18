@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pipeline-cost-notice-is-not-a-stop
+context:
+  scaffold_script: scaffold.sh

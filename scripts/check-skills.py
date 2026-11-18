@@ -7,6 +7,7 @@ a Trigger line only when the skill takes arguments; a skill whose Trigger shows 
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
 No skill or reference names `--wait-submit` or `--for tui-idle` (the Ready+send loop is scripts/send-when-ready.sh, never hand-written).
+bootstrap, run-pipeline and assign never ask (AskUserQuestion) about settings or ecc cost warnings and point at references/cost-notice.md.
 A skill that has an agent drive a browser must point at references/browser-agents.md and scripts/cleanup-browsers.sh.
 The skills in SCOPED (pr, assign, bugfix) must point at references/scoped-tests.md.
 The files in BORROWED must keep the "borrowed capability not found" warning to the dev (a capability owned by another ticket is verified, not assumed).
@@ -88,6 +89,21 @@ def handwritten_send_lint(text):
     building blocks of that loop and live only in scripts/send-when-ready.sh (a hand-written one matched `^agent` against `SCREEN=agent`, never sent, exited 0)."""
     return [f"names '{w}': a skill calls scripts/send-when-ready.sh, it never hand-writes the Ready+send loop" for w in ("--wait-submit", "tui-idle") if w in text]
 
+NO_SETTINGS_QUESTION = ("bootstrap", "run-pipeline", "assign")
+SETTINGS_WORDS = re.compile(r"settings\.local\.json|settings\.json|set-output-style\.py|ECC_CONTEXT_MONITOR|cost.warn", re.I)
+
+def settings_question_lint(name, texts):
+    """/bootstrap, /run-pipeline and /assign never ask the user about settings (an ecc cost warning, a settings file): they run in fresh worktrees and in `auto`, where
+    nobody answers and a coordinator blocked on the question (AR-683, AR-674). A `##` section of their files that names both AskUserQuestion and a settings word fails; each must also
+    point at references/cost-notice.md (ecc's COST CRITICAL line is information, never a stop)."""
+    out = []
+    for section in re.split(r"(?m)^## ", texts):
+        if "AskUserQuestion" in section and SETTINGS_WORDS.search(section):
+            out.append(f"a section asks (AskUserQuestion) about settings / ecc cost warnings: '{section.splitlines()[0][:60]}' — decide unattended, never ask")
+    if "references/cost-notice.md" not in texts:
+        out.append("does not point at references/cost-notice.md")
+    return out
+
 BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
 
 def transport_lint(text):
@@ -151,6 +167,10 @@ def self_test():
     assert premise_lint({p: " ".join(ws) for p, ws in PREMISE.items()}) == [] and len(premise_lint({})) == sum(map(len, PREMISE.values()))
     assert handwritten_send_lint("run terminal send --text x --enter --wait-submit 10") != [] and handwritten_send_lint("terminal wait --for tui-idle") != []
     assert handwritten_send_lint("bash send-when-ready.sh <handle> \"<text>\"") == [] and handwritten_send_lint("terminal send --text \"\" --enter") == []
+    cn = "references/cost-notice.md"
+    assert settings_question_lint("bootstrap", "## Step 6\nwrites " + cn) == [] and settings_question_lint("assign", "## Gotchas\nAskUserQuestion what to implement " + cn) == []
+    assert len(settings_question_lint("bootstrap", "## Step 6\nAskUserQuestion: Turn off ecc's cost warnings? set-output-style.py " + cn)) == 1
+    assert len(settings_question_lint("run-pipeline", "## Step 6\nAskUserQuestion about settings.local.json")) == 2 and settings_question_lint("bootstrap", "no pointer") != []
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
     gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
@@ -180,6 +200,8 @@ def main():
         if f.name == "SKILL.md":
             dir_texts = "\n".join(p.read_text() for p in sorted(f.parent.glob("*.md")))
             out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts) + report_style_lint(text)
+            if f.parent.name in NO_SETTINGS_QUESTION:
+                out += settings_question_lint(f.parent.name, dir_texts)
         out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text)
         rel = f.relative_to(ROOT)
         if out:
