@@ -9,9 +9,10 @@
   python3 -I scripts/worktree-clearance.py --self-test
 
 `check` prints one JSON object: the repos (the worktree root and each initialized submodule) with `branch`, `dirty` (a tree with changes outside `.shipkit/`)
-and `unpushed` (commits on no remote), `git_changes` (any repo dirty or ahead), and `shipkit` (each `.shipkit/pipeline-*.md` with its `Status:` line, and the
-other state files present) — what `.shipkit/` holds is gitignored and goes with the worktree. Whether the ticket is *in progress* is NOT decided here: the
-caller has the Haiku agent `worktree-checker` read those files.
+and `unpushed` (commits on no remote), `git_changes` (any repo dirty or ahead), and `shipkit` (each `.shipkit/pipeline-*.md` with its `Status:` line, the other state files present, and any file this script does not recognize) — what `.shipkit/`
+holds is gitignored and goes with the worktree. `ticket_state` is decided here: `none` when `.shipkit/` holds no ticket state (absent, empty, or only `root-coordinator.md`
+— the pointer /developer's run wrote — and `config.yml`) = NOT in progress, no agent needed; `present` (a pipeline-/assign-/bugfix-/pr-/merge-/clarify-/evidence file
+or `open-question.md`) or `unknown` (only unrecognized files) = the Haiku agent `worktree-checker` reads those files and says whether the ticket is *in progress*.
 `grant` refuses (exit 3) while `git_changes` is true unless `--user-approved` is given; the clearance lasts 30 minutes and names the path. `grant` removes nothing.
 `prepare` (needs a fresh clearance) is for a linked worktree that has a submodule repository — populated (a gitlink whose directory holds a `.git`, registered or
 not: `git submodule status` prints '-' for one never registered) or left in `modules/` by an earlier deinit: Git refuses to remove it without --force because each submodule's
@@ -26,6 +27,10 @@ import hashlib, json, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 TTL = 30 * 60
+# What `.shipkit/` can hold. STATE_PREFIXES / open-question.md are a ticket's own state (the ticket may be in progress); POINTERS are not
+# state: root-coordinator.md is the address /developer's run wrote (run, root_terminal, root_worktree, written), config.yml is the project's.
+STATE_PREFIXES = ("pipeline", "assign", "bugfix", "pr", "merge", "clarify", "evidence")
+POINTERS = ("root-coordinator.md", "config.yml")
 
 
 def clearance_dir():
@@ -67,14 +72,25 @@ def facts(worktree):
     wt = Path(worktree).resolve()
     repos = [repo_facts(wt)] + [repo_facts(p) for p in submodule_paths(wt)]
     ship = wt / ".shipkit"
-    pipelines, others = [], []
+    pipelines, others, names = [], [], []
     if ship.is_dir():
         for f in sorted(ship.glob("pipeline-*.md")):
             status = next((l for l in f.read_text(errors="replace").splitlines() if l.startswith("Status:")), "Status: (none)")
             pipelines.append({"file": f.name, "status": status})
-        others = sorted(f.name for f in ship.iterdir() if f.name.split("-")[0] in ("bugfix", "pr", "assign", "clarify", "merge", "evidence"))
-    return {"path": str(wt), "repos": repos, "git_changes": any(r["dirty"] or r["unpushed"] for r in repos),
-            "shipkit": {"exists": ship.is_dir(), "pipelines": pipelines, "other_state_files": others}}
+        names = sorted(f.name for f in ship.iterdir() if not f.name.startswith("."))
+        others = [n for n in names if (n.split("-")[0] in STATE_PREFIXES and not n.startswith("pipeline-")) or n == "open-question.md"]
+    # ticket_state is decided HERE, not by an agent: "none" = nothing of a ticket's in `.shipkit/` (absent, empty, or only the pointer/config files) -> not in progress;
+    # "present" = a pipeline-/assign-/bugfix-/pr-/merge-/clarify-/evidence file or open-question.md -> the worktree-checker agent reads them;
+    # "unknown" = only files this script does not recognize -> the agent reads them too (never guessed away).
+    if pipelines or others:
+        ticket_state = "present"
+    elif [n for n in names if n not in POINTERS]:
+        ticket_state = "unknown"
+    else:
+        ticket_state = "none"
+    return {"path": str(wt), "repos": repos, "git_changes": any(r["dirty"] or r["unpushed"] for r in repos), "ticket_state": ticket_state,
+            "shipkit": {"exists": ship.is_dir(), "pipelines": pipelines, "other_state_files": others,
+                        "unrecognized_files": [n for n in names if n not in POINTERS and n not in others and not n.startswith("pipeline-")]}}
 
 
 def valid(worktree, now=None):
@@ -204,7 +220,27 @@ def self_test():
         run("push", "-q", "origin", "main", cwd=main_repo)
         run("worktree", "add", "-q", "-b", "feat/X-1-a", str(wt), cwd=main_repo)
         run("push", "-q", "-u", "origin", "feat/X-1-a", cwd=wt)
+        assert facts(wt)["ticket_state"] == "none"                           # no .shipkit at all
         (wt / ".shipkit").mkdir()
+        assert facts(wt)["ticket_state"] == "none"                           # empty
+        (wt / ".shipkit" / "root-coordinator.md").write_text("run: r1\nroot_terminal: t\nroot_worktree: w\nwritten: 2026-11-18\n")
+        fa = facts(wt)                                                       # AR-683/680/674: only the root pointer, git clean -> decided by rule, no agent
+        assert fa["ticket_state"] == "none" and not fa["git_changes"] and fa["shipkit"]["other_state_files"] == [] and fa["shipkit"]["unrecognized_files"] == []
+        assert main(["grant", str(wt)]) == 0 and valid(wt); (base / "clr" / key(wt)).unlink()
+        (wt / ".shipkit" / "config.yml").write_text("topology_mode: single-repo\n")
+        assert facts(wt)["ticket_state"] == "none"
+        (wt / ".shipkit" / "notes.txt").write_text("x")
+        fa = facts(wt)
+        assert fa["ticket_state"] == "unknown" and fa["shipkit"]["unrecognized_files"] == ["notes.txt"]   # not guessed away: the agent reads it
+        (wt / ".shipkit" / "notes.txt").unlink()
+        (wt / ".shipkit" / "open-question.md").write_text("- [ ] q\n")
+        fa = facts(wt)
+        assert fa["ticket_state"] == "present" and fa["shipkit"]["other_state_files"] == ["open-question.md"]
+        (wt / ".shipkit" / "open-question.md").unlink()
+        for state_file in ("assign-failure-X-1.md", "pr-X-1.md", "merge-X-1.md", "clarify-X-1.md"):
+            (wt / ".shipkit" / state_file).write_text("x")
+            assert facts(wt)["ticket_state"] == "present", state_file
+            (wt / ".shipkit" / state_file).unlink()
         (wt / ".shipkit" / "pipeline-X-1.md").write_text("# s\nStatus: running · verify\n")
         (wt / ".shipkit" / "bugfix-X-1.md").write_text("x")
         # clean and pushed: no git changes, the state is listed

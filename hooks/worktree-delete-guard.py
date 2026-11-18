@@ -6,7 +6,7 @@ Blocked until `scripts/worktree-clearance.py grant <path>` has issued a fresh cl
   - `git [-C dir] worktree remove <path>`
   - `rm -r…` of a folder that is a registered worktree of the repository the command runs in
 The clearance is issued automatically only when git holds nothing to lose; a dirty tree or a commit on no remote needs the user's explicit "delete"
-(`grant <path> --user-approved`). Whether the ticket is still in progress is read by the Haiku agent `shipkit:worktree-checker`; the block message says how.
+(`grant <path> --user-approved`). Whether the ticket is still in progress is decided by `check`'s `ticket_state` (`none` = nothing of a ticket in `.shipkit/`) and, for `present` / `unknown`, read by the Haiku agent `shipkit:worktree-checker`; the block message says how.
 Why: a worktree's `.shipkit/` (ticket state, evidence, drafts) is gitignored and goes with it, the local branch goes too when `--delete-branch` is passed (or from Orca's UI), and an unpushed commit survives
 only in the reflog.
 
@@ -100,8 +100,8 @@ def message(path, what):
     return (f"shipkit worktree guard: blocked — {what} would remove the worktree {where}. A worktree holds state that lives nowhere else: .shipkit/ is gitignored "
             "(the ticket's stage, evidence, Jira drafts go with it), the local branch goes too when `--delete-branch` is passed (or from Orca's UI), and a commit not on origin survives only in the reflog. Nothing was removed.\n"
             f"1. Read the facts: python3 -I {SCRIPT} check <path>\n"
-            "2. Dispatch the Haiku agent shipkit:worktree-checker with the path and those facts; it reads <path>/.shipkit and says in_progress or not.\n"
-            f"3. Not in progress AND git_changes false → decide alone, no question to the user: python3 -I {SCRIPT} grant <path>, then run the same command again.\n"
+            "2. ticket_state \"none\" (.shipkit holds no ticket state, e.g. only root-coordinator.md) = not in progress, no agent. ticket_state \"present\" or \"unknown\" → dispatch the Haiku agent shipkit:worktree-checker with the path and those facts; it reads <path>/.shipkit and says in_progress or not.\n"
+            f"3. Not in progress (ticket_state none, or the agent says so) AND git_changes false → decide alone, no question to the user: python3 -I {SCRIPT} grant <path>, then run the same command again.\n"
             "4. In progress, or ANY git change (a dirty tree or commits on no remote) → do not remove. Ask the user why they want it gone and show what would be lost; "
             f"only after their explicit \"delete\": python3 -I {SCRIPT} grant <path> --user-approved, then run the command again. Never --force.")
 

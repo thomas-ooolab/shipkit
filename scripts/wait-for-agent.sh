@@ -19,7 +19,8 @@
 # Output (stdout): SCREEN=<value>, then the last ~30 screen lines.
 #   SCREEN=agent      an input box is up, nothing working — idle
 #   SCREEN=working    the agent is working
-#   SCREEN=attention  stopped on a y/n or numbered permission prompt — a person answers it
+#   SCREEN=attention  stopped on a y/n or numbered permission prompt, kiro's "Trust this workspace?" prompt or its V2/V3
+#                     choice menu ("Continue with V3" / "Stay on V2") — a person answers it
 #   SCREEN=login      "Not logged in" / "isn't available" with no agent UI
 #   SCREEN=limit      kiro's out-of-quota notice is among the last screen lines (pattern LIMIT in the python below) — the agent
 #                     stopped mid-task and will not continue until its quota returns
@@ -80,7 +81,9 @@ def running_shell():  # last "• " bullet is a Shell call whose only lines sinc
 working = (re.search(r"Thinking\.\.\.|esc to cancel|esc to interrupt|Kiro is working", blob)
            or re.search(r"^\s*\S\s+\S+…\s*\(\d+[ms]", blob, re.M)
            or running_shell())
-attn = re.search(r"\(y/n\)|\[y/N\]|\[Y/n\]|^\s*❯\s*1\.\s", blob, re.M)
+# kiro's startup prompts (real screens, kiro 3.0): "Trust this workspace?" with "❯ Trust, continue", and the V2/V3 menu; both draw rules that
+# look like an input box, so they must be caught before READY
+attn = re.search(r"\(y/n\)|\[y/N\]|\[Y/n\]|^\s*❯\s*1\.\s|Trust this workspace\?|^\s*❯\s*Continue with V3|Stay on V2", blob, re.M)
 # Input box = two horizontal rules, up to a few lines apart (an empty input line is blank, so 0 lines between counts), ending within the last few lines. No agent-
 # specific text is needed; the strings below are kept only as extra evidence for older screens.
 rules = [i for i, l in enumerate(live) if re.search(r"[─━]{8,}", l)]

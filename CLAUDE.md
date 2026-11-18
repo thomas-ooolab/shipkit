@@ -47,14 +47,14 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
   grader says Claude picked the right skill. Free graders, no judge call.
 - `rules` — 14 `rule-*` cases from the standing feedback in the auto-memory (Jira writes through the script, merge hand-off order,
   Slack DM history first, questions in the user's language) and from recent fixes (AR-676, AR-677, AR-678).
-- `issues` — 29 `issue-*` cases from the decisions and bug fixes recorded in claude-mem (`/bugfix` held / reopened / fix-round cap,
+- `issues` — 32 `issue-*` cases from the decisions and bug fixes recorded in claude-mem (`/bugfix` held / reopened / fix-round cap,
   run-pipeline stop and slot rules, root coordinator, `/developer` go-signal, `/pr` review loop, `/verify`, `/clarify`). Each is a
   scenario with its facts in the prompt and a rubric (`llm` grader) or a regex on the answer.
 
 Run it with `bash scripts/run-evals.sh [--tag routing|rules|issues] [--case <glob>] [--runs <n>]` — it adds what the `rules` and `issues`
 cases need: `--scaffold` (each builds a small fixture repo with a `.shipkit/config.yml` from its own `scaffold.sh`, because every skill
 gates on that file) and one Bash grant for `probe.sh`. Every run and every judge vote is a model call, so it is **not** in
-`scripts/self-test.sh` or the pre-commit hook: all 61 cases at the default 3 runs cost tens of dollars; `--runs 1` on one tag costs ≈ $10.
+`scripts/self-test.sh` or the pre-commit hook: all 64 cases at the default 3 runs cost tens of dollars; `--runs 1` on one tag costs ≈ $10.
 
 - **A change that alters what an agent decides comes with its eval case in the same commit** — skill or reference text, a rule, a hook, a
   script a skill relies on: add a case (or update the one that pins the old rule), run it with `bash scripts/run-evals.sh --case <name>`

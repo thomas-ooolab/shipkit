@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-assign-kiro-v3-menu-enter-only
+context:
+  scaffold_script: scaffold.sh

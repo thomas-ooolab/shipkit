@@ -6,6 +6,7 @@ Checks: `name` equals the directory; `description` is present, starts with "Use 
 a Trigger line only when the skill takes arguments; a skill whose Trigger shows arguments has an `argument-hint`.
 Also checks that every `${CLAUDE_PLUGIN_ROOT}/…` file a SKILL.md or reference points at exists.
 A skill whose files call post-slack.js or jira-comment.py must point at references/write-through-scripts.md.
+No skill or reference names `--wait-submit` or `--for tui-idle` (the Ready+send loop is scripts/send-when-ready.sh, never hand-written).
 A skill that has an agent drive a browser must point at references/browser-agents.md and scripts/cleanup-browsers.sh.
 The skills in SCOPED (pr, assign, bugfix) must point at references/scoped-tests.md.
 The files in BORROWED must keep the "borrowed capability not found" warning to the dev (a capability owned by another ticket is verified, not assumed).
@@ -82,6 +83,11 @@ def scoped_lint(texts):
     """The skills that run tests must point at the shared scoped-tests rule, not run the whole suite on their own."""
     return [f"{p} runs tests but never points at references/scoped-tests.md" for p in SCOPED if "scoped-tests.md" not in texts.get(p, "")]
 
+def handwritten_send_lint(text):
+    """A skill never tells a session to write its own "wait until the agent is ready, then send" loop: `--wait-submit` and `--for tui-idle` are the
+    building blocks of that loop and live only in scripts/send-when-ready.sh (a hand-written one matched `^agent` against `SCREEN=agent`, never sent, exited 0)."""
+    return [f"names '{w}': a skill calls scripts/send-when-ready.sh, it never hand-writes the Ready+send loop" for w in ("--wait-submit", "tui-idle") if w in text]
+
 BROWSER_SKILLS = {"verify", "design-recon", "assign", "bugfix", "run-pipeline"}
 
 def transport_lint(text):
@@ -143,6 +149,8 @@ def self_test():
     assert borrowed_lint({p: "⚠ borrowed capability\nnot found: X" for p in BORROWED}) == [] and len(borrowed_lint({})) == len(BORROWED)
     assert scoped_lint({p: "see references/scoped-tests.md" for p in SCOPED}) == [] and len(scoped_lint({})) == len(SCOPED)
     assert premise_lint({p: " ".join(ws) for p, ws in PREMISE.items()}) == [] and len(premise_lint({})) == sum(map(len, PREMISE.values()))
+    assert handwritten_send_lint("run terminal send --text x --enter --wait-submit 10") != [] and handwritten_send_lint("terminal wait --for tui-idle") != []
+    assert handwritten_send_lint("bash send-when-ready.sh <handle> \"<text>\"") == [] and handwritten_send_lint("terminal send --text \"\" --enter") == []
     both = "references/browser-agents.md scripts/cleanup-browsers.sh"
     gate = "Step 1.5 — Transport gate transport: orca (worktree transport: agent (reason Orca worktree present = Orca workers, always forbidden for dispatch"
     assert transport_lint(gate) == [] and len(transport_lint("")) == 5 and transport_lint(gate.replace("forbidden for dispatch", "")) != []
@@ -172,7 +180,7 @@ def main():
         if f.name == "SKILL.md":
             dir_texts = "\n".join(p.read_text() for p in sorted(f.parent.glob("*.md")))
             out += writes_lint(dir_texts) + browser_lint(f.parent.name, dir_texts) + report_style_lint(text)
-        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)]
+        out += [f"points at missing file ${{CLAUDE_PLUGIN_ROOT}}/{p}" for p in missing_refs(text)] + handwritten_send_lint(text)
         rel = f.relative_to(ROOT)
         if out:
             bad += 1

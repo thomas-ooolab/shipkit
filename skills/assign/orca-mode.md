@@ -35,7 +35,7 @@ Allowlist + Guard + Discipline, Observable acceptance = Verify). Orca-mode diffe
   --outcome failed` naming the gap; never widen the allowlist. (Agent mode keeps the `✅` / `❌` final line.)
 - **It may `ask`** (the command in its preamble). The coordinator answers **only** from `spec.md`, the plan or the
   submodule's `CLAUDE.md`; a product decision, or anything that widens the allowlist → `AskUserQuestion` or a refusing
-  reply. A permission prompt on a terminal is never answered on the user's behalf (the one exception: *Kiro's trust prompt*).
+  reply. A permission prompt on a terminal is never answered on the user's behalf (the exceptions: *Kiro's trust prompt* and its V3 menu).
 - **UI task:** the `Design` bullet of the `BRIEF` applies; the `worker_done` summary says the 1-to-1 comparison was done, or names the
   differences left. Once that worker settles, or is stopped, run `scripts/cleanup-browsers.sh` on its scratch directory (SKILL.md, *Design*).
 
@@ -121,7 +121,9 @@ all of these hold**, each read, not assumed:
 Then send `ORCA terminal send --terminal <handle> --text "" --enter` and read the screen once — it should move on ("Initializing…", then kiro's input box) — and carry on with the wait of
 step 2 above. For a residual terminal of a failed start: `worker-release --dispatch <id>`, then use the warm route with a new terminal (trust now persists), never `--agent kiro` again.
 A screen that did not move after the Enter goes to the user with the screen lines. Any other prompt, any other option, a folder that differs, or anything unread is **not answered**: put it to the
-user as with every other permission prompt. Never press a bare Enter on a kiro menu you have not read — a fresh `kiro-cli` showed a "Switch to V3" menu whose first option rewrites the user's configs.
+user as with every other permission prompt. Never press a bare Enter on a kiro menu you have not read.
+
+**Kiro's V3 menu — Enter, and only on that option.** A fresh `kiro-cli` (3.0) can show a menu ("Kiro CLI 3.0 is here…") with `❯ Continue with V3`, "Stay on V2, remind me later" and "Stay on V2, don't ask again". The user has said that `Continue with V3` needs nothing but Enter. Send `ORCA terminal send --terminal <handle> --text "" --enter` **only when** the terminal is the warm terminal you created in this invocation and the screen you read shows the cursor `❯` on `Continue with V3`; then read the screen once — it moves on to the trust prompt above or to "Initializing…". Any other option under the cursor, any other kiro menu, or a screen that did not move is **not answered**: put it to the user with the screen lines. The user's "Enter is enough" covers this one option, nothing else (not "Stay on V2", not the trust decision).
 Tell the user in one line which folder was trusted for kiro. *Verified 2026-11-09:* Enter sent with `terminal send` moves the prompt on in a terminal made with `ORCA agent launch --agent kiro`, and the trust
 persisted for the folder. *Not verified:* the same Enter in a terminal made with `terminal create --command`, or in the residual terminal of a failed start — if the screen does not move, that is the user's.
 claude workers showed no trust prompt (they run in bypass-permissions mode): nothing to add for them.

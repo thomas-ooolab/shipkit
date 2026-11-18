@@ -30,6 +30,7 @@ run "worktree-clearance.py"              python3 -I scripts/worktree-clearance.p
 run "merge-pr.py"                       python3 -I skills/merge/merge-pr.py --self-test
 run "pipelines-status.py"               python3 -I skills/merge/pipelines-status.py --self-test
 run "verdict-predicate tests"           python3 -I skills/pr/test-verdict-predicate.py
+run "send-when-ready.sh"                 bash scripts/send-when-ready.sh --self-test
 run "wait-for-slack-reply.sh (dm mode)" bash scripts/wait-for-slack-reply.sh --self-test
 if command -v node >/dev/null 2>&1; then
   run "post-slack.js"                   node scripts/post-slack.js --self-test
@@ -48,6 +49,9 @@ screen_of() { # <screen line>... -> the SCREEN= verdict wait-for-agent.sh gives 
 rule='────────────────────────'; trust='Trust All Tools active, confirmations are off · /quit to exit'
 run "wait-for-agent.sh: usage limit"   test "$(screen_of "• You've reached your monthly usage limit. Please return next month to continue building. (Request ID: x)" "▸ Credits: turn 1" "$rule" "$trust" "$rule")" = SCREEN=limit
 run "wait-for-agent.sh: idle box"      test "$(screen_of "• Write file:///x" "$rule" "$trust" "$rule")" = SCREEN=agent
+run "wait-for-agent.sh: kiro trust prompt" test "$(screen_of "• Initializing" "$rule" " Trust this workspace?" "$rule" " /Users/x/repo" " This folder can contain hooks, agents, MCP servers and workflows that run commands on your machine." " ❯ Trust, continue" "   Don't trust, exit" "$rule" " esc to exit · ↑↓ to navigate · ↵ to select")" = SCREEN=attention
+run "wait-for-agent.sh: kiro V2/V3 menu"    test "$(screen_of "Kiro CLI 3.0 is here. The new V3 agent brings workflows." "❯ Continue with V3" "  Stay on V2, remind me later" "  Stay on V2, don't ask again")" = SCREEN=attention
+run "wait-for-agent.sh: kiro V3 idle box"   test "$(screen_of "▸ What's new   ctrl+o to expand" "$rule" "Default · gpt-5.6-sol · medium · ◔ 1%    ~/x · (main)" "›  ask a question or describe a task ↵")" = SCREEN=agent
 run "cleanup-browsers.sh"              bash scripts/test-cleanup-browsers.sh
 for f in scripts/*.sh skills/*/*.sh .githooks/pre-commit; do run "bash -n $f" bash -n "$f"; done
 exit "$fail"
