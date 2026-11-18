@@ -19,11 +19,13 @@ not: `git submodule status` prints '-' for one never registered) or left in `mod
 repository sits in the worktree's own git directory (`<primary>/.git/worktrees/<name>/modules/`) and would go with it. Only when every submodule holds nothing
 (no uncommitted or untracked change, no stash, no local branch or detached HEAD with commits on no remote) it runs `git submodule deinit --all` (never -f) and deletes
 that `modules` directory; then `git worktree remove` / `orca worktree rm` works without --force. Anything held → exit 3, each line on stderr, nothing deleted (it has no
-override: the user commits, pushes or discards it). A worktree with no submodule repository → exit 0, nothing to do. `check` lists the same repositories. A primary checkout → exit 2, untouched.
+override: the user commits, pushes or discards it). Afterwards the submodule directories (deinitialized now or earlier) may still hold untracked files that `git worktree remove`
+refuses: one byte-identical to the file at the same path in the primary checkout (e.g. `.env.local` worktree bootstrap copied in) loses nothing and is deleted by `prepare`, no question; any
+other (differs, or has no twin) → exit 3, listed on stderr, kept, the user decides. A worktree with no submodule repository and no such file → exit 0, nothing to do. `check` lists the same repositories. A primary checkout → exit 2, untouched.
 Clearances live in `$SHIPKIT_CLEARANCE_DIR`, default `~/.claude/shipkit/worktree-clearance/`.
 Exit: 0 ok · 2 usage, no such worktree or (prepare) not a linked worktree · 3 refused (git changes, no --user-approved; prepare: a submodule holds something) · 4 no fresh clearance (valid, prepare).
 """
-import hashlib, json, os, shutil, subprocess, sys, tempfile, time
+import filecmp, hashlib, json, os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
 
 TTL = 30 * 60
@@ -59,13 +61,38 @@ def submodule_paths(wt):
     """Every submodule that has a repository in the worktree: a gitlink of the index whose directory holds a `.git`. Not `git submodule status`:
     it prints '-' for a submodule that is populated but not registered in the config (no `submodule.<name>.url` / `.active`), and Git refuses
     to remove such a worktree all the same."""
-    out = []
-    for line in git(["ls-files", "--stage"], wt)[1].splitlines():
-        if line.startswith("160000 ") and "\t" in line:
-            p = line.split("\t", 1)[1]
-            if (wt / p / ".git").exists():
-                out.append(wt / p)
-    return out
+    return [p for p in gitlink_paths(wt) if (p / ".git").exists()]
+
+
+def gitlink_paths(wt):
+    """Every gitlink (submodule path) of the index, populated or not."""
+    return [wt / l.split("\t", 1)[1] for l in git(["ls-files", "--stage"], wt)[1].splitlines() if l.startswith("160000 ") and "\t" in l]
+
+
+def clear_leftovers(wt, report=False):
+    """Files a deinitialized (or never populated) submodule directory still holds: `git worktree remove` refuses them as untracked. A file
+    byte-identical to the one at the same path in the primary checkout (what worktree bootstrap copies in, e.g. `.env.local`) loses nothing:
+    deleted, no question. Any other file (differs, absent there, a symlink) is kept. Returns the kept ones as paths relative to the worktree."""
+    common = git(["rev-parse", "--path-format=absolute", "--git-common-dir"], wt)[1]
+    primary = Path(common).parent if Path(common).name == ".git" else None
+    kept = []
+    for d in gitlink_paths(wt):
+        if (d / ".git").exists():
+            continue  # populated: a working tree, not leftovers
+        for root, _, files in os.walk(d):
+            for n in files:
+                f = Path(root) / n
+                twin = primary / f.relative_to(wt) if primary else None
+                if twin and f.is_file() and not f.is_symlink() and twin.is_file() and not twin.is_symlink() and filecmp.cmp(f, twin, shallow=False):
+                    f.unlink()
+                else:
+                    kept.append(str(f.relative_to(wt)))
+    kept = sorted(kept)
+    if kept and report:
+        for k in kept:
+            print(f"{k}: untracked file in a submodule directory, not identical to the primary checkout's: kept", file=sys.stderr)
+        print("kept: `git worktree remove` would delete the above; the user decides (nothing of them deleted)", file=sys.stderr)
+    return kept
 
 
 def facts(worktree):
@@ -159,6 +186,8 @@ def prepare(worktree):
     # a repository in modules/ that no work directory points at (a submodule deinitialized earlier): Git refuses to remove the worktree for it too
     orphans = sorted(d for d in mods.iterdir() if d.is_dir() and d.resolve() not in own) if mods.is_dir() else []
     if not subs and not orphans:
+        if clear_leftovers(wt, True):
+            return 3
         print("no submodule repository: nothing to prepare")
         return 0
     lost = [(str(p.relative_to(wt)), w) for p in subs for w in submodule_losses(p)]
@@ -167,6 +196,8 @@ def prepare(worktree):
         for label, w in lost:
             print(f"submodule {label}: {w}", file=sys.stderr)
         print("kept: removing the worktree would lose the above; nothing deleted", file=sys.stderr)
+        return 3
+    if clear_leftovers(wt, True):  # deinit refuses ("contains local modifications") a directory that still holds an untracked file, so those go first
         return 3
     # `git submodule status` shows '-' for a populated submodule that was never registered, and deinit only clears registered ones: register first
     rel = [str(p.relative_to(wt)) for p in subs]
@@ -179,6 +210,8 @@ def prepare(worktree):
     left = [p for p in subs if (p / ".git").exists()]
     if left:
         print(f"git submodule deinit left {', '.join(str(p.relative_to(wt)) for p in left)} populated; nothing deleted", file=sys.stderr)
+        return 3
+    if clear_leftovers(wt, True):  # whatever the deinit left in a directory it just emptied
         return 3
     if mods.is_dir():
         shutil.rmtree(mods)
@@ -321,6 +354,31 @@ def self_test():
         run("checkout", "-q", "-b", "old", cwd=sub); run("commit", "-q", "--allow-empty", "-m", "c", cwd=sub); run("checkout", "-q", "--detach", "origin/main", cwd=sub)
         run("submodule", "deinit", "--all", cwd=w)
         assert main(["grant", str(w), "--user-approved"]) == 0 and main(["prepare", str(w)]) == 3 and mods(w).is_dir()
+        # an untracked file left in a deinitialized submodule directory (AR-674: `.env.local` worktree bootstrap copied in); `git submodule deinit` itself refuses such a directory
+        def leftover(name, content, twin_content, drop_modules=False):
+            prim, w, sub = mk(name)
+            run("submodule", "deinit", "--all", cwd=w)
+            if drop_modules:
+                shutil.rmtree(mods(w))
+            (sub / ".env.local").write_text(content)
+            if twin_content is not None:
+                (prim / "sub" / ".env.local").write_text(twin_content)
+            assert not facts(w)["repos"][0]["dirty"] and main(["grant", str(w), "--user-approved"]) == 0   # git itself does not see the file (the incident's check output)
+            return prim, w, sub
+        for drop in (False, True):                                                                # same bytes as the primary's: disposable, deleted, no question
+            prim, w, sub = leftover(f"same{drop}", "KEY=1\n", "KEY=1\n", drop)
+            assert main(["prepare", str(w)]) == 0 and not (sub / ".env.local").exists() and (prim / "sub" / ".env.local").read_text() == "KEY=1\n"
+            run("worktree", "remove", str(w), cwd=prim)                                           # no --force
+            assert not w.exists()
+        for name, twin in (("differs", "KEY=2\n"), ("notwin", None)):                           # not the primary's bytes: kept, the user decides
+            prim, w, sub = leftover(name, "KEY=1\n", twin)
+            assert main(["prepare", str(w)]) == 3 and (sub / ".env.local").read_text() == "KEY=1\n", name
+        prim, w, sub = leftover("mixed", "KEY=1\n", "KEY=1\n", True)                            # one twin, one stranger: only the twin goes
+        (sub / "notes.txt").write_text("mine")
+        assert main(["prepare", str(w)]) == 3 and not (sub / ".env.local").exists() and (sub / "notes.txt").read_text() == "mine"
+        prim, w, sub = leftover("link", "x", "x", True)                                           # a symlink is never treated as a twin
+        (sub / ".env.local").unlink(); (sub / ".env.local").symlink_to(prim / "sub" / ".env.local")
+        assert main(["prepare", str(w)]) == 3 and (sub / ".env.local").is_symlink()
         assert main(["grant", str(wt), "--user-approved"]) == 0 and main(["prepare", str(wt)]) == 0 and wt.exists()   # no submodule: nothing to do
         assert main(["grant", str(main_repo), "--user-approved"]) == 0 and main(["prepare", str(main_repo)]) == 2     # a primary checkout is never touched
         # usage
@@ -328,7 +386,6 @@ def self_test():
         print("worktree-clearance self-test: ok")
         return 0
     finally:
-        import shutil
         shutil.rmtree(base, ignore_errors=True)
 
 
