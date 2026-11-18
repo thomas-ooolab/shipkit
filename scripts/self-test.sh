@@ -10,6 +10,7 @@ run() { # <label> <cmd...>
   if out=$("$@" 2>&1); then echo "ok    $label"; else echo "FAIL  $label"; echo "$out" | sed 's/^/        /' | tail -15; fail=1; fi
 }
 run "check-pipeline (drift + versions)" python3 -I scripts/check-pipeline.py
+run "probe.sh resolve exits 0 with a config and no spec" bash -c 'd=$(mktemp -d); mkdir "$d/.shipkit"; echo "topology_mode: single-repo" > "$d/.shipkit/config.yml"; cd "$d" && bash "$1/scripts/probe.sh" resolve >/dev/null' _ "$ROOT"
 run "check-pipeline --self-test"        python3 -I scripts/check-pipeline.py --self-test
 run "check-skills (frontmatter, refs)"  python3 -I scripts/check-skills.py
 run "check-skills --self-test"          python3 -I scripts/check-skills.py --self-test

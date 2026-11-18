@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: rule-push-window-exit-2-is-an-error
+context:
+  scaffold_script: scaffold.sh

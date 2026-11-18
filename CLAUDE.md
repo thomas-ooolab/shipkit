@@ -41,14 +41,32 @@ a new skill that reads `.shipkit/config.yml` needs the same gate.
 
 ## Evals (`claude plugin eval`)
 
-`evals/` is the plugin's eval suite (Claude Code docs: *Test plugins with evals*). Each case is a plain request a user would type and a
-grader on the steps Claude took. Today: one `routes-*` case for each of the 17 skills checks that Claude picks it on natural phrasing
-(`tool_used: Skill`, free, no judge call) and `ignores-unrelated-request` checks no shipkit skill fires on a small coding task.
+`evals/` is the plugin's eval suite (Claude Code docs: *Test plugins with evals*). Three kinds of case, by tag:
 
-- Run from the plugin root: `claude plugin eval . --trust-plugin --ablation none -j 4 --no-publish` (18 cases × 3 runs ≈ $6); add
-  `--runs 1` while iterating (≈ $2). Without `--ablation none` every case also runs with no plugin: `Δ` on a `tool_used: Skill` case is
-  trivially +1 (the skill cannot be called without the plugin), so read the `WITH` column.
-- Every run and judge grader is a model call: it is **not** in `scripts/self-test.sh` or the pre-commit hook. Run it after changing a
-  skill's `description` (the thing routing depends on) or adding a skill, and add a `routes-<name>` case for a new skill.
-- A case that fails on `tool_used: Skill` means the skill's `description` does not trigger on that phrasing: fix the description, not
-  the case. Results go to `evals/results/` (gitignored).
+- `routing` — 17 `routes-<skill>` cases (one per skill) and `ignores-unrelated-request`: a plain request, and a `tool_used: Skill`
+  grader says Claude picked the right skill. Free graders, no judge call.
+- `rules` — 14 `rule-*` cases from the standing feedback in the auto-memory (Jira writes through the script, merge hand-off order,
+  Slack DM history first, questions in the user's language) and from recent fixes (AR-676, AR-677, AR-678).
+- `issues` — 29 `issue-*` cases from the decisions and bug fixes recorded in claude-mem (`/bugfix` held / reopened / fix-round cap,
+  run-pipeline stop and slot rules, root coordinator, `/developer` go-signal, `/pr` review loop, `/verify`, `/clarify`). Each is a
+  scenario with its facts in the prompt and a rubric (`llm` grader) or a regex on the answer.
+
+Run it with `bash scripts/run-evals.sh [--tag routing|rules|issues] [--case <glob>] [--runs <n>]` — it adds what the `rules` and `issues`
+cases need: `--scaffold` (each builds a small fixture repo with a `.shipkit/config.yml` from its own `scaffold.sh`, because every skill
+gates on that file) and one Bash grant for `probe.sh`. Every run and every judge vote is a model call, so it is **not** in
+`scripts/self-test.sh` or the pre-commit hook: all 61 cases at the default 3 runs cost tens of dollars; `--runs 1` on one tag costs ≈ $10.
+
+- Run it after changing a skill's `description` (routing depends on it) or a rule a case pins, and when you add a skill (add a
+  `routes-<name>` case). When a memory entry or a bug report names a rule the agent got wrong, add an `issue-*` case with the facts
+  in the prompt and a rubric of concrete PASS and FAIL conditions.
+- A failing `routes-*` case means the skill's `description` does not trigger on that phrasing: fix the description, not the case. A
+  failing rule or issue case is either the skill text (unclear or changed) or the rubric (check the judged excerpt in the report
+  before touching either); keep rubrics to what the skill says, a judge fails an answer for a detail the skill never asked for.
+- Without `--ablation none` each case also runs with no plugin. A `tool_used: Skill` grader cannot pass without the plugin, so `Δ`
+  there is trivially +1: read `WITH`. On the 43 rule and issue cases (1 run each) `Δ` was +1.00 on 36; these answer the same without
+  the plugin, so they are regression guards, not proof the plugin adds anything: `issue-bugfix-spec-edit-needs-decision`,
+  `issue-clarify-claims-need-a-source`, `issue-developer-mention-is-not-a-go`, `issue-pr-no-retrigger-without-commit`,
+  `issue-verify-contradicting-picture-blocks`, `rule-dirty-worktree-not-removed`, `rule-question-in-users-language` (the language line
+  is in the prompt, it checks the skills obey it).
+- A run is a temporary home with no memory, no Jira, no Slack: it checks what the agent decides from the skill text, not what a
+  script or a live system does. Results go to `evals/results/` (gitignored).

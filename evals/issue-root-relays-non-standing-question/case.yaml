@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-root-relays-non-standing-question
+context:
+  scaffold_script: scaffold.sh

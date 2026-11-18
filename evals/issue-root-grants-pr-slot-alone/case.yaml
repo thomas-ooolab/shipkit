@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-root-grants-pr-slot-alone
+context:
+  scaffold_script: scaffold.sh

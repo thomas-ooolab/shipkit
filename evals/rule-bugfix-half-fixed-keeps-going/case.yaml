@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: rule-bugfix-half-fixed-keeps-going
+context:
+  scaffold_script: scaffold.sh

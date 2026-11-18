@@ -28,6 +28,7 @@ The checks stay in the plugin and the token stays off the command line (stdin to
 | Work out when /developer's next run is due: the next Monday-to-Friday start of the observer window, as the `cron` of a one-shot `CronCreate` plus the time to show | `python3 -I scripts/next-workday.py --window <observer_hours>` |
 | Which language the user wants to be answered in (config `language:`, else what earlier sessions' memory says; `--hook` is the SessionStart hook that tells every session) | `python3 -I scripts/user-language.py` |
 | Check that `/bugfix` has a verdict and its evidence file for every concern of the report, and whether every concern is fixed on the latest code | `python3 -I scripts/bugfix-coverage.py .shipkit/bugfix-<ticket>.md` |
+| Run the plugin's eval suite (`claude plugin eval`) with the flags its cases need (fixture workspaces, the `probe.sh` Bash grant); a model call per run | `bash scripts/run-evals.sh [--tag …] [--case …] [--runs n]` |
 | Kill what a browser-driving agent left behind | `bash scripts/cleanup-browsers.sh <scratch-dir>` |
 | Screenshot a native popup the browser draws outside the page | `node scripts/capture-native-popup.js` |
 | Measure a page against a design contract | `scripts/recon-extract.js`, `scripts/recon.sh` |

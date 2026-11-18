@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pr-one-tagging-post-per-tick
+context:
+  scaffold_script: scaffold.sh

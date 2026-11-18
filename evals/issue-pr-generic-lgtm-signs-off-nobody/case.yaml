@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pr-generic-lgtm-signs-off-nobody
+context:
+  scaffold_script: scaffold.sh

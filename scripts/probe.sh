@@ -154,7 +154,7 @@ case "${1:-}" in
       echo "----- end -----"
       # also surface next spec number from disk (ground truth beats the cached value)
       last=$(ls "$(spec_dir)" 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
-      [ -n "$last" ] && echo "DISK_HIGHEST_SPEC=$last"
+      if [ -n "$last" ]; then echo "DISK_HIGHEST_SPEC=$last"; fi  # not `[ ] && echo`: with no spec yet that leaves exit 1 and every skill's `!` injection fails
     else
       echo "SHIPKIT_CONFIG_EXISTS=0"
       echo "Run /bootstrap first."
