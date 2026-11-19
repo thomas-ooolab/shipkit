@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pipeline-advisory-six-pass-cap-no-progress
+context:
+  scaffold_script: scaffold.sh

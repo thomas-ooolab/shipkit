@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-pipeline-advisory-second-pass-when-qualifying
+context:
+  scaffold_script: scaffold.sh
