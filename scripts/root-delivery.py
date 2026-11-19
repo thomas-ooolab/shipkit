@@ -10,15 +10,18 @@ Orca delivers mail to a run by typing a wake line into its terminal, and a deliv
 1. `orca orchestration inbox --terminal run:<RUN> --full --json`: the message's `delivered_at` is set -> DELIVERED.
 2. Else read the root terminal (scripts/wait-for-agent.sh <terminal> --once, which only reads). Only when the screen says the agent is
    idle AND its input box between the two rules is empty, type Orca's own wake line and Enter -> NUDGED.
-   A root that is mid-turn, stopped on a prompt, or has text in its input box gets nothing typed (a broadcast once landed in a
-   half-typed /merge command) -> RETRY. A placeholder or suggestion drawn in the box reads as text: no nudge, never a guess.
+   A root that is mid-turn or stopped on a prompt gets nothing typed -> RETRY.
+   A dim suggestion or placeholder in the input box is not the user's input, but a text read cannot tell it from typed text (Orca returns no
+   colour). So text in the box counts as a suggestion, and the wake line is typed, only when it reads the same in two reads SETTLE seconds
+   apart (15; ROOT_DELIVERY_SETTLE overrides) and does not start with "/": a user typing changes it between the reads, and a half-typed slash
+   command (a broadcast once landed in a half-typed /merge) is never taken for a suggestion -> otherwise RETRY, nothing typed.
 3. `--nudged` (the caller already woke this message once): never types again -> RETRY.
 
 stdout, one line:  DELIVERED <delivered_at> | NUDGED | RETRY <reason> | ERROR <reason>
 exit 0 DELIVERED or NUDGED · 10 RETRY (read again in 2-3 minutes) · 4 ERROR (orca failed, message not in that inbox) · 2 usage.
 ORCA is resolved like wait-for-agent.sh (ORCA_CLI_COMMAND, ORCA_DEV_REPO_ROOT, Linux orca-ide, else orca).
 """
-import json, os, re, subprocess, sys, tempfile
+import json, os, re, subprocess, sys, tempfile, time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -38,14 +41,20 @@ def orca(*args):
     return p.returncode, p.stdout, p.stderr
 
 
-def box_is_empty(lines):
-    """True when the last input box (two rules, at most 6 lines apart) holds no text after its prompt mark; None when no box is found."""
+def box_text(lines):
+    """The text in the last input box (two rules, at most 6 lines apart) after its prompt mark, '' when it is empty; None when no box is found."""
     rules = [i for i, l in enumerate(lines) if re.search(r"[─━]{8,}", l)]
     for a, b in reversed(list(zip(rules, rules[1:]))):
         if 1 <= b - a <= 7:
-            inner = [l.strip() for l in lines[a + 1:b]]
-            return all(re.fullmatch(r"[❯>›]?", l) for l in inner)
+            return " ".join(re.sub(r"^[❯>›]\s*", "", l.strip()) for l in lines[a + 1:b]).strip()
     return None
+
+
+def screen_of(terminal):
+    """(SCREEN value, input box text) from one read of the root terminal."""
+    p = subprocess.run(["bash", str(HERE / "wait-for-agent.sh"), terminal, "--once"], capture_output=True, text=True, env=os.environ)
+    first, _, rest = p.stdout.partition("\n")
+    return first.replace("SCREEN=", "") or "unreadable", box_text(rest.splitlines()[1:])
 
 
 def check(run, msg, terminal, nudged):
@@ -61,13 +70,18 @@ def check(run, msg, terminal, nudged):
         return 0, f"DELIVERED {row['delivered_at']}"
     if nudged:
         return 10, "RETRY already woken once, nothing typed"
-    p = subprocess.run(["bash", str(HERE / "wait-for-agent.sh"), terminal, "--once"], capture_output=True, text=True, env=os.environ)
-    first, _, rest = p.stdout.partition("\n")
-    if first != "SCREEN=agent":
-        return 10, f"RETRY root terminal is {first.replace('SCREEN=', '') or 'unreadable'}, nothing typed"
-    empty = box_is_empty(rest.splitlines()[1:])
-    if empty is not True:
-        return 10, "RETRY input box is not empty or not found, nothing typed"
+    screen, text = screen_of(terminal)
+    if screen != "agent":
+        return 10, f"RETRY root terminal is {screen}, nothing typed"
+    if text is None:
+        return 10, "RETRY input box not found, nothing typed"
+    if text:  # not empty: a suggestion only when it stays the same and is no slash command; see the docstring
+        if text.startswith("/"):
+            return 10, "RETRY input box holds a slash command, nothing typed"
+        time.sleep(float(os.environ.get("ROOT_DELIVERY_SETTLE", "15")))
+        screen2, text2 = screen_of(terminal)
+        if screen2 != "agent" or text2 != text:
+            return 10, "RETRY input box text changed between two reads, nothing typed"
     wake = f"You have 1 orchestration message. Run orca orchestration check --run {run}."
     rc, _, _ = orca("terminal", "send", "--terminal", terminal, "--text", wake, "--enter")
     return (0, "NUDGED") if rc == 0 else (4, f"ERROR terminal send failed (orca exit {rc})")
@@ -102,7 +116,11 @@ if a[:2] == ["orchestration", "inbox"]:
     rows = json.load(open(d + "/inbox.json"))
     print(json.dumps({"ok": True, "result": {"messages": rows, "count": len(rows)}}))
 elif a[:2] == ["terminal", "read"]:
-    print(json.dumps({"ok": True, "result": {"terminal": {"status": "running", "tail": json.load(open(d + "/screen.json"))}}}))
+    screens = json.load(open(d + "/screen.json"))
+    n = int(open(d + "/n").read()) if os.path.exists(d + "/n") else 0
+    open(d + "/n", "w").write(str(n + 1))
+    tail = screens[min(n, len(screens) - 1)] if screens and isinstance(screens[0], list) else screens
+    print(json.dumps({"ok": True, "result": {"terminal": {"status": "running", "tail": tail}}}))
 elif a[:2] == ["terminal", "send"]:
     open(d + "/sent.txt", "a").write(json.dumps(a) + "\n")
 else:
@@ -121,7 +139,7 @@ def self_test():
             os.chmod(Path(d, "orca"), 0o755)
             Path(d, "inbox.json").write_text(json.dumps(rows))
             Path(d, "screen.json").write_text(json.dumps(screen))
-            env = {**os.environ, "ORCA_CLI_COMMAND": str(Path(d, "orca")), "STUB_DIR": d}
+            env = {**os.environ, "ORCA_CLI_COMMAND": str(Path(d, "orca")), "STUB_DIR": d, "ROOT_DELIVERY_SETTLE": "0"}
             p = subprocess.run([sys.executable, "-I", __file__, "--run", "run_1", "--msg", "m1", "--terminal", "t1", *extra],
                                capture_output=True, text=True, env=env)
             sent = Path(d, "sent.txt").read_text().strip().splitlines() if Path(d, "sent.txt").exists() else []
@@ -136,8 +154,13 @@ def self_test():
     idle = ["• done", RULE, "❯ ", RULE, "  ⏵⏵ accept edits on"]
     case("delivered: nothing typed", [{"id": "m1", "delivered_at": "2026-11-19T08:51:54Z"}], idle, "DELIVERED 2026-11-19T08:51:54Z", 0, 0)
     case("undelivered, idle empty box: wake line typed", undelivered, idle, "NUDGED", 0, 1)
-    case("undelivered, text in the box: nothing typed", undelivered, ["• done", RULE, "❯ /merge AR-6", RULE], "RETRY input box", 10, 0)
-    case("undelivered, placeholder in the box reads as text", undelivered, ["• done", RULE, "❯ Try \"fix lint errors\"", RULE], "RETRY input box", 10, 0)
+    sugg = ["• done", RULE, "❯ run the tests again", RULE]
+    case("undelivered, dim suggestion (same text twice): wake line typed", undelivered, [sugg, sugg], "NUDGED", 0, 1)
+    case("undelivered, slash command in the box: nothing typed", undelivered, [["• done", RULE, "❯ /merge AR-6", RULE]], "RETRY input box holds a slash command", 10, 0)
+    case("undelivered, text changes between reads (user typing): nothing typed", undelivered,
+         [["• done", RULE, "❯ fix the", RULE], ["• done", RULE, "❯ fix the login bug", RULE]], "RETRY input box text changed", 10, 0)
+    case("undelivered, root starts a turn between the reads: nothing typed", undelivered,
+         [sugg, ["✢ Working… (3s · esc to interrupt)", RULE, "❯ ", RULE]], "RETRY input box text changed", 10, 0)
     case("undelivered, root mid-turn: nothing typed", undelivered, ["✢ Working… (12s · esc to interrupt)", RULE, "❯ ", RULE], "RETRY root terminal is working", 10, 0)
     case("undelivered, root on a y/n prompt: nothing typed", undelivered, ["Do you want to proceed? (y/n)"], "RETRY root terminal is attention", 10, 0)
     case("undelivered, already nudged: nothing typed", undelivered, idle, "RETRY already woken", 10, 0, ("--nudged",))
