@@ -184,6 +184,8 @@ re-confirm success from ground truth and append the result + timestamp to the st
 - **Stage 4 — review** (implement passed, review not done or stale): dispatch `/review-changes --ticket <ticket>`.
   Success = the report reads `0 blocking`; write its `passed @` line. `<n> blocking` → without `auto`, stop and report; with `AUTO=true`, class A
   (`loop-rules.md`): fix, re-run, in rounds. The review writes nothing itself: the count and the `HEAD`s come from its output and `git`, so record them.
+  `0 blocking` with advisory findings left, with or without `auto`: before the `passed @` line, judge each advisory and fix the ones that qualify in one pass,
+  then re-run the review (`loop-rules.md` §12: not a round, no stop, no second pass); the ones left go in the report's `Advisory:` line.
 - **Stage 4.5 — verify** *(gate, every ticket)*: dispatch `/verify --ticket <ticket>`. It exercises each
   `REQ-NNN` on the running app and saves evidence (FE screenshot, BE request/response and data); when
   `Design gate = on` it also diffs the built UI against `design-contract.md` (responsive included). It needs
@@ -222,6 +224,7 @@ Scope: <scope>
 Stages: 1✅ 2✅ 3✅ 4✅ 5✅ 6… 7…
 Spec:   specs/NNN-<slug>/spec.md
 PRs:    <child PR urls + parent PR url, or "—">
+Advisory: <n> fixed, <k> left — <one line per advisory left, with why; "—" when the review had none>
 Next:   <the single next action — implement / wait for merge / bump / done>
 ```
 `Status: done` → after this report, tell the root as `loop-rules.md` §11 says (the run's last action).
