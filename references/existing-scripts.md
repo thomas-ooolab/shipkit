@@ -31,6 +31,7 @@ The checks stay in the plugin and the token stays off the command line (stdin to
 | Which language the user wants to be answered in (config `language:`, else what earlier sessions' memory says; `--hook` is the SessionStart hook that tells every session) | `python3 -I scripts/user-language.py` |
 | Check that `/bugfix` has a verdict and its evidence file for every concern of the report, and whether every concern is fixed on the latest code | `python3 -I scripts/bugfix-coverage.py .shipkit/bugfix-<ticket>.md` |
 | Measure a worker agent's real usage right now (kiro plan credits, claude session/week %) before choosing or starting it; exit 1 = not measured | `bash scripts/agent-usage.sh kiro\|claude` (`references/agent-usage.md`) |
+| A message sent to the root coordinator (`run:<RUN>`) is still undelivered after 2-3 minutes: read its `delivered_at`, and wake the root only from an idle, empty input box; `RETRY` = nothing typed | `python3 -I scripts/root-delivery.py --run <RUN> --msg <id> --terminal <root_terminal> [--nudged]` (`run-pipeline/loop-rules.md` §8) |
 | Run the plugin's eval suite (`claude plugin eval`) with the flags its cases need (fixture workspaces, the `probe.sh` Bash grant); a model call per run | `bash scripts/run-evals.sh [--tag …] [--case …] [--runs n]` |
 | Kill what a browser-driving agent left behind | `bash scripts/cleanup-browsers.sh <scratch-dir>` |
 | Screenshot a native popup the browser draws outside the page | `node scripts/capture-native-popup.js` |

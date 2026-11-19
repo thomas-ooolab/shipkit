@@ -33,6 +33,7 @@ run "verdict-predicate tests"           python3 -I skills/pr/test-verdict-predic
 run "send-when-ready.sh"                 bash scripts/send-when-ready.sh --self-test
 run "agent-usage.sh"                     bash scripts/agent-usage.sh --self-test
 run "wait-for-slack-reply.sh (dm mode)" bash scripts/wait-for-slack-reply.sh --self-test
+run "root-delivery.py"                  python3 -I scripts/root-delivery.py --self-test
 if command -v node >/dev/null 2>&1; then
   run "post-slack.js"                   node scripts/post-slack.js --self-test
   run "slack-dm-history.js"             node scripts/slack-dm-history.js --self-test
