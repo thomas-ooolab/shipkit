@@ -15,6 +15,7 @@ Check for:
 - **Docs/comments** — missing doc on an exported symbol, stale comment, comment that contradicts code.
 - **Dead code** — unused vars/imports/functions introduced by the change.
 - **Readability** — overly complex expressions that a reviewer would struggle to follow.
+- **Duplication the diff makes** — the diff edits two or more hand-written copies of the same fake, helper, constant or logic (a method added to each of several in-memory fakes). Name the number of copies and where, start the finding with `dedupe:`, and make it `advisory`: the coordinator merges the copies into the shared one in the same run (`references/diff-duplication.md`); it is not a style suggestion.
 - **Responsive discipline** (FE only) — flag desktop-only implementations: hardcoded pixel
   widths/heights on layout elements with no responsive variant, multi-column `flex-row`/`grid-cols-N`
   with no `sm:`/`md:` stacking, `overflow-x` used to mask a layout that should reflow, or fixed heading
@@ -26,6 +27,7 @@ CLAUDE.md rule (then `blocking`). Return ONLY a JSON array (or `[]`):
 ```json
 [
   {"pass": "style", "finding": "route handler adds business logic — CLAUDE.md says handlers only proxy", "severity": "blocking", "submodule": "service-fe", "file": "src/app/api/x/route.ts", "line": 20},
+  {"pass": "style", "finding": "dedupe: 3 hand-written in-memory counters, each edited by this diff (limiter_test.go:40, mw_test.go:22, ailimittest/counter.go:15)", "severity": "advisory", "submodule": "service-be", "file": "pkg/ginext/mw_test.go", "line": 22},
   {"pass": "style", "finding": "unused import 'lodash'", "severity": "advisory", "submodule": "service-fe", "file": "src/lib/x.ts", "line": 3}
 ]
 ```

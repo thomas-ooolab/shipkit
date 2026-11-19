@@ -154,7 +154,7 @@ Per submodule, `PATH` = its path,
   `REQ-NNN`, plus the absolute path of `spec.md`.
 - **Allowlist:** the file paths those tasks name **plus the files they cannot be done without** — never write outside it. The coordinator finds
   the second kind while composing the brief, from the code, not from the plan: the file that declares an interface or type a task adds to
-  or implements, generated outputs the submodule's own generate step rewrites, mocks and their config, and registration or wiring points. Each
+  or implements, generated outputs the submodule's own generate step rewrites, **every other implementer** of that interface or type (grep for them before writing the brief, fakes in `*_test.go` and mocks included: two or more hand-written copies of the same logic make the task "merge them into the shared one, adding the accessor it lacks", never "add the method to each copy", and the shared file and its callers are in the allowlist from the start, `${CLAUDE_PLUGIN_ROOT}/references/diff-duplication.md`), mocks and their config, and registration or wiring points. Each
   addition is named in the brief with the task that needs it. If a needed file is still missing, the worker **stops** and reports the gap
   (it never widens the allowlist itself); widening it afterwards is the user's call.
 - **Guard:** work only inside `PATH` and that allowlist; **never run `git push`** — no branch, no flag, no force, not even the feature

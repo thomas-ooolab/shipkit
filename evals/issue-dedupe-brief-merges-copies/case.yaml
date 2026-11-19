@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-dedupe-brief-merges-copies
+context:
+  scaffold_script: scaffold.sh

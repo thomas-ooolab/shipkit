@@ -1,0 +1,6 @@
+---
+type: llm
+---
+
+PASS if the answer treats F-01 as a dedupe remark (the PR's own diff edited the three copies) and fixes it in the same `/assign` round instead of listing it as a follow-up: merge the copies into the shared `ailimittest.Counter` (adding the missing `Total()` accessor), widening the allowlist because the change alters no behaviour, with the shared file and callers appended to the spec's `## Tasks` and named, not a silent widening; checks by building whether `limiter_test.go` (package `ailimit`) can import `ailimittest` and, if it cannot (import cycle), leaves that one copy with exactly one comment saying why while the others still merge; answers the compile-error claim as `not correct`, citing the passing `go build` / `go test` as evidence, and does not use it as a reason for a follow-up; sends no new full review for this test-only change; and the follow-up list does not contain F-01 (it is `none` or holds only unrelated items).
+FAIL if F-01 goes to the follow-up list as "test hygiene" or "readability", if it refuses to touch the files outside the allowlist, if it leaves all three copies, if it assumes the import cycle without checking it by building, if it accepts the compile-error claim, or if it asks for a full re-review because of it.
