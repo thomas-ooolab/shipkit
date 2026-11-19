@@ -10,7 +10,7 @@ counters (AR-678: `fakeCounter`, `memCounter`, `ailimittest.Counter`). The cause
    and mocks included, before writing the brief. Two or more hand-written copies of the same logic make the task "merge them into the shared one (add the accessor it
    lacks)", never "add the method to each copy". The shared file and the places that call it are in the allowlist from the start, each named with the task that needs it
    (`/assign` Step 5, *Allowlist*; `/bugfix` Step 3.1).
-3. **Fix it in the same round** (`/pr` step 4b; `/run-pipeline` `loop-rules.md` §12): merge every copy into the shared one (add the missing accessor to it, switch the callers, delete
+3. **Fix it in the same round** (`/pr` step 4b; `/run-pipeline` `loop-rules.md` §12, a copy in a test helper or fake included): merge every copy into the shared one (add the missing accessor to it, switch the callers, delete
    the copies), then run the tests of the packages changed. It changes no behaviour, so the shared file and the callers may lie outside the allowlist the earlier worker had:
    widening it here is right, not a silent widening. The task is appended to `spec.md` `## Tasks` with those paths (so the allowlist and `/review-changes`'s drift check stay
    true), and the brief names why each file is added. It is never put on a follow-up list.

@@ -16,6 +16,17 @@ check takes one command, and it comes back with the result.
 **A guess is not a finding.** What you did not check is written as a question or an open item, never as a conclusion ("probably", "should be",
 "standard behavior" included).
 
+**A name search is not a dependency check.** A `grep` proves only that a name is absent from the text. To claim "nothing depends on X", "no test relies on
+X" or "this is not affected", read how the consumers get their data: a mock that returns the same pointer twice, a fixture, a shared slice or map, a
+constructor that copies or does not. When it is cheap, make the change in a scratch copy and run the tests of that package. *Example (AR-684):* a reviewer said
+a committed test reuses the run pointer; the coordinator left the advisory without reading the test, then told the user the reason was unverified because
+`grep DeliveredKeys` in the tests found nothing. Reading `worker_redelivery_test.go` showed the reviewer was right: the `GetByID` mock returns the same `*ReportRun`
+twice and `Deliver` appends to it in place, so the test depends on a field it never names. A reviewer's note is a lead to read, not a reason; a grep that
+finds nothing is not "no".
+
+**A correction is a claim too.** Before telling a person "my earlier reason was wrong", or "your reason was wrong", check the correction the same way as the original
+claim, in both directions: what would show the first claim right, and what would show it wrong. A flip-flop costs more trust than a plain "not checked yet".
+
 | Excuse | Reality |
 |---|---|
 | "I'll say it's unchecked, they can ask me to look" | They will, and the check was one read. Do it now, answer with the result. |
@@ -23,3 +34,5 @@ check takes one command, and it comes back with the result.
 | "It's probably the same as staging" | Prod you cannot reach is a named blocker (no credentials; who has them), not a guess about its value. |
 | "I read the code, so the server does that" | Code says what should run, the host says what runs. If a read-only look at the host is allowed, take it. |
 | "A caveat at the end covers me" | A caveat on a checkable fact is the failure this file is about. |
+| "A grep for the name found nothing, so nothing depends on it" | A grep proves only that the name is absent. Read how the consumers build their data, or run the change in a scratch copy. |
+| "The earlier reason was wrong, I'll say so" | Check the correction as the original: in both directions, before it reaches the person. |
