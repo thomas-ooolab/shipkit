@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: issue-assign-kiro-warm-terminal-closed-by-terminal-close
+context:
+  scaffold_script: scaffold.sh

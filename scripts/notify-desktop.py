@@ -15,6 +15,8 @@
                       with P no longer reads "P V" (the cause was resolved, the file or the line is gone) exit 0 at once without notifying, so the
                       process ends within about a minute of the change. Used by /run-pipeline: a notice for "Waiting since: <ISO>" is dropped
                       as soon as the stage moved on.
+--unless-line-changed F P  the same, but the value is read from the file when the script starts: the line starting with P as it reads then. The caller never composes
+                      the value (a value written with a leading space, `"Status:" " waiting-user"`, once made the script exit 2). The line must be there at the start (as below).
 --wait-only           no notice: just wait --after S (with --unless-changed, as above) and end. A timer that wakes a session without a person:
                       a blind `sleep` outlives its cause, this one ends within about a minute of it. Takes no --window, --title or --message.
                       The --unless-changed line must be there when it starts (the timer is armed right after the line is written): a missing file,
@@ -59,14 +61,19 @@ def seconds_to_window(at, start, end):
     return max(1, int((nxt - at).total_seconds()))
 
 
-def line_unchanged(path, prefix, value):
+def current_value(path, prefix):
+    """What follows `prefix` on the first line that starts with it (stripped); None when the file or the line is not there."""
     try:
         for line in Path(path).read_text().splitlines():
             if line.startswith(prefix):
-                return line[len(prefix):].strip() == value
+                return line[len(prefix):].strip()
     except OSError:
-        return False
-    return False
+        return None
+    return None
+
+
+def line_unchanged(path, prefix, value):
+    return value is not None and current_value(path, prefix) == value.strip()
 
 
 STEP, RECHECK = 60, 2   # seconds: how often a wait looks at the --unless-changed line; the pause before a change is confirmed
@@ -110,6 +117,9 @@ def main(argv):
                 window = parse_window(a.pop(0))
             elif x == "--unless-changed":
                 unless = (a.pop(0), a.pop(0), a.pop(0))
+            elif x == "--unless-line-changed":
+                f, p = a.pop(0), a.pop(0)
+                unless = (f, p, current_value(f, p))
             elif x == "--title":
                 title = a.pop(0)
             elif x == "--message":
@@ -128,7 +138,8 @@ def main(argv):
         if dry:
             print(f"would wait {after} s"); return 0
         if unless and not line_unchanged(*unless):   # a timer is armed right after the line is written: not there now means a wrong path, cwd or prefix
-            print(f"line not found at start: {unless[0]} {unless[1]!r} {unless[2]!r} (a relative file path needs the worktree root as the working directory)", file=sys.stderr)
+            shown = "" if unless[2] is None else f" {unless[2]!r}"
+            print(f"line not found at start: {unless[0]} {unless[1]!r}{shown} (a relative file path needs the worktree root as the working directory)", file=sys.stderr)
             return 2
         return 0 if wait(after, unless) else 5
     if not title or message is None:
@@ -201,6 +212,17 @@ def self_test():
         assert main(["--wait-only", "--after", "5", "--print"]) == 0                      # shows, waits for nothing
         assert main(["--wait-only"]) == 2 and main(["--wait-only", "--after", "5", "--window", "08:00-18:00"]) == 2
         assert main(["--wait-only", "--after", "5", "--title", "t", "--message", "m"]) == 2
+        # AR-684: a value composed by hand with a leading space ("Status:" " waiting-user · x") is the same value, not "line not found"
+        f.write_text("# x\nWaiting since: 2026-11-16T09:00:00Z\nStatus: waiting-user · x\n")
+        assert main(["--wait-only", "--after", "1", "--unless-changed", str(f), "Status:", " waiting-user · x"]) == 0
+        # --unless-line-changed reads the value itself: unchanged -> 0 when the time ran out, changed -> 5, no line / no file / no prefix -> 2
+        assert main(["--wait-only", "--after", "1", "--unless-line-changed", str(f), "Status:"]) == 0
+        threading.Timer(1.5, lambda: f.write_text("# x\nStatus: running\n")).start()
+        t0 = time.monotonic()
+        assert main(["--wait-only", "--after", "3600", "--unless-line-changed", str(f), "Status:"]) == 5 and time.monotonic() - t0 < 10
+        assert main(["--wait-only", "--after", "3600", "--unless-line-changed", str(f), "Waiting since:"]) == 2
+        assert main(["--wait-only", "--after", "3600", "--unless-line-changed", str(Path(d) / "no-such-dir" / "p.md"), "Status:"]) == 2
+        assert main(["--wait-only", "--after", "3600", "--unless-line-changed", str(f)]) == 2
         # the push-window loop of loop-rules §7, taken from the text and run for real: it ends with the script's own exit code, so 5 means
         # "the line changed" and nothing else does (a loop that said `|| exit 5` turned a usage error into a silent no-op)
         root = Path(__file__).resolve().parent.parent

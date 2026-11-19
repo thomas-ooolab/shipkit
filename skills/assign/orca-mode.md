@@ -213,15 +213,21 @@ other submodules stay on kiro.
 **Idle close (3 minutes).** A `✅` worker does not stay open on the user's machine:
 1. When Step 6 has written the report, write `idle-since=<epoch seconds>` (`date +%s`) beside each `✅` worker's handle in the state file, then
    start one background `sleep 180` (Bash, `run_in_background: true`). Its notification is the wake-up. **Tell the user in the report** with an
-   `Idle close:` line: which `✅` terminals will close and at what time (`date -v+3M '+%H:%M'`), or that none will.
+   `Idle close:` line: which `✅` terminals will close and at what time (`date -v+3M '+%H:%M'`), or that none will. A kiro warm terminal is listed as closing only because item 3 closes it with `terminal close`; it is confirmed there as `closed` or `left open`, so the report never promises a close that did not happen.
 2. A new task for that submodule (a fix after `/verify`, a follow-up brief) starts a new worker, never a reuse: `worker-release` the old terminal
    and delete its `idle-since` then.
 3. At the wake-up, for every handle that still has `idle-since` (180 s or more old), read it (*Reading a worker*; the screen look and the
    transcript). It is idle — an input box, nothing in progress — → `ORCA orchestration worker-release --dispatch <id> --json` (it closes only that
-   worker's own terminal, and the output stays readable with `worker-read`; never `terminal close`), then write `closed (idle 3 min)` in the
+   worker's own terminal, and the output stays readable with `worker-read`; never `terminal close`, except for a kiro warm terminal, below), then write `closed (idle 3 min)` in the
    state file. It is doing something, or waiting on a person (a prompt, a question) → leave it open and delete `idle-since`. A release that answers
    ok but leaves the terminal `retained` (the user touched it, `user_takeover`) is left open, not closed: check `worker-list` after the release
-   before writing `closed`. Tell the user in one line per handle what you did and why (closed, or left open and what it was doing) — an
+   before writing `closed`.
+   **A kiro warm terminal** (*Starting kiro*: `terminal create --command kiro-cli`, then `worker-start --terminal`) is the coordinator's own terminal, not one
+   Orca made for the worker, so `worker-release` answers `state: retained, reason: external_terminal` and never closes it (AR-684, twice: `term_b9b6c9c2`,
+   `term_39f04adf`; the report had said it would close). For it: `worker-release` as above (it clears the worker's record), and when it answers
+   `external_terminal`, after the same idle read and once `worker_done` was accepted and the transcript read, `ORCA terminal close --terminal <handle>` — the coordinator
+   created that terminal, so closing it is its own to do. Then `ORCA terminal list --json` must no longer list the handle: only then write `closed (idle 3 min)`. Still
+   listed, or the close failed → write `left open (external terminal)` and say so in the `Idle close:` line. Tell the user in one line per handle what you did and why (closed, or left open and what it was doing) — an
    `Idle close:` line. `❌` terminals are never closed this way: they are retained for the user to read.
 
 Record the handles in the state file; `❌` terminals stay open (`worker-retain`) for the user to read. Checkpoint with
