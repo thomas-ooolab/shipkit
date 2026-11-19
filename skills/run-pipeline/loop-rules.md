@@ -23,7 +23,7 @@ Without `auto` a class A failure is a stop like a class C one. Every stop in thi
 |---|---|---|
 | spec | `/spec-from-ticket <ticket>` | the spec predicate |
 | plan | `/plan-deep --ticket <ticket> --auto` (it caps its own review passes at 2; one dispatch is one round) | the plan predicate |
-| implement (`AUTO`) | `/assign <ticket> [--agent kiro]` (the agent's usage is measured at that dispatch, `references/agent-usage.md`; never carried over from an earlier round) | the implement predicate |
+| implement (`AUTO`) | `/assign <ticket> [--agent <the user's flag, only when they typed one>]` (the agent's usage is measured at that dispatch, kiro first, `references/agent-usage.md`; never carried over from an earlier round, and no `--agent` of your own from memory or a note) | the implement predicate |
 | review, verify (standard) | per submodule with a finding or a failed REQ: `cd` into it, `/assign "<brief>" --continue --no-push` (the brief quotes the blocking findings, or the failed REQ ids with `/verify`'s failure text, plus "fix only these, run the tests of the files you changed (`${CLAUDE_PLUGIN_ROOT}/references/scoped-tests.md`), commit, never push") | the **whole** stage again (`/review-changes --ticket`, `/verify --ticket`) |
 | review, verify (bug) | the same | the same; `/verify` keeps its `--req` scope from `bugfix-flow.md` |
 | bugfix (bug flow) | none — `/bugfix` loops itself (3 rounds per concern, its Step 3.1) | the bugfix predicate |
