@@ -147,8 +147,9 @@ request) or `ORCA orchestration inbox --terminal run:<RUN> --full` brings it bac
   hint, then from the commit and the spec's tasks); no commit, a dirty tree, or a worker that pushed
   anyway (`unpushed=0` before you pushed) → `❌`, say which — report it, don't accept on top. **Either outcome**, then the
   terminal's next owner, exactly one — never another brief (*A settled terminal is never reused*): a `❌` or not-accepted worker → **`worker-retain --dispatch <id>`** (the
-  user reads what went wrong); a `✅` worker → left as it is and **closed on its own after 3 idle minutes** (*Idle close*
-  below, which starts only in Step 6, after the last wave), or `worker-release` at once if the user asks or when a new worker for the same submodule starts. A settled terminal left undecided stays `reclaimable`.
+  user reads what went wrong); a `✅` claude worker → left as it is and **closed on its own after 3 idle minutes** (*Idle close*
+  below, which starts only in Step 6, after the last wave), or `worker-release` at once if the user asks or when a new worker for the same submodule starts; a `✅` **kiro warm terminal** is closed
+  **now**, once the commit is accepted and the screen reads idle (*Idle close*, *A kiro warm terminal*): Step 6's timer never comes for a run of several waves or advisory passes. A settled terminal left undecided stays `reclaimable`.
 - **`escalation`** → Orca's own note that something went wrong (for instance that a worker ended its turn on an error without `worker_done`). It is
   evidence, not a verdict: read the worker as in *Reading a worker*, answer nothing on the user's behalf, and tell the user what you found and
   decided — or the choice, if it is theirs. (This message type was not reproduced.)
@@ -156,7 +157,7 @@ request) or `ORCA orchestration inbox --terminal run:<RUN> --full` brings it bac
   waits for the next batch (add `--ack <delivery_id>` only when the previous reply carried a `deliveryId`).
 Wait for the **whole wave** to settle before starting the next — a later wave may depend on what an earlier one just
 accepted (e.g. FE reading BE's freshly generated types). Before the turn ends, `ORCA orchestration worker-list --run <RUN>
---terminal-state reclaimable --json` must be empty, except the `✅` terminals whose idle close is pending.
+--terminal-state reclaimable --json` must be empty, except the `✅` claude terminals whose idle close is pending; a kiro warm terminal is closed or listed `left open` by then.
 
 ## Reading a worker
 
@@ -213,9 +214,10 @@ other submodules stay on kiro.
 **Idle close (3 minutes).** A `✅` worker does not stay open on the user's machine:
 1. When Step 6 has written the report, write `idle-since=<epoch seconds>` (`date +%s`) beside each `✅` worker's handle in the state file, then
    start one background `sleep 180` (Bash, `run_in_background: true`). Its notification is the wake-up. **Tell the user in the report** with an
-   `Idle close:` line: which `✅` terminals will close and at what time (`date -v+3M '+%H:%M'`), or that none will. A kiro warm terminal is listed as closing only because item 3 closes it with `terminal close`; it is confirmed there as `closed` or `left open`, so the report never promises a close that did not happen.
+   `Idle close:` line: which `✅` terminals will close and at what time (`date -v+3M '+%H:%M'`), or that none will. A kiro warm terminal is already closed at its `worker_done` (below) or by the *End-of-run sweep*, which prints its own `Idle close:` line per handle (`closed` / `left open: <why>`), so the report never promises a close that did not happen.
 2. A new task for that submodule (a fix after `/verify`, a follow-up brief) starts a new worker, never a reuse: `worker-release` the old terminal
-   and delete its `idle-since` then.
+   and delete its `idle-since` then. A kiro warm terminal that is still open then (its close at `worker_done` was `left open`) is closed too, as in item 3: it is `external_terminal`, so the
+   release alone leaves one more terminal behind each new worker (AR-672: 10 left open over two waves and four advisory passes).
 3. At the wake-up, for every handle that still has `idle-since` (180 s or more old), read it (*Reading a worker*; the screen look and the
    transcript). It is idle — an input box, nothing in progress — → `ORCA orchestration worker-release --dispatch <id> --json` (it closes only that
    worker's own terminal, and the output stays readable with `worker-read`; never `terminal close`, except for a kiro warm terminal, below), then write `closed (idle 3 min)` in the
@@ -224,11 +226,22 @@ other submodules stay on kiro.
    before writing `closed`.
    **A kiro warm terminal** (*Starting kiro*: `terminal create --command kiro-cli`, then `worker-start --terminal`) is the coordinator's own terminal, not one
    Orca made for the worker, so `worker-release` answers `state: retained, reason: external_terminal` and never closes it (AR-684, twice: `term_b9b6c9c2`,
-   `term_39f04adf`; the report had said it would close). For it: `worker-release` as above (it clears the worker's record), and when it answers
-   `external_terminal`, after the same idle read and once `worker_done` was accepted and the transcript read, `ORCA terminal close --terminal <handle>` — the coordinator
-   created that terminal, so closing it is its own to do. Then `ORCA terminal list --json` must no longer list the handle: only then write `closed (idle 3 min)`. Still
-   listed, or the close failed → write `left open (external terminal)` and say so in the `Idle close:` line. Tell the user in one line per handle what you did and why (closed, or left open and what it was doing) — an
-   `Idle close:` line. `❌` terminals are never closed this way: they are retained for the user to read.
+   `term_39f04adf`; the report had said it would close; AR-672: ten left open, `idle-since` on none of them). It is closed **when its work is accepted, not at this wake-up**
+   (a multi-wave run and each advisory pass's `/assign` never reach Step 6's timer): right after the `worker_done` with `outcome=succeeded` is accepted (pushed, unless `--no-push`) and
+   the transcript read, read the screen once (*Reading a worker*: an input box, nothing in progress), then `worker-release --dispatch <id>` (it clears the worker's record) and, because it answers
+   `external_terminal`, `ORCA terminal close --terminal <handle>` — the coordinator created that terminal, so closing it is its own to do. Then `ORCA terminal list --json` must no longer
+   list the handle: only then write `closed (accepted)` beside it. Still listed, the close failed, or the screen was not idle → write `left open (external terminal)`, keep an
+   `idle-since` on it so this item's wake-up and the sweep below try again, and say so in the `Idle close:` line. At this item's wake-up a kiro terminal still open gets the same read, release and
+   close, and is then written `closed (idle 3 min)`. Tell the user in one line per handle what you did and why (closed, or left open and what it was doing) — an
+   `Idle close:` line. `❌` terminals are never closed this way: they are retained for the user to read. A claude worker's terminal keeps the 3-minute rule above.
+
+**End-of-run sweep.** A run closes what it opened before it reports its last result: `/assign` Step 6, and — for a coordinator that ran several `/assign` invocations or started workers itself — before it
+writes `Status: done` (`/run-pipeline` `loop-rules.md` §11) and before a `❌` stop report.
+1. `ORCA terminal list --worktree current --json` and `ORCA orchestration worker-list --run <RUN> --json`.
+2. A candidate is a handle this worktree's `.shipkit/assign-*.md` records as `terminal=<handle> (kiro, warm terminal)`, plus a listed terminal whose title starts `<ticket> kiro` (a worker
+   started without a state row). Nothing else: not the user's own terminals, not a `❌` terminal (retained for the user), not a claude worker's (the 3-minute rule above).
+3. A candidate with a worker still running, or that is not at an idle input box → leave it open and say why. Any other → read, release, `terminal close`, and confirm with `terminal list`, as above.
+4. One `Idle close:` line per candidate: `<handle> closed` or `<handle> left open: <why>`; no candidate → `Idle close: no kiro warm terminal open`. After the sweep `terminal list` shows none of the handles it closed.
 
 Record the handles in the state file; `❌` terminals stay open (`worker-retain`) for the user to read. Checkpoint with
 `ORCA worktree set --worktree active --comment "assign <ticket>: wave N running (<names>)" --json`.
