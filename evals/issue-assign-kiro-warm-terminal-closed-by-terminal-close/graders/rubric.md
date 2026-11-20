@@ -2,5 +2,5 @@
 type: llm
 ---
 
-PASS if the answer, after the release answers `retained / external_terminal`, closes that terminal itself with `orca terminal close --terminal term_b9b6c9c2`, then checks with `orca terminal list` that the handle is gone and only then writes `closed (idle 3 min)` in the state file; when it is still listed or the close failed it writes `left open (external terminal)` and says so on the `Idle close:` line (an answer that gives both outcomes, keyed on what `terminal list` shows, is a PASS).
-FAIL if it writes `closed` right after the release without closing the terminal, says the terminal will close on its own, or never closes it and never says it was left open.
+PASS if the answer, after the release answers `retained / external_terminal` and the `terminal close`, does not conclude from the first `terminal list` (run at once, still showing `term_b9b6c9c2`) that the terminal stayed open: it waits a couple of seconds and lists once more, and writes `closed (idle 3 min)` (or `closed (accepted)`) only when the handle is gone on that second list; when it is still listed then, or the close failed, it writes `left open (external terminal)` and says so on the `Idle close:` line (an answer that gives both outcomes, keyed on the second `terminal list`, is a PASS).
+FAIL if it writes `left open` from the first list without listing again, writes `closed` while the handle is still listed, never closes the terminal itself, or says the terminal will close on its own.

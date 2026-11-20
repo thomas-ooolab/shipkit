@@ -230,7 +230,8 @@ other submodules stay on kiro.
    (a multi-wave run and each advisory pass's `/assign` never reach Step 6's timer): right after the `worker_done` with `outcome=succeeded` is accepted (pushed, unless `--no-push`) and
    the transcript read, read the screen once (*Reading a worker*: an input box, nothing in progress), then `worker-release --dispatch <id>` (it clears the worker's record) and, because it answers
    `external_terminal`, `ORCA terminal close --terminal <handle>` — the coordinator created that terminal, so closing it is its own to do. Then `ORCA terminal list --json` must no longer
-   list the handle: only then write `closed (accepted)` beside it. Still listed, the close failed, or the screen was not idle → write `left open (external terminal)`, keep an
+   list the handle: only then write `closed (accepted)` beside it. A `list` run right after the close can still show the handle (tested on Orca, 2026-11-20: `close` answered `ptyKilled: true`, a `list` at once still
+   showed it, and it was gone within 2 s), so wait 2 seconds and list once more before concluding it is still listed. Still listed after that, the close failed, or the screen was not idle → write `left open (external terminal)`, keep an
    `idle-since` on it so this item's wake-up and the sweep below try again, and say so in the `Idle close:` line. At this item's wake-up a kiro terminal still open gets the same read, release and
    close, and is then written `closed (idle 3 min)`. Tell the user in one line per handle what you did and why (closed, or left open and what it was doing) — an
    `Idle close:` line. `❌` terminals are never closed this way: they are retained for the user to read. A claude worker's terminal keeps the 3-minute rule above.
@@ -238,8 +239,9 @@ other submodules stay on kiro.
 **End-of-run sweep.** A run closes what it opened before it reports its last result: `/assign` Step 6, and — for a coordinator that ran several `/assign` invocations or started workers itself — before it
 writes `Status: done` (`/run-pipeline` `loop-rules.md` §11) and before a `❌` stop report.
 1. `ORCA terminal list --worktree current --json` and `ORCA orchestration worker-list --run <RUN> --json`.
-2. A candidate is a handle this worktree's `.shipkit/assign-*.md` records as `terminal=<handle> (kiro, warm terminal)`, plus a listed terminal whose title starts `<ticket> kiro` (a worker
-   started without a state row). Nothing else: not the user's own terminals, not a `❌` terminal (retained for the user), not a claude worker's (the 3-minute rule above).
+2. A candidate is a handle this worktree's `.shipkit/assign-*.md` records as `terminal=<handle> (kiro, warm terminal)`, and only that: the title given at `terminal create` is overwritten by the
+   terminal's own within seconds (tested: `shipkit-verify kiro` listed as `..oolab/shipkit`), so it identifies nothing. A listed terminal with `agentIdentity: kiro` that no state row records is
+   not closed; the `Idle close:` line names it (`<handle> not closed: no state row of this run`) for the user. Never the user's own terminals, a `❌` terminal (retained for the user) or a claude worker's (the 3-minute rule above).
 3. A candidate with a worker still running, or that is not at an idle input box → leave it open and say why. Any other → read, release, `terminal close`, and confirm with `terminal list`, as above.
 4. One `Idle close:` line per candidate: `<handle> closed` or `<handle> left open: <why>`; no candidate → `Idle close: no kiro warm terminal open`. After the sweep `terminal list` shows none of the handles it closed.
 
